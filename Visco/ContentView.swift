@@ -37,26 +37,27 @@ private struct CaptureExperienceView: View {
             VStack(alignment: .leading, spacing: 14) {
                 Text("Visco Capture")
                     .font(.headline)
+                    .foregroundStyle(.white)
 
                 Text(studio.statusText)
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.white.opacity(0.9))
 
                 HStack(spacing: 16) {
                     Label("\(studio.recordedFrameCount) frames", systemImage: "figure.dance")
                     Label(studio.recordingDurationText, systemImage: "clock")
                 }
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.white.opacity(0.78))
 
                 if studio.usesMockSource {
                     Text("シミュレータ用の MockMotionSource を使っています。疑似ダンスを収録対象として扱います。")
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.white.opacity(0.78))
                 } else {
                     Text("背面カメラで全身を捉え、短い振り付けを収録します。停止するとステージ再生に切り替わります。")
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.white.opacity(0.78))
                 }
 
                 HStack(spacing: 12) {
@@ -105,21 +106,22 @@ private struct StageExperienceView: View {
             VStack(alignment: .leading, spacing: 14) {
                 Text("Visco Stage")
                     .font(.headline)
+                    .foregroundStyle(.white)
 
                 Text(studio.statusText)
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.white.opacity(0.9))
 
                 HStack(spacing: 16) {
                     Label(studio.clipDurationText, systemImage: "music.note")
                     Label("\(studio.recordedFrameCount) frames", systemImage: "film")
                 }
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.white.opacity(0.78))
 
                 Text("収録した関節位置を簡易ダンサーとしてループ再生しています。将来的にはリグ済みキャラクターへ置き換える前提のモックです。")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.white.opacity(0.78))
 
                 HStack(spacing: 12) {
                     Button(studio.isPlaying ? "Pause" : "Play") {
@@ -178,7 +180,7 @@ private struct MockCapturePreviewView: View {
                     .font(.title3.weight(.semibold))
                 Text("カメラの代わりに疑似ダンスクリップを流し、収録から再生までのフローを確認します。")
                     .multilineTextAlignment(.center)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.white.opacity(0.8))
                     .padding(.horizontal, 36)
             }
             .foregroundStyle(.white)

@@ -39,6 +39,7 @@ final class StudioViewModel: ObservableObject {
         let source = StudioViewModel.makeMotionSource()
         self.source = source
         self.interactor = MotionStudioInteractor(source: source)
+        self.stageRenderer.setUsesProceduralMockPlayback(source is MockMotionSource)
 
         interactor.onStateChange = { [weak self] state in
             self?.state = state

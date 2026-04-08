@@ -10,20 +10,51 @@ import UIKit
 
 @MainActor
 final class StagePlaybackRenderer: NSObject {
+    private struct RenderJoint {
+        let name: ARSkeleton.JointName
+        let fallbackRawName: String?
+    }
+
+    private struct RenderLimb {
+        let start: ARSkeleton.JointName
+        let end: ARSkeleton.JointName
+    }
+
     private let skeletonDefinition = ARSkeletonDefinition.defaultBody3D
-    private lazy var limbPairs: [(Int, Int)] = {
-        skeletonDefinition.parentIndices.enumerated().compactMap { childIndex, parentIndex in
-            guard parentIndex >= 0 else {
-                return nil
-            }
-            return (parentIndex, childIndex)
-        }
-    }()
+    private let renderJoints: [RenderJoint] = [
+        .init(name: .root, fallbackRawName: "hips_joint"),
+        .init(name: .head, fallbackRawName: "head_joint"),
+        .init(name: .leftShoulder, fallbackRawName: "left_shoulder_1_joint"),
+        .init(name: .rightShoulder, fallbackRawName: "right_shoulder_1_joint"),
+        .init(name: .leftHand, fallbackRawName: "left_hand_joint"),
+        .init(name: .rightHand, fallbackRawName: "right_hand_joint"),
+        .init(name: ARSkeleton.JointName(rawValue: "left_upLeg_joint"), fallbackRawName: nil),
+        .init(name: ARSkeleton.JointName(rawValue: "right_upLeg_joint"), fallbackRawName: nil),
+        .init(name: ARSkeleton.JointName(rawValue: "left_leg_joint"), fallbackRawName: nil),
+        .init(name: ARSkeleton.JointName(rawValue: "right_leg_joint"), fallbackRawName: nil),
+        .init(name: .leftFoot, fallbackRawName: "left_foot_joint"),
+        .init(name: .rightFoot, fallbackRawName: "right_foot_joint"),
+    ]
+    private let renderLimbs: [RenderLimb] = [
+        .init(start: .root, end: .head),
+        .init(start: .leftShoulder, end: .rightShoulder),
+        .init(start: .root, end: .leftShoulder),
+        .init(start: .root, end: .rightShoulder),
+        .init(start: .leftShoulder, end: .leftHand),
+        .init(start: .rightShoulder, end: .rightHand),
+        .init(start: .root, end: ARSkeleton.JointName(rawValue: "left_upLeg_joint")),
+        .init(start: .root, end: ARSkeleton.JointName(rawValue: "right_upLeg_joint")),
+        .init(start: ARSkeleton.JointName(rawValue: "left_upLeg_joint"), end: ARSkeleton.JointName(rawValue: "left_leg_joint")),
+        .init(start: ARSkeleton.JointName(rawValue: "right_upLeg_joint"), end: ARSkeleton.JointName(rawValue: "right_leg_joint")),
+        .init(start: ARSkeleton.JointName(rawValue: "left_leg_joint"), end: .leftFoot),
+        .init(start: ARSkeleton.JointName(rawValue: "right_leg_joint"), end: .rightFoot),
+    ]
 
     private weak var view: ARView?
     private var clip: MotionClip?
     private var playbackTimer: Timer?
     private var playbackStartedAt: Date?
+    private var usesProceduralMockPlayback = false
 
     private var stageAnchor = AnchorEntity()
     private var dancerRoot = Entity()
@@ -41,9 +72,13 @@ final class StagePlaybackRenderer: NSObject {
     func setClip(_ clip: MotionClip?) {
         self.clip = clip
 
-        if let firstFrame = clip?.frames.first {
+        if let firstFrame = clip?.frames.first, !jointEntities.isEmpty, !limbEntities.isEmpty {
             render(frame: firstFrame)
         }
+    }
+
+    func setUsesProceduralMockPlayback(_ usesProceduralMockPlayback: Bool) {
+        self.usesProceduralMockPlayback = usesProceduralMockPlayback
     }
 
     func play() {
@@ -112,18 +147,18 @@ final class StagePlaybackRenderer: NSObject {
     }
 
     private func buildDancerHierarchy() {
-        for _ in 0..<skeletonDefinition.jointNames.count {
+        for _ in renderJoints {
             let joint = ModelEntity(
-                mesh: .generateSphere(radius: 0.035),
+                mesh: .generateSphere(radius: 0.075),
                 materials: [UnlitMaterial(color: UIColor(red: 1, green: 0.33, blue: 0.48, alpha: 1))]
             )
             jointEntities.append(joint)
             dancerRoot.addChild(joint)
         }
 
-        for _ in limbPairs {
+        for _ in renderLimbs {
             let limb = ModelEntity(
-                mesh: .generateBox(size: [0.018, 1.0, 0.018]),
+                mesh: .generateBox(size: [0.04, 1.0, 0.04]),
                 materials: [UnlitMaterial(color: UIColor(red: 0.38, green: 0.89, blue: 0.86, alpha: 1))]
             )
             limbEntities.append(limb)
@@ -146,32 +181,161 @@ final class StagePlaybackRenderer: NSObject {
     }
 
     private func render(frame: MotionFrame) {
-        guard frame.jointPositions.count == jointEntities.count else {
+        var jointPositions = resolvedJointPositions(from: frame)
+        guard jointEntities.count == jointPositions.count, limbEntities.count == renderLimbs.count else {
             return
         }
 
-        for (index, jointEntity) in jointEntities.enumerated() {
-            let position = frame.jointPositions[index]
-            jointEntity.position = position
-            jointEntity.isEnabled = position.x.isFinite && position.y.isFinite && position.z.isFinite && position.y > -5
+        if shouldUseProceduralFallback(for: jointPositions) {
+            jointPositions = fallbackJointPositions(for: frame).map(Optional.some)
         }
 
-        for (index, pair) in limbPairs.enumerated() {
-            let parent = frame.jointPositions[pair.0]
-            let child = frame.jointPositions[pair.1]
-            let delta = child - parent
-            let length = simd_length(delta)
-            let limb = limbEntities[index]
+        for (index, position) in jointPositions.enumerated() {
+            let jointEntity = jointEntities[index]
+            if let position {
+                jointEntity.position = position
+                jointEntity.isEnabled = true
+            } else {
+                jointEntity.isEnabled = false
+            }
+        }
 
-            guard length > 0.0001, parent.y > -5, child.y > -5 else {
-                limb.isEnabled = false
+        for (index, limb) in renderLimbs.enumerated() {
+            let limbEntity = limbEntities[index]
+            guard
+                let start = renderedPosition(for: limb.start, in: jointPositions),
+                let end = renderedPosition(for: limb.end, in: jointPositions)
+            else {
+                limbEntity.isEnabled = false
                 continue
             }
 
-            limb.isEnabled = true
-            limb.position = (parent + child) * 0.5
-            limb.orientation = simd_quatf(from: SIMD3<Float>(0, 1, 0), to: simd_normalize(delta))
-            limb.scale = [1, length, 1]
+            let delta = end - start
+            let length = simd_length(delta)
+            guard length > 0.0001 else {
+                limbEntity.isEnabled = false
+                continue
+            }
+
+            limbEntity.isEnabled = true
+            limbEntity.position = (start + end) * 0.5
+            limbEntity.orientation = simd_quatf(from: SIMD3<Float>(0, 1, 0), to: simd_normalize(delta))
+            limbEntity.scale = [1, length, 1]
         }
+    }
+
+    private func resolvedJointPositions(from frame: MotionFrame) -> [SIMD3<Float>?] {
+        renderJoints.map { joint in
+            resolvedPosition(for: joint.name, fallbackRawName: joint.fallbackRawName, in: frame)
+        }
+    }
+
+    private func resolvedPosition(
+        for jointName: ARSkeleton.JointName,
+        fallbackRawName: String? = nil,
+        in frame: MotionFrame
+    ) -> SIMD3<Float>? {
+        if let position = position(for: jointName, in: frame) {
+            return position
+        }
+
+        guard let fallbackRawName else {
+            return nil
+        }
+
+        return position(for: ARSkeleton.JointName(rawValue: fallbackRawName), in: frame)
+    }
+
+    private func position(for jointName: ARSkeleton.JointName, in frame: MotionFrame) -> SIMD3<Float>? {
+        let index = skeletonDefinition.index(for: jointName)
+        guard index != NSNotFound, frame.jointPositions.indices.contains(index) else {
+            return nil
+        }
+
+        let position = frame.jointPositions[index]
+        guard position.x.isFinite, position.y.isFinite, position.z.isFinite, position.y > -5 else {
+            return nil
+        }
+
+        return position
+    }
+
+    private func renderedPosition(
+        for jointName: ARSkeleton.JointName,
+        in jointPositions: [SIMD3<Float>?]
+    ) -> SIMD3<Float>? {
+        guard let index = renderJoints.firstIndex(where: { $0.name == jointName }) else {
+            return nil
+        }
+
+        return jointPositions[index]
+    }
+
+    private func shouldUseProceduralFallback(for jointPositions: [SIMD3<Float>?]) -> Bool {
+        if usesProceduralMockPlayback {
+            return true
+        }
+
+        let resolved = jointPositions.compactMap { $0 }
+        guard resolved.count >= 6 else {
+            return true
+        }
+
+        let xs = resolved.map(\.x)
+        let ys = resolved.map(\.y)
+        let zs = resolved.map(\.z)
+
+        guard
+            let minX = xs.min(),
+            let maxX = xs.max(),
+            let minY = ys.min(),
+            let maxY = ys.max(),
+            let minZ = zs.min(),
+            let maxZ = zs.max()
+        else {
+            return true
+        }
+
+        let width = maxX - minX
+        let height = maxY - minY
+        let depth = maxZ - minZ
+
+        return width > 3 || height > 3.5 || depth > 3 || maxY < 0.4 || minY < -1.2
+    }
+
+    private func fallbackJointPositions(for frame: MotionFrame) -> [SIMD3<Float>] {
+        let rhythm = Float(frame.time)
+        let step = sin(rhythm * 2.2)
+        let sway = sin(rhythm * 1.4)
+        let armSwing = sin(rhythm * 3.1)
+        let bounce = max(0, sin(rhythm * 4.4)) * 0.08
+
+        let root = SIMD3<Float>(sway * 0.18, 0.95 + bounce, step * 0.08)
+        let head = root + SIMD3<Float>(0, 0.62, 0)
+        let leftShoulder = root + SIMD3<Float>(-0.18, 0.44, 0)
+        let rightShoulder = root + SIMD3<Float>(0.18, 0.44, 0)
+        let leftHand = leftShoulder + SIMD3<Float>(-0.30, 0.04 + armSwing * 0.18, 0.04)
+        let rightHand = rightShoulder + SIMD3<Float>(0.30, 0.04 - armSwing * 0.18, 0.04)
+        let leftUpLeg = root + SIMD3<Float>(-0.12, -0.02, 0)
+        let rightUpLeg = root + SIMD3<Float>(0.12, -0.02, 0)
+        let leftLeg = leftUpLeg + SIMD3<Float>(-0.03, -0.38 + max(0, step) * 0.08, 0.06)
+        let rightLeg = rightUpLeg + SIMD3<Float>(0.03, -0.38 + max(0, -step) * 0.08, -0.06)
+        let leftFoot = leftLeg + SIMD3<Float>(0, -0.38, 0.05 + max(0, step) * 0.10)
+        let rightFoot = rightLeg + SIMD3<Float>(0, -0.38, 0.05 + max(0, -step) * 0.10)
+
+        return [
+            root,
+            head,
+            leftShoulder,
+            rightShoulder,
+            leftHand,
+            rightHand,
+            leftUpLeg,
+            rightUpLeg,
+            leftLeg,
+            rightLeg,
+            leftFoot,
+            rightFoot,
+        ]
     }
 }
