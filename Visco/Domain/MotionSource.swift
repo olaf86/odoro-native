@@ -41,6 +41,6 @@ protocol MotionSource: AnyObject {
     var onFrame: ((MotionFrame) -> Void)? { get set }
     var onStatusTextChange: ((String) -> Void)? { get set }
 
-    func start()
-    func stop()
+    func activate()
+    func deactivate()
 }

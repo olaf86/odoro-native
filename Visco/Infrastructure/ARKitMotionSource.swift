@@ -27,11 +27,11 @@ final class ARKitMotionSource: NSObject, MotionSource {
 
         if shouldStartWhenAttached {
             shouldStartWhenAttached = false
-            start()
+            activate()
         }
     }
 
-    func start() {
+    func activate() {
         guard isSupported else {
             onStatusTextChange?(L10n.statusARUnsupported)
             return
@@ -49,7 +49,7 @@ final class ARKitMotionSource: NSObject, MotionSource {
         session.run(configuration, options: [.resetTracking, .removeExistingAnchors])
     }
 
-    func stop() {
+    func deactivate() {
         session.pause()
     }
 

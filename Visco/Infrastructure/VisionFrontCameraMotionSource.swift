@@ -51,7 +51,7 @@ final class VisionFrontCameraMotionSource: NSObject, MotionSource {
 
         if shouldStartWhenAttached {
             shouldStartWhenAttached = false
-            start()
+            activate()
         }
     }
 
@@ -59,7 +59,7 @@ final class VisionFrontCameraMotionSource: NSObject, MotionSource {
         previewLayer.frame = bounds
     }
 
-    func start() {
+    func activate() {
         guard isSupported else {
             onStatusTextChange?(L10n.statusFrontCameraUnsupported)
             return
@@ -74,7 +74,7 @@ final class VisionFrontCameraMotionSource: NSObject, MotionSource {
         ensureAuthorizedAndConfigured()
     }
 
-    func stop() {
+    func deactivate() {
         session.stopRunning()
     }
 

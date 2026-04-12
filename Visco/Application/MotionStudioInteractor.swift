@@ -46,12 +46,12 @@ final class MotionStudioInteractor {
         }
     }
 
-    func startSource() {
-        source.start()
+    func activateSource() {
+        source.activate()
     }
 
-    func stopSource() {
-        source.stop()
+    func deactivateSource() {
+        source.deactivate()
     }
 
     func beginRecording() {

@@ -56,11 +56,11 @@ final class StudioViewModel: ObservableObject {
         self.interactor = MotionStudioInteractor(source: source)
 
         configureForCurrentSource()
-        interactor.startSource()
+        interactor.activateSource()
     }
 
     func beginRecording() {
-        interactor.startSource()
+        interactor.activateSource()
         interactor.beginRecording()
     }
 
@@ -80,7 +80,7 @@ final class StudioViewModel: ObservableObject {
         stageRenderer.pause()
         interactor.setPlaybackActive(false)
         interactor.returnToCapture()
-        interactor.startSource()
+        interactor.activateSource()
     }
 
     func resetClip() {
@@ -91,7 +91,7 @@ final class StudioViewModel: ObservableObject {
     }
 
     func prepareStagePlayback() {
-        interactor.stopSource()
+        interactor.deactivateSource()
         stageRenderer.setClip(interactor.currentClip)
         stageRenderer.play()
         interactor.setPlaybackActive(true)
@@ -115,7 +115,7 @@ final class StudioViewModel: ObservableObject {
 
         stageRenderer.pause()
         stageRenderer.setClip(nil)
-        interactor.stopSource()
+        interactor.deactivateSource()
 
         captureMode = mode
         source = Self.makeMotionSource(for: mode)
@@ -124,19 +124,19 @@ final class StudioViewModel: ObservableObject {
 
         configureForCurrentSource()
         attachCurrentSourceIfPossible()
-        interactor.startSource()
+        interactor.activateSource()
     }
 
     func attachCaptureView(_ view: ARView) {
         attachedCaptureARView = view
         (source as? ARKitMotionSource)?.attach(to: view)
-        interactor.startSource()
+        interactor.activateSource()
     }
 
     func attachFrontCaptureView(_ view: UIView) {
         attachedFrontPreviewView = view
         (source as? VisionFrontCameraMotionSource)?.attachPreview(to: view)
-        interactor.startSource()
+        interactor.activateSource()
     }
 
     func updateFrontCapturePreview(in view: UIView) {
@@ -150,7 +150,7 @@ final class StudioViewModel: ObservableObject {
 
     func resumeCaptureSource() {
         attachCurrentSourceIfPossible()
-        interactor.startSource()
+        interactor.activateSource()
     }
 
     private func configureForCurrentSource() {
