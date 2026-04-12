@@ -109,6 +109,9 @@ private struct CaptureExperienceView: View {
                 .ignoresSafeArea()
             }
         }
+        .onAppear {
+            studio.resumeCaptureSource()
+        }
     }
 }
 

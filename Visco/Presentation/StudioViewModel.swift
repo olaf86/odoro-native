@@ -60,6 +60,7 @@ final class StudioViewModel: ObservableObject {
     }
 
     func beginRecording() {
+        interactor.startSource()
         interactor.beginRecording()
     }
 
@@ -145,6 +146,11 @@ final class StudioViewModel: ObservableObject {
     func attachStageView(_ view: ARView) {
         stageRenderer.attach(to: view)
         stageRenderer.setClip(interactor.currentClip)
+    }
+
+    func resumeCaptureSource() {
+        attachCurrentSourceIfPossible()
+        interactor.startSource()
     }
 
     private func configureForCurrentSource() {
