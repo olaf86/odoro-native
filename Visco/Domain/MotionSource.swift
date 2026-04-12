@@ -15,22 +15,22 @@ enum CaptureMode: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .rearBody3D:
-            "Rear 3D"
+            L10n.captureModeRearTitle
         case .frontUpperBody:
-            "Front Upper"
+            L10n.captureModeFrontTitle
         case .mock:
-            "Mock"
+            L10n.captureModeMockTitle
         }
     }
 
     var descriptionText: String {
         switch self {
         case .rearBody3D:
-            "背面カメラで全身の 3D body tracking を使います。"
+            L10n.captureModeRearDescription
         case .frontUpperBody:
-            "前面カメラで上半身の pose を検出して収録します。"
+            L10n.captureModeFrontDescription
         case .mock:
-            "疑似ダンスを入力源にして収録フローを確認します。"
+            L10n.captureModeMockDescription
         }
     }
 }

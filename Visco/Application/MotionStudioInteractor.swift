@@ -64,7 +64,7 @@ final class MotionStudioInteractor {
         state.isRecording = true
         state.recordedFrameCount = 0
         state.recordingDuration = 0
-        state.statusText = "収録中です。全身が入るように動いてください"
+        state.statusText = L10n.statusRecordingMoveFullBody
     }
 
     func stopRecording() {
@@ -72,12 +72,12 @@ final class MotionStudioInteractor {
         state.isRecording = false
 
         guard capturedFrames.count > 1 else {
-            state.statusText = "十分な動きを収録できませんでした。もう一度試してください"
+            state.statusText = L10n.statusInsufficientMotion
             return
         }
 
         currentClip = MotionClip(frames: capturedFrames).normalizedForStage()
-        state.statusText = "収録完了。ステージで再生できます"
+        state.statusText = L10n.statusCaptureComplete
         state.presentation = .stage
     }
 
@@ -90,8 +90,8 @@ final class MotionStudioInteractor {
         state.presentation = .capture
         state.isPlaying = false
         state.statusText = currentClip == nil
-            ? "全身が映る位置に立ってください"
-            : "収録済みクリップがあります。必要なら上書きできます"
+            ? L10n.statusStandInFrame
+            : L10n.statusClipExists
     }
 
     func resetClip() {
@@ -103,7 +103,7 @@ final class MotionStudioInteractor {
         state.isPlaying = false
         state.recordedFrameCount = 0
         state.recordingDuration = 0
-        state.statusText = "クリップをリセットしました。新しく収録できます"
+        state.statusText = L10n.statusClipReset
     }
 
     func setPlaybackActive(_ isPlaying: Bool) {
@@ -112,8 +112,8 @@ final class MotionStudioInteractor {
 
     private func consume(frame: MotionFrame) {
         state.statusText = state.isRecording
-            ? "収録中です。ステージ用に動きを保存しています"
-            : "人物を検出しました。収録を開始できます"
+            ? L10n.statusRecordingSaving
+            : L10n.statusBodyDetected
 
         guard state.isRecording else {
             return

@@ -56,7 +56,7 @@ struct MotionClip: Sendable {
 
 struct MotionStudioState {
     var presentation: StudioPresentation = .capture
-    var statusText = "全身が映る位置に立ってください"
+    var statusText = L10n.statusStandInFrame
     var isRecording = false
     var isPlaying = false
     var recordedFrameCount = 0

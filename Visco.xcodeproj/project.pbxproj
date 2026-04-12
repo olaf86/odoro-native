@@ -192,6 +192,7 @@
 			knownRegions = (
 				en,
 				Base,
+				ja,
 			);
 			mainGroup = EDAB17DB2F85378A00710FFB;
 			minimizedProjectReferenceProxies = 1;
@@ -400,7 +401,7 @@
 				DEVELOPMENT_TEAM = 48C76HC76Y;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_NSCameraUsageDescription = "背面カメラを使って人物の動きを検出します。";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Camera access is required to capture body motion.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -433,7 +434,7 @@
 				DEVELOPMENT_TEAM = 48C76HC76Y;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_NSCameraUsageDescription = "背面カメラを使って人物の動きを検出します。";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Camera access is required to capture body motion.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -540,7 +541,6 @@
 			};
 			name = Release;
 		};
-
 		EDAB18102F85378A00710FFB /* Staging */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -674,7 +674,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "Visco Stg";
-				INFOPLIST_KEY_NSCameraUsageDescription = "背面カメラを使って人物の動きを検出します。";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Camera access is required to capture body motion.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -709,7 +709,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Visco;
-				INFOPLIST_KEY_NSCameraUsageDescription = "背面カメラを使って人物の動きを検出します。";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Camera access is required to capture body motion.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -746,8 +746,8 @@
 				PRODUCT_BUNDLE_IDENTIFIER = dev.asobo.visco.stg.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG STAGING $(inherited)";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
@@ -789,8 +789,8 @@
 				PRODUCT_BUNDLE_IDENTIFIER = dev.asobo.visco.stg.uitests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG STAGING $(inherited)";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;

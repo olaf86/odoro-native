@@ -23,11 +23,11 @@ final class StudioViewModel: ObservableObject {
     var availableCaptureModes: [CaptureMode] { supportedCaptureModes }
 
     var recordingDurationText: String {
-        state.recordingDuration.formatted(.number.precision(.fractionLength(1))) + "s"
+        L10n.recordingDuration(state.recordingDuration.formatted(.number.precision(.fractionLength(1))))
     }
 
     var clipDurationText: String {
-        state.clipDuration.formatted(.number.precision(.fractionLength(1))) + "s clip"
+        L10n.clipDuration(state.clipDuration.formatted(.number.precision(.fractionLength(1))))
     }
 
     var usesMockSource: Bool {

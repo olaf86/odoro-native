@@ -33,13 +33,13 @@ final class ARKitMotionSource: NSObject, MotionSource {
 
     func start() {
         guard isSupported else {
-            onStatusTextChange?("このデバイスでは AR body tracking を利用できません")
+            onStatusTextChange?(L10n.statusARUnsupported)
             return
         }
 
         guard attachedView != nil else {
             shouldStartWhenAttached = true
-            onStatusTextChange?("AR プレビューを準備しています")
+            onStatusTextChange?(L10n.statusARPreparingPreview)
             return
         }
 
@@ -80,19 +80,19 @@ extension ARKitMotionSource: ARSessionDelegate {
 
     nonisolated func session(_ session: ARSession, didFailWithError error: any Error) {
         Task { @MainActor in
-            self.onStatusTextChange?("AR セッションに失敗しました: \(error.localizedDescription)")
+            self.onStatusTextChange?(L10n.statusARSessionFailed(error.localizedDescription))
         }
     }
 
     nonisolated func sessionWasInterrupted(_ session: ARSession) {
         Task { @MainActor in
-            self.onStatusTextChange?("AR セッションが中断されました")
+            self.onStatusTextChange?(L10n.statusARInterrupted)
         }
     }
 
     nonisolated func sessionInterruptionEnded(_ session: ARSession) {
         Task { @MainActor in
-            self.onStatusTextChange?("AR セッションが再開しました")
+            self.onStatusTextChange?(L10n.statusARResumed)
         }
     }
 }

@@ -37,7 +37,7 @@ private struct CaptureExperienceView: View {
             }
 
             VStack(alignment: .leading, spacing: 14) {
-                Text("Visco Capture")
+                Text(L10n.captureTitle)
                     .font(.headline)
                     .foregroundStyle(.white)
 
@@ -45,7 +45,7 @@ private struct CaptureExperienceView: View {
                     .font(.subheadline)
                     .foregroundStyle(Color.white.opacity(0.9))
 
-                Picker("Capture Mode", selection: Binding(
+                Picker(L10n.captureModeLabel, selection: Binding(
                     get: { studio.captureMode },
                     set: { studio.selectCaptureMode($0) }
                 )) {
@@ -57,40 +57,40 @@ private struct CaptureExperienceView: View {
                 .disabled(studio.isRecording)
 
                 HStack(spacing: 16) {
-                    Label("\(studio.recordedFrameCount) frames", systemImage: "figure.dance")
+                    Label(L10n.frames(studio.recordedFrameCount), systemImage: "figure.dance")
                     Label(studio.recordingDurationText, systemImage: "clock")
                 }
                 .font(.caption)
                 .foregroundStyle(Color.white.opacity(0.78))
 
                 if studio.usesMockSource {
-                    Text("シミュレータ用の MockMotionSource を使っています。疑似ダンスを収録対象として扱います。")
+                    Text(L10n.captureHintMock)
                         .font(.caption)
                         .foregroundStyle(Color.white.opacity(0.78))
                 } else if studio.usesFrontCameraSource {
-                    Text("前面カメラで肩、腕、手首を中心に上半身の動きを収録します。下半身はステージ再生時に補完します。")
+                    Text(L10n.captureHintFront)
                         .font(.caption)
                         .foregroundStyle(Color.white.opacity(0.78))
                 } else {
-                    Text("背面カメラで全身を捉え、短い振り付けを収録します。停止するとステージ再生に切り替わります。")
+                    Text(L10n.captureHintRear)
                         .font(.caption)
                         .foregroundStyle(Color.white.opacity(0.78))
                 }
 
                 HStack(spacing: 12) {
-                    Button(studio.isRecording ? "Recording..." : "Start Capture") {
+                    Button(studio.isRecording ? L10n.buttonRecording : L10n.buttonStartCapture) {
                         studio.beginRecording()
                     }
                     .buttonStyle(.borderedProminent)
                     .disabled(studio.isRecording)
 
-                    Button("Stop") {
+                    Button(L10n.buttonStop) {
                         studio.stopRecording()
                     }
                     .buttonStyle(.bordered)
                     .disabled(!studio.isRecording)
 
-                    Button("Replay Stage") {
+                    Button(L10n.buttonReplayStage) {
                         studio.enterStageMode()
                     }
                     .buttonStyle(.bordered)
@@ -121,7 +121,7 @@ private struct StageExperienceView: View {
                 .ignoresSafeArea()
 
             VStack(alignment: .leading, spacing: 14) {
-                Text("Visco Stage")
+                Text(L10n.stageTitle)
                     .font(.headline)
                     .foregroundStyle(.white)
 
@@ -131,28 +131,28 @@ private struct StageExperienceView: View {
 
                 HStack(spacing: 16) {
                     Label(studio.clipDurationText, systemImage: "music.note")
-                    Label("\(studio.recordedFrameCount) frames", systemImage: "film")
+                    Label(L10n.frames(studio.recordedFrameCount), systemImage: "film")
                 }
                 .font(.caption)
                 .foregroundStyle(Color.white.opacity(0.78))
 
-                Text("収録した関節位置を簡易ダンサーとしてループ再生しています。将来的にはリグ済みキャラクターへ置き換える前提のモックです。")
+                Text(L10n.stageDescription)
                     .font(.caption)
                     .foregroundStyle(Color.white.opacity(0.78))
 
                 HStack(spacing: 12) {
-                    Button(studio.isPlaying ? "Pause" : "Play") {
+                    Button(studio.isPlaying ? L10n.buttonPause : L10n.buttonPlay) {
                         studio.togglePlayback()
                     }
                     .buttonStyle(.borderedProminent)
                     .disabled(!studio.hasClip)
 
-                    Button("Record Again") {
+                    Button(L10n.buttonRecordAgain) {
                         studio.returnToCapture()
                     }
                     .buttonStyle(.bordered)
 
-                    Button("Reset Clip") {
+                    Button(L10n.buttonResetClip) {
                         studio.resetClip()
                     }
                     .buttonStyle(.bordered)
@@ -193,9 +193,9 @@ private struct MockCapturePreviewView: View {
             VStack(spacing: 20) {
                 Image(systemName: "figure.dance")
                     .font(.system(size: 72))
-                Text("Mock Dance Source")
+                Text(L10n.mockDanceTitle)
                     .font(.title3.weight(.semibold))
-                Text("カメラの代わりに疑似ダンスクリップを流し、収録から再生までのフローを確認します。")
+                Text(L10n.mockDanceDescription)
                     .multilineTextAlignment(.center)
                     .foregroundStyle(Color.white.opacity(0.8))
                     .padding(.horizontal, 36)

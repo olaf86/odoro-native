@@ -61,13 +61,13 @@ final class VisionFrontCameraMotionSource: NSObject, MotionSource {
 
     func start() {
         guard isSupported else {
-            onStatusTextChange?("このデバイスでは前面カメラを利用できません")
+            onStatusTextChange?(L10n.statusFrontCameraUnsupported)
             return
         }
 
         guard previewContainerView != nil else {
             shouldStartWhenAttached = true
-            onStatusTextChange?("前面カメラのプレビューを準備しています")
+            onStatusTextChange?(L10n.statusFrontPreparingPreview)
             return
         }
 
@@ -91,12 +91,12 @@ final class VisionFrontCameraMotionSource: NSObject, MotionSource {
                     if granted {
                         self.configureAndRunIfNeeded()
                     } else {
-                        self.onStatusTextChange?("カメラ権限がないため前面キャプチャを開始できません")
+                        self.onStatusTextChange?(L10n.statusFrontPermissionDenied)
                     }
                 }
             }
         default:
-            onStatusTextChange?("カメラ権限がないため前面キャプチャを開始できません")
+            onStatusTextChange?(L10n.statusFrontPermissionDenied)
         }
     }
 
@@ -107,13 +107,13 @@ final class VisionFrontCameraMotionSource: NSObject, MotionSource {
                 try configureSession()
                 isConfigured = true
             } catch {
-                onStatusTextChange?("前面カメラの設定に失敗しました: \(error.localizedDescription)")
+                onStatusTextChange?(L10n.statusFrontSetupFailed(error.localizedDescription))
                 return
             }
         }
 
         guard !session.isRunning else { return }
-        onStatusTextChange?("前面カメラで上半身を検出しています")
+        onStatusTextChange?(L10n.statusFrontDetecting)
         processingQueue.async { [weak self] in
             self?.session.startRunning()
         }
@@ -257,20 +257,20 @@ extension VisionFrontCameraMotionSource: AVCaptureVideoDataOutputSampleBufferDel
             try handler.perform([request])
         } catch {
             Task { @MainActor in
-                self.onStatusTextChange?("前面カメラの姿勢推定に失敗しました: \(error.localizedDescription)")
+                self.onStatusTextChange?(L10n.statusFrontPoseFailed(error.localizedDescription))
             }
             return
         }
 
         guard let observation = request.results?.first, let frame = makeFrame(from: observation, at: timestamp) else {
             Task { @MainActor in
-                self.onStatusTextChange?("上半身が見える位置に収まってください")
+                self.onStatusTextChange?(L10n.statusFrontMoveIntoFrame)
             }
             return
         }
 
         Task { @MainActor in
-            self.onStatusTextChange?("前面カメラで上半身を検出しました。収録を開始できます")
+            self.onStatusTextChange?(L10n.statusFrontReady)
             self.onFrame?(frame)
         }
     }

@@ -30,7 +30,7 @@ final class MockMotionSource: MotionSource {
         guard timer == nil else { return }
 
         startedAt = Date()
-        onStatusTextChange?("MockMotionSource で疑似ダンスを生成しています")
+        onStatusTextChange?(L10n.statusMockGenerating)
 
         timer = Timer.scheduledTimer(
             timeInterval: frameInterval,
