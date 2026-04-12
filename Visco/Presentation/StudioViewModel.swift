@@ -7,10 +7,12 @@ import ARKit
 import Combine
 import Foundation
 import RealityKit
+import UIKit
 
 @MainActor
 final class StudioViewModel: ObservableObject {
     @Published private(set) var state = MotionStudioState()
+    @Published private(set) var captureMode: CaptureMode
 
     var presentation: StudioPresentation { state.presentation }
     var statusText: String { state.statusText }
@@ -18,6 +20,7 @@ final class StudioViewModel: ObservableObject {
     var isPlaying: Bool { state.isPlaying }
     var recordedFrameCount: Int { state.recordedFrameCount }
     var hasClip: Bool { state.hasClip }
+    var availableCaptureModes: [CaptureMode] { supportedCaptureModes }
 
     var recordingDurationText: String {
         state.recordingDuration.formatted(.number.precision(.fractionLength(1))) + "s"
@@ -28,27 +31,31 @@ final class StudioViewModel: ObservableObject {
     }
 
     var usesMockSource: Bool {
-        source is MockMotionSource
+        source.captureMode == .mock
     }
 
-    private let source: MotionSource
-    private let interactor: MotionStudioInteractor
+    var usesFrontCameraSource: Bool {
+        source.captureMode == .frontUpperBody
+    }
+
+    private let supportedCaptureModes: [CaptureMode]
+    private var source: MotionSource
+    private var interactor: MotionStudioInteractor
     private let stageRenderer = StagePlaybackRenderer()
+    private weak var attachedCaptureARView: ARView?
+    private weak var attachedFrontPreviewView: UIView?
 
     init() {
-        let source = StudioViewModel.makeMotionSource()
+        let modes = Self.makeSupportedCaptureModes()
+        let initialMode = Self.defaultCaptureMode(from: modes)
+        let source = Self.makeMotionSource(for: initialMode)
+
+        self.supportedCaptureModes = modes
+        self.captureMode = initialMode
         self.source = source
         self.interactor = MotionStudioInteractor(source: source)
-        self.stageRenderer.setUsesProceduralMockPlayback(source is MockMotionSource)
 
-        interactor.onStateChange = { [weak self] state in
-            self?.state = state
-        }
-
-        interactor.onClipChange = { [weak self] clip in
-            self?.stageRenderer.setClip(clip)
-        }
-
+        configureForCurrentSource()
         interactor.startSource()
     }
 
@@ -102,9 +109,37 @@ final class StudioViewModel: ObservableObject {
         }
     }
 
+    func selectCaptureMode(_ mode: CaptureMode) {
+        guard captureMode != mode, !state.isRecording else { return }
+
+        stageRenderer.pause()
+        stageRenderer.setClip(nil)
+        interactor.stopSource()
+
+        captureMode = mode
+        source = Self.makeMotionSource(for: mode)
+        interactor = MotionStudioInteractor(source: source)
+        state = MotionStudioState(statusText: mode.descriptionText)
+
+        configureForCurrentSource()
+        attachCurrentSourceIfPossible()
+        interactor.startSource()
+    }
+
     func attachCaptureView(_ view: ARView) {
+        attachedCaptureARView = view
         (source as? ARKitMotionSource)?.attach(to: view)
         interactor.startSource()
+    }
+
+    func attachFrontCaptureView(_ view: UIView) {
+        attachedFrontPreviewView = view
+        (source as? VisionFrontCameraMotionSource)?.attachPreview(to: view)
+        interactor.startSource()
+    }
+
+    func updateFrontCapturePreview(in view: UIView) {
+        (source as? VisionFrontCameraMotionSource)?.updatePreviewFrame(to: view.bounds)
     }
 
     func attachStageView(_ view: ARView) {
@@ -112,15 +147,60 @@ final class StudioViewModel: ObservableObject {
         stageRenderer.setClip(interactor.currentClip)
     }
 
-    private static func makeMotionSource() -> MotionSource {
+    private func configureForCurrentSource() {
+        stageRenderer.setUsesProceduralMockPlayback(source is MockMotionSource)
+
+        interactor.onStateChange = { [weak self] state in
+            self?.state = state
+        }
+
+        interactor.onClipChange = { [weak self] clip in
+            self?.stageRenderer.setClip(clip)
+        }
+    }
+
+    private func attachCurrentSourceIfPossible() {
+        if let arView = attachedCaptureARView {
+            (source as? ARKitMotionSource)?.attach(to: arView)
+        }
+
+        if let previewView = attachedFrontPreviewView {
+            (source as? VisionFrontCameraMotionSource)?.attachPreview(to: previewView)
+        }
+    }
+
+    private static func makeSupportedCaptureModes() -> [CaptureMode] {
+        var modes: [CaptureMode] = []
+
         #if targetEnvironment(simulator)
-        MockMotionSource()
+        modes = [.mock]
         #else
         if ARBodyTrackingConfiguration.isSupported {
+            modes.append(.rearBody3D)
+        }
+
+        if VisionFrontCameraMotionSource().isSupported {
+            modes.append(.frontUpperBody)
+        }
+
+        modes.append(.mock)
+        #endif
+
+        return modes
+    }
+
+    private static func defaultCaptureMode(from modes: [CaptureMode]) -> CaptureMode {
+        modes.first ?? .mock
+    }
+
+    private static func makeMotionSource(for mode: CaptureMode) -> MotionSource {
+        switch mode {
+        case .rearBody3D:
             ARKitMotionSource()
-        } else {
+        case .frontUpperBody:
+            VisionFrontCameraMotionSource()
+        case .mock:
             MockMotionSource()
         }
-        #endif
     }
 }

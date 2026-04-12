@@ -30,6 +30,8 @@ private struct CaptureExperienceView: View {
         ZStack {
             if studio.usesMockSource {
                 MockCapturePreviewView()
+            } else if studio.usesFrontCameraSource {
+                FrontCameraCaptureView(studio: studio)
             } else {
                 MotionCaptureARView(studio: studio)
             }
@@ -43,6 +45,17 @@ private struct CaptureExperienceView: View {
                     .font(.subheadline)
                     .foregroundStyle(Color.white.opacity(0.9))
 
+                Picker("Capture Mode", selection: Binding(
+                    get: { studio.captureMode },
+                    set: { studio.selectCaptureMode($0) }
+                )) {
+                    ForEach(studio.availableCaptureModes) { mode in
+                        Text(mode.title).tag(mode)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .disabled(studio.isRecording)
+
                 HStack(spacing: 16) {
                     Label("\(studio.recordedFrameCount) frames", systemImage: "figure.dance")
                     Label(studio.recordingDurationText, systemImage: "clock")
@@ -52,6 +65,10 @@ private struct CaptureExperienceView: View {
 
                 if studio.usesMockSource {
                     Text("シミュレータ用の MockMotionSource を使っています。疑似ダンスを収録対象として扱います。")
+                        .font(.caption)
+                        .foregroundStyle(Color.white.opacity(0.78))
+                } else if studio.usesFrontCameraSource {
+                    Text("前面カメラで肩、腕、手首を中心に上半身の動きを収録します。下半身はステージ再生時に補完します。")
                         .font(.caption)
                         .foregroundStyle(Color.white.opacity(0.78))
                 } else {
@@ -198,6 +215,21 @@ private struct MotionCaptureARView: UIViewRepresentable {
     }
 
     func updateUIView(_ uiView: ARView, context: Context) {}
+}
+
+private struct FrontCameraCaptureView: UIViewRepresentable {
+    @ObservedObject var studio: StudioViewModel
+
+    func makeUIView(context: Context) -> UIView {
+        let view = UIView(frame: .zero)
+        view.backgroundColor = .black
+        studio.attachFrontCaptureView(view)
+        return view
+    }
+
+    func updateUIView(_ uiView: UIView, context: Context) {
+        studio.updateFrontCapturePreview(in: uiView)
+    }
 }
 
 private struct StagePlaybackView: UIViewRepresentable {

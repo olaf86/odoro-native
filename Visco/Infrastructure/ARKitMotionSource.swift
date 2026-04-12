@@ -8,6 +8,7 @@ import Foundation
 import RealityKit
 
 final class ARKitMotionSource: NSObject, MotionSource {
+    var captureMode: CaptureMode { .rearBody3D }
     var onFrame: ((MotionFrame) -> Void)?
     var onStatusTextChange: ((String) -> Void)?
 

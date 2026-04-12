@@ -8,6 +8,7 @@ import ARKit
 import simd
 
 final class MockMotionSource: MotionSource {
+    var captureMode: CaptureMode { .mock }
     var onFrame: ((MotionFrame) -> Void)?
     var onStatusTextChange: ((String) -> Void)?
 
