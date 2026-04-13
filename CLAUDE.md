@@ -6,13 +6,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ```bash
 # Build (Debug)
-xcodebuild -project Odoro.xcodeproj -scheme 'Odoro Prod' -configuration Debug
+xcodebuild -project Odoro.xcodeproj -scheme Prod -configuration Debug
 
 # Run unit tests
-xcodebuild -project Odoro.xcodeproj -scheme 'Odoro Stg' -destination 'platform=iOS Simulator,name=iPhone 17,OS=26.4' -only-testing:OdoroTests test
+xcodebuild -project Odoro.xcodeproj -scheme Stg -destination 'platform=iOS Simulator,name=iPhone 17,OS=26.4' -only-testing:OdoroTests test
 
 # Build for release
-xcodebuild -project Odoro.xcodeproj -scheme 'Odoro Prod' -configuration Production archive
+xcodebuild -project Odoro.xcodeproj -scheme Prod -configuration Production archive
 ```
 
 The app requires iOS 26.4+. ARKit body tracking and Vision pose detection require a physical device — only the `mock` capture mode runs in Simulator.
