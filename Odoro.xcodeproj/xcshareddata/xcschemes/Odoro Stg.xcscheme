@@ -16,15 +16,15 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "EDAB17E32F85378A00710FFB"
-               BuildableName = "Visco.app"
-               BlueprintName = "Visco"
-               ReferencedContainer = "container:Visco.xcodeproj">
+               BuildableName = "Odoro.app"
+               BlueprintName = "Odoro"
+               ReferencedContainer = "container:Odoro.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
    </BuildAction>
    <TestAction
-      buildConfiguration = "Production"
+      buildConfiguration = "Staging"
       selectedDebuggerIdentifier = "Xcode.DebuggerFoundation.Debugger.LLDB"
       selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
       shouldUseLaunchSchemeArgsEnv = "YES"
@@ -33,9 +33,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "EDAB17E32F85378A00710FFB"
-            BuildableName = "Visco.app"
-            BlueprintName = "Visco"
-            ReferencedContainer = "container:Visco.xcodeproj">
+            BuildableName = "Odoro.app"
+            BlueprintName = "Odoro"
+            ReferencedContainer = "container:Odoro.xcodeproj">
          </BuildableReference>
       </MacroExpansion>
       <Testables>
@@ -45,9 +45,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "EDAB17F22F85378A00710FFB"
-               BuildableName = "ViscoTests.xctest"
-               BlueprintName = "ViscoTests"
-               ReferencedContainer = "container:Visco.xcodeproj">
+               BuildableName = "OdoroTests.xctest"
+               BlueprintName = "OdoroTests"
+               ReferencedContainer = "container:Odoro.xcodeproj">
             </BuildableReference>
          </TestableReference>
          <TestableReference
@@ -56,15 +56,15 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "EDAB17FC2F85378A00710FFB"
-               BuildableName = "ViscoUITests.xctest"
-               BlueprintName = "ViscoUITests"
-               ReferencedContainer = "container:Visco.xcodeproj">
+               BuildableName = "OdoroUITests.xctest"
+               BlueprintName = "OdoroUITests"
+               ReferencedContainer = "container:Odoro.xcodeproj">
             </BuildableReference>
          </TestableReference>
       </Testables>
    </TestAction>
    <LaunchAction
-      buildConfiguration = "Production"
+      buildConfiguration = "Staging"
       selectedDebuggerIdentifier = "Xcode.DebuggerFoundation.Debugger.LLDB"
       selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
       launchStyle = "0"
@@ -78,14 +78,14 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "EDAB17E32F85378A00710FFB"
-            BuildableName = "Visco.app"
-            BlueprintName = "Visco"
-            ReferencedContainer = "container:Visco.xcodeproj">
+            BuildableName = "Odoro.app"
+            BlueprintName = "Odoro"
+            ReferencedContainer = "container:Odoro.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </LaunchAction>
    <ProfileAction
-      buildConfiguration = "Production"
+      buildConfiguration = "Staging"
       shouldUseLaunchSchemeArgsEnv = "YES"
       savedToolIdentifier = ""
       useCustomWorkingDirectory = "NO"
@@ -95,17 +95,17 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "EDAB17E32F85378A00710FFB"
-            BuildableName = "Visco.app"
-            BlueprintName = "Visco"
-            ReferencedContainer = "container:Visco.xcodeproj">
+            BuildableName = "Odoro.app"
+            BlueprintName = "Odoro"
+            ReferencedContainer = "container:Odoro.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </ProfileAction>
    <AnalyzeAction
-      buildConfiguration = "Production">
+      buildConfiguration = "Staging">
    </AnalyzeAction>
    <ArchiveAction
-      buildConfiguration = "Production"
+      buildConfiguration = "Staging"
       revealArchiveInOrganizer = "YES">
    </ArchiveAction>
 </Scheme>

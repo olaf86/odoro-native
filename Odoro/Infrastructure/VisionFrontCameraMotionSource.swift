@@ -1,6 +1,6 @@
 //
 //  VisionFrontCameraMotionSource.swift
-//  Visco
+//  Odoro
 //
 
 import ARKit
@@ -21,7 +21,7 @@ final class VisionFrontCameraMotionSource: NSObject, MotionSource {
 
     private let session = AVCaptureSession()
     private let videoOutput = AVCaptureVideoDataOutput()
-    private let processingQueue = DispatchQueue(label: "Visco.VisionFrontCameraMotionSource")
+    private let processingQueue = DispatchQueue(label: "Odoro.VisionFrontCameraMotionSource")
     private let skeletonDefinition = ARSkeletonDefinition.defaultBody3D
     private let neutralJointPositions: [SIMD3<Float>] = {
         let neutral = ARSkeletonDefinition.defaultBody3D.neutralBodySkeleton3D?.jointModelTransforms ?? []
@@ -134,13 +134,13 @@ final class VisionFrontCameraMotionSource: NSObject, MotionSource {
 
         guard let camera = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .front) else {
             session.commitConfiguration()
-            throw NSError(domain: "Visco.VisionFrontCameraMotionSource", code: -1)
+            throw NSError(domain: "Odoro.VisionFrontCameraMotionSource", code: -1)
         }
 
         let input = try AVCaptureDeviceInput(device: camera)
         guard session.canAddInput(input) else {
             session.commitConfiguration()
-            throw NSError(domain: "Visco.VisionFrontCameraMotionSource", code: -2)
+            throw NSError(domain: "Odoro.VisionFrontCameraMotionSource", code: -2)
         }
         session.addInput(input)
 
@@ -152,7 +152,7 @@ final class VisionFrontCameraMotionSource: NSObject, MotionSource {
 
         guard session.canAddOutput(videoOutput) else {
             session.commitConfiguration()
-            throw NSError(domain: "Visco.VisionFrontCameraMotionSource", code: -3)
+            throw NSError(domain: "Odoro.VisionFrontCameraMotionSource", code: -3)
         }
         session.addOutput(videoOutput)
 

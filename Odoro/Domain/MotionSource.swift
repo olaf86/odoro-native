@@ -1,6 +1,6 @@
 //
 //  MotionSource.swift
-//  Visco
+//  Odoro
 //
 
 import Foundation

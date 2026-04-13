@@ -1,6 +1,6 @@
 //
 //  Localization.swift
-//  Visco
+//  Odoro
 //
 
 import Foundation

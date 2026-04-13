@@ -1,13 +1,13 @@
 //
-//  ViscoUITests.swift
-//  ViscoUITests
+//  OdoroUITests.swift
+//  OdoroUITests
 //
 //  Created by Yuta Ogawa on 2026/04/07.
 //
 
 import XCTest
 
-final class ViscoUITests: XCTestCase {
+final class OdoroUITests: XCTestCase {
 
     override func setUpWithError() throws {
         // Put setup code here. This method is called before the invocation of each test method in the class.

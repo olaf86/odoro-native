@@ -1,6 +1,6 @@
 //
 //  Item.swift
-//  Visco
+//  Odoro
 //
 //  Created by Yuta Ogawa on 2026/04/07.
 //

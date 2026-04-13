@@ -1,6 +1,6 @@
 //
-//  ViscoApp.swift
-//  Visco
+//  OdoroApp.swift
+//  Odoro
 //
 //  Created by Yuta Ogawa on 2026/04/07.
 //
@@ -9,7 +9,7 @@ import SwiftUI
 import SwiftData
 
 @main
-struct ViscoApp: App {
+struct OdoroApp: App {
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
             Item.self,

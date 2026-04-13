@@ -12,37 +12,37 @@
 			containerPortal = EDAB17DC2F85378A00710FFB /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = EDAB17E32F85378A00710FFB;
-			remoteInfo = Visco;
+			remoteInfo = Odoro;
 		};
 		EDAB17FE2F85378A00710FFB /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = EDAB17DC2F85378A00710FFB /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = EDAB17E32F85378A00710FFB;
-			remoteInfo = Visco;
+			remoteInfo = Odoro;
 		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		EDAB17E42F85378A00710FFB /* Visco.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Visco.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		EDAB17F32F85378A00710FFB /* ViscoTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ViscoTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		EDAB17FD2F85378A00710FFB /* ViscoUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ViscoUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		EDAB17E42F85378A00710FFB /* Odoro.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Odoro.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		EDAB17F32F85378A00710FFB /* OdoroTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = OdoroTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		EDAB17FD2F85378A00710FFB /* OdoroUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = OdoroUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		EDAB17E62F85378A00710FFB /* Visco */ = {
+		EDAB17E62F85378A00710FFB /* Odoro */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = Visco;
+			path = Odoro;
 			sourceTree = "<group>";
 		};
-		EDAB17F62F85378A00710FFB /* ViscoTests */ = {
+		EDAB17F62F85378A00710FFB /* OdoroTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = ViscoTests;
+			path = OdoroTests;
 			sourceTree = "<group>";
 		};
-		EDAB18002F85378A00710FFB /* ViscoUITests */ = {
+		EDAB18002F85378A00710FFB /* OdoroUITests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = ViscoUITests;
+			path = OdoroUITests;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -75,9 +75,9 @@
 		EDAB17DB2F85378A00710FFB = {
 			isa = PBXGroup;
 			children = (
-				EDAB17E62F85378A00710FFB /* Visco */,
-				EDAB17F62F85378A00710FFB /* ViscoTests */,
-				EDAB18002F85378A00710FFB /* ViscoUITests */,
+				EDAB17E62F85378A00710FFB /* Odoro */,
+				EDAB17F62F85378A00710FFB /* OdoroTests */,
+				EDAB18002F85378A00710FFB /* OdoroUITests */,
 				EDAB17E52F85378A00710FFB /* Products */,
 			);
 			sourceTree = "<group>";
@@ -85,9 +85,9 @@
 		EDAB17E52F85378A00710FFB /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				EDAB17E42F85378A00710FFB /* Visco.app */,
-				EDAB17F32F85378A00710FFB /* ViscoTests.xctest */,
-				EDAB17FD2F85378A00710FFB /* ViscoUITests.xctest */,
+				EDAB17E42F85378A00710FFB /* Odoro.app */,
+				EDAB17F32F85378A00710FFB /* OdoroTests.xctest */,
+				EDAB17FD2F85378A00710FFB /* OdoroUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -95,9 +95,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		EDAB17E32F85378A00710FFB /* Visco */ = {
+		EDAB17E32F85378A00710FFB /* Odoro */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = EDAB18072F85378A00710FFB /* Build configuration list for PBXNativeTarget "Visco" */;
+			buildConfigurationList = EDAB18072F85378A00710FFB /* Build configuration list for PBXNativeTarget "Odoro" */;
 			buildPhases = (
 				EDAB17E02F85378A00710FFB /* Sources */,
 				EDAB17E12F85378A00710FFB /* Frameworks */,
@@ -108,18 +108,18 @@
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				EDAB17E62F85378A00710FFB /* Visco */,
+				EDAB17E62F85378A00710FFB /* Odoro */,
 			);
-			name = Visco;
+			name = Odoro;
 			packageProductDependencies = (
 			);
-			productName = Visco;
-			productReference = EDAB17E42F85378A00710FFB /* Visco.app */;
+			productName = Odoro;
+			productReference = EDAB17E42F85378A00710FFB /* Odoro.app */;
 			productType = "com.apple.product-type.application";
 		};
-		EDAB17F22F85378A00710FFB /* ViscoTests */ = {
+		EDAB17F22F85378A00710FFB /* OdoroTests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = EDAB180A2F85378A00710FFB /* Build configuration list for PBXNativeTarget "ViscoTests" */;
+			buildConfigurationList = EDAB180A2F85378A00710FFB /* Build configuration list for PBXNativeTarget "OdoroTests" */;
 			buildPhases = (
 				EDAB17EF2F85378A00710FFB /* Sources */,
 				EDAB17F02F85378A00710FFB /* Frameworks */,
@@ -131,18 +131,18 @@
 				EDAB17F52F85378A00710FFB /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
-				EDAB17F62F85378A00710FFB /* ViscoTests */,
+				EDAB17F62F85378A00710FFB /* OdoroTests */,
 			);
-			name = ViscoTests;
+			name = OdoroTests;
 			packageProductDependencies = (
 			);
-			productName = ViscoTests;
-			productReference = EDAB17F32F85378A00710FFB /* ViscoTests.xctest */;
+			productName = OdoroTests;
+			productReference = EDAB17F32F85378A00710FFB /* OdoroTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
-		EDAB17FC2F85378A00710FFB /* ViscoUITests */ = {
+		EDAB17FC2F85378A00710FFB /* OdoroUITests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = EDAB180D2F85378A00710FFB /* Build configuration list for PBXNativeTarget "ViscoUITests" */;
+			buildConfigurationList = EDAB180D2F85378A00710FFB /* Build configuration list for PBXNativeTarget "OdoroUITests" */;
 			buildPhases = (
 				EDAB17F92F85378A00710FFB /* Sources */,
 				EDAB17FA2F85378A00710FFB /* Frameworks */,
@@ -154,13 +154,13 @@
 				EDAB17FF2F85378A00710FFB /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
-				EDAB18002F85378A00710FFB /* ViscoUITests */,
+				EDAB18002F85378A00710FFB /* OdoroUITests */,
 			);
-			name = ViscoUITests;
+			name = OdoroUITests;
 			packageProductDependencies = (
 			);
-			productName = ViscoUITests;
-			productReference = EDAB17FD2F85378A00710FFB /* ViscoUITests.xctest */;
+			productName = OdoroUITests;
+			productReference = EDAB17FD2F85378A00710FFB /* OdoroUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
 /* End PBXNativeTarget section */
@@ -186,7 +186,7 @@
 					};
 				};
 			};
-			buildConfigurationList = EDAB17DF2F85378A00710FFB /* Build configuration list for PBXProject "Visco" */;
+			buildConfigurationList = EDAB17DF2F85378A00710FFB /* Build configuration list for PBXProject "Odoro" */;
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -204,9 +204,9 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				EDAB17E32F85378A00710FFB /* Visco */,
-				EDAB17F22F85378A00710FFB /* ViscoTests */,
-				EDAB17FC2F85378A00710FFB /* ViscoUITests */,
+				EDAB17E32F85378A00710FFB /* Odoro */,
+				EDAB17F22F85378A00710FFB /* OdoroTests */,
+				EDAB17FC2F85378A00710FFB /* OdoroUITests */,
 			);
 		};
 /* End PBXProject section */
@@ -262,12 +262,12 @@
 /* Begin PBXTargetDependency section */
 		EDAB17F52F85378A00710FFB /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = EDAB17E32F85378A00710FFB /* Visco */;
+			target = EDAB17E32F85378A00710FFB /* Odoro */;
 			targetProxy = EDAB17F42F85378A00710FFB /* PBXContainerItemProxy */;
 		};
 		EDAB17FF2F85378A00710FFB /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = EDAB17E32F85378A00710FFB /* Visco */;
+			target = EDAB17E32F85378A00710FFB /* Odoro */;
 			targetProxy = EDAB17FE2F85378A00710FFB /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
@@ -415,7 +415,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = dev.asobo.visco;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.asobo.odoro;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -448,7 +448,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = dev.asobo.visco;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.asobo.odoro;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -470,7 +470,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = dev.asobo.visco.tests;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.asobo.odoro.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -478,7 +478,7 @@
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Visco.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Visco";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Odoro.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Odoro";
 			};
 			name = Debug;
 		};
@@ -492,7 +492,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = dev.asobo.visco.tests;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.asobo.odoro.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -500,7 +500,7 @@
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Visco.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Visco";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Odoro.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Odoro";
 			};
 			name = Release;
 		};
@@ -512,7 +512,7 @@
 				DEVELOPMENT_TEAM = 48C76HC76Y;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = dev.asobo.visco.uitests;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.asobo.odoro.uitests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -520,7 +520,7 @@
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_TARGET_NAME = Visco;
+				TEST_TARGET_NAME = Odoro;
 			};
 			name = Debug;
 		};
@@ -532,7 +532,7 @@
 				DEVELOPMENT_TEAM = 48C76HC76Y;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = dev.asobo.visco.uitests;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.asobo.odoro.uitests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -540,7 +540,7 @@
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_TARGET_NAME = Visco;
+				TEST_TARGET_NAME = Odoro;
 			};
 			name = Release;
 		};
@@ -676,20 +676,20 @@
 				DEVELOPMENT_TEAM = 48C76HC76Y;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = "Visco Stg";
+				INFOPLIST_KEY_CFBundleDisplayName = "Odoro Stg";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Camera access is required to capture body motion.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_ViscoEnvironment = stg;
+				INFOPLIST_KEY_OdoroEnvironment = stg;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = dev.asobo.visco.stg;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.asobo.odoro.stg;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -711,20 +711,20 @@
 				DEVELOPMENT_TEAM = 48C76HC76Y;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = Visco;
+				INFOPLIST_KEY_CFBundleDisplayName = Odoro;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Camera access is required to capture body motion.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_ViscoEnvironment = prod;
+				INFOPLIST_KEY_OdoroEnvironment = prod;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = dev.asobo.visco;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.asobo.odoro;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -746,7 +746,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = dev.asobo.visco.stg.tests;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.asobo.odoro.stg.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG STAGING $(inherited)";
@@ -755,7 +755,7 @@
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Visco.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Visco";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Odoro.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Odoro";
 			};
 			name = Staging;
 		};
@@ -769,7 +769,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = dev.asobo.visco.tests;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.asobo.odoro.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -777,7 +777,7 @@
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Visco.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Visco";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Odoro.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Odoro";
 			};
 			name = Production;
 		};
@@ -789,7 +789,7 @@
 				DEVELOPMENT_TEAM = 48C76HC76Y;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = dev.asobo.visco.stg.uitests;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.asobo.odoro.stg.uitests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG STAGING $(inherited)";
@@ -798,7 +798,7 @@
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_TARGET_NAME = Visco;
+				TEST_TARGET_NAME = Odoro;
 			};
 			name = Staging;
 		};
@@ -810,7 +810,7 @@
 				DEVELOPMENT_TEAM = 48C76HC76Y;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = dev.asobo.visco.uitests;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.asobo.odoro.uitests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -818,14 +818,14 @@
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_TARGET_NAME = Visco;
+				TEST_TARGET_NAME = Odoro;
 			};
 			name = Production;
 		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		EDAB17DF2F85378A00710FFB /* Build configuration list for PBXProject "Visco" */ = {
+		EDAB17DF2F85378A00710FFB /* Build configuration list for PBXProject "Odoro" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				EDAB18052F85378A00710FFB /* Debug */,
@@ -836,7 +836,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Production;
 		};
-		EDAB18072F85378A00710FFB /* Build configuration list for PBXNativeTarget "Visco" */ = {
+		EDAB18072F85378A00710FFB /* Build configuration list for PBXNativeTarget "Odoro" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				EDAB18082F85378A00710FFB /* Debug */,
@@ -847,7 +847,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Production;
 		};
-		EDAB180A2F85378A00710FFB /* Build configuration list for PBXNativeTarget "ViscoTests" */ = {
+		EDAB180A2F85378A00710FFB /* Build configuration list for PBXNativeTarget "OdoroTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				EDAB180B2F85378A00710FFB /* Debug */,
@@ -858,7 +858,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Production;
 		};
-		EDAB180D2F85378A00710FFB /* Build configuration list for PBXNativeTarget "ViscoUITests" */ = {
+		EDAB180D2F85378A00710FFB /* Build configuration list for PBXNativeTarget "OdoroUITests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				EDAB180E2F85378A00710FFB /* Debug */,

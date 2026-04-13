@@ -1,6 +1,6 @@
 //
 //  MotionStudioInteractor.swift
-//  Visco
+//  Odoro
 //
 
 import Foundation

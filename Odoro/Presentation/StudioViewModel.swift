@@ -1,6 +1,6 @@
 //
 //  StudioViewModel.swift
-//  Visco
+//  Odoro
 //
 
 import ARKit

@@ -1,13 +1,13 @@
 //
-//  ViscoUITestsLaunchTests.swift
-//  ViscoUITests
+//  OdoroUITestsLaunchTests.swift
+//  OdoroUITests
 //
 //  Created by Yuta Ogawa on 2026/04/07.
 //
 
 import XCTest
 
-final class ViscoUITestsLaunchTests: XCTestCase {
+final class OdoroUITestsLaunchTests: XCTestCase {
 
     override class var runsForEachTargetApplicationUIConfiguration: Bool {
         true
