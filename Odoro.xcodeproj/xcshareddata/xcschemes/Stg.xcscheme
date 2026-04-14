@@ -15,9 +15,9 @@
             buildForAnalyzing = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "EDAB17E32F85378A00710FFB"
-               BuildableName = "Odoro.app"
-               BlueprintName = "Odoro"
+               BlueprintIdentifier = "EDAB181C2F85378A00710FFB"
+               BuildableName = "Odoro Staging.app"
+               BlueprintName = "Odoro Staging"
                ReferencedContainer = "container:Odoro.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
@@ -32,36 +32,12 @@
       <MacroExpansion>
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "EDAB17E32F85378A00710FFB"
-            BuildableName = "Odoro.app"
-            BlueprintName = "Odoro"
+            BlueprintIdentifier = "EDAB181C2F85378A00710FFB"
+            BuildableName = "Odoro Staging.app"
+            BlueprintName = "Odoro Staging"
             ReferencedContainer = "container:Odoro.xcodeproj">
          </BuildableReference>
       </MacroExpansion>
-      <Testables>
-         <TestableReference
-            skipped = "NO"
-            parallelizable = "YES">
-            <BuildableReference
-               BuildableIdentifier = "primary"
-               BlueprintIdentifier = "EDAB17F22F85378A00710FFB"
-               BuildableName = "OdoroTests.xctest"
-               BlueprintName = "OdoroTests"
-               ReferencedContainer = "container:Odoro.xcodeproj">
-            </BuildableReference>
-         </TestableReference>
-         <TestableReference
-            skipped = "NO"
-            parallelizable = "YES">
-            <BuildableReference
-               BuildableIdentifier = "primary"
-               BlueprintIdentifier = "EDAB17FC2F85378A00710FFB"
-               BuildableName = "OdoroUITests.xctest"
-               BlueprintName = "OdoroUITests"
-               ReferencedContainer = "container:Odoro.xcodeproj">
-            </BuildableReference>
-         </TestableReference>
-      </Testables>
    </TestAction>
    <LaunchAction
       buildConfiguration = "Staging"
@@ -77,9 +53,9 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "EDAB17E32F85378A00710FFB"
-            BuildableName = "Odoro.app"
-            BlueprintName = "Odoro"
+            BlueprintIdentifier = "EDAB181C2F85378A00710FFB"
+            BuildableName = "Odoro Staging.app"
+            BlueprintName = "Odoro Staging"
             ReferencedContainer = "container:Odoro.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
@@ -94,9 +70,9 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "EDAB17E32F85378A00710FFB"
-            BuildableName = "Odoro.app"
-            BlueprintName = "Odoro"
+            BlueprintIdentifier = "EDAB181C2F85378A00710FFB"
+            BuildableName = "Odoro Staging.app"
+            BlueprintName = "Odoro Staging"
             ReferencedContainer = "container:Odoro.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
