@@ -9,10 +9,20 @@ import Foundation
 import RealityKit
 import UIKit
 
+struct TimeSignatureOption: Identifiable, Hashable {
+    var numerator: Int
+    var denominator: Int
+
+    var id: String { "\(numerator)/\(denominator)" }
+    var title: String { "\(numerator)/\(denominator)" }
+}
+
 @MainActor
 final class StudioViewModel: ObservableObject {
     @Published private(set) var state = MotionStudioState()
     @Published private(set) var captureMode: CaptureMode
+    @Published private(set) var recordingContext: MotionRecordingContext
+    @Published private(set) var currentSessionTakes: [MotionTakeSummary] = []
 
     var presentation: StudioPresentation { state.presentation }
     var statusText: String { state.statusText }
@@ -21,6 +31,25 @@ final class StudioViewModel: ObservableObject {
     var recordedFrameCount: Int { state.recordedFrameCount }
     var hasClip: Bool { state.hasClip }
     var availableCaptureModes: [CaptureMode] { supportedCaptureModes }
+    var availableTimeSignatures: [TimeSignatureOption] { Self.supportedTimeSignatures }
+    var hasSavedTakes: Bool { !currentSessionTakes.isEmpty }
+
+    var selectedTimeSignature: TimeSignatureOption {
+        TimeSignatureOption(
+            numerator: recordingContext.timeSignatureNumerator,
+            denominator: recordingContext.timeSignatureDenominator
+        )
+    }
+
+    var recordingSessionSummaryText: String {
+        let bpm = Int(recordingContext.bpm.rounded())
+        return L10n.recordingSessionSummary(
+            bpm,
+            recordingContext.timeSignatureNumerator,
+            recordingContext.timeSignatureDenominator,
+            recordingContext.targetBarCount
+        )
+    }
 
     var recordingDurationText: String {
         L10n.recordingDuration(state.recordingDuration.formatted(.number.precision(.fractionLength(1))))
@@ -39,8 +68,11 @@ final class StudioViewModel: ObservableObject {
     }
 
     private let supportedCaptureModes: [CaptureMode]
+    private static let supportedTimeSignatures = [
+        TimeSignatureOption(numerator: 3, denominator: 4),
+        TimeSignatureOption(numerator: 4, denominator: 4),
+    ]
     private let archiveStore: MotionArchiveStore?
-    private let recordingContext: MotionRecordingContext
     private var source: MotionSource
     private var interactor: MotionStudioInteractor
     private let stageRenderer = StagePlaybackRenderer()
@@ -162,6 +194,50 @@ final class StudioViewModel: ObservableObject {
         interactor.activateSource()
     }
 
+    func updateBPM(_ bpm: Double) {
+        updateRecordingContext {
+            $0.bpm = bpm
+        }
+    }
+
+    func selectTimeSignature(_ option: TimeSignatureOption) {
+        updateRecordingContext {
+            $0.timeSignatureNumerator = option.numerator
+            $0.timeSignatureDenominator = option.denominator
+        }
+    }
+
+    func updateTargetBarCount(_ value: Int) {
+        updateRecordingContext {
+            $0.targetBarCount = value
+        }
+    }
+
+    func updateCountInBarCount(_ value: Int) {
+        updateRecordingContext {
+            $0.countInBarCount = value
+        }
+    }
+
+    func loadTake(_ take: MotionTakeSummary) {
+        guard let archiveStore else { return }
+
+        do {
+            if let sessionSummary = try archiveStore.fetchSessionSummary(withID: take.sessionID) {
+                recordingContext = sessionSummary.recordingContext
+            }
+
+            let clip = try archiveStore.loadClip(fromLocalFilePath: take.localFilePath)
+            currentSessionID = take.sessionID
+            interactor.replaceCurrentClip(clip)
+            try refreshCurrentSessionTakes()
+            interactor.enterStageMode()
+            prepareStagePlayback()
+        } catch {
+            print("Failed to load motion take: \(error)")
+        }
+    }
+
     private func configureForCurrentSource() {
         stageRenderer.setUsesProceduralMockPlayback(source is MockMotionSource)
 
@@ -237,8 +313,31 @@ final class StudioViewModel: ObservableObject {
             currentSessionID = saveResult.sessionID
             let savedClip = try archiveStore.loadClip(fromLocalFilePath: saveResult.localFilePath)
             interactor.replaceCurrentClip(savedClip)
+            try refreshCurrentSessionTakes()
         } catch {
             print("Failed to persist motion take: \(error)")
         }
+    }
+
+    private func updateRecordingContext(_ update: (inout MotionRecordingContext) -> Void) {
+        var nextContext = recordingContext
+        update(&nextContext)
+
+        guard nextContext != recordingContext else {
+            return
+        }
+
+        recordingContext = nextContext
+        currentSessionID = nil
+        currentSessionTakes = []
+    }
+
+    private func refreshCurrentSessionTakes() throws {
+        guard let archiveStore, let currentSessionID else {
+            currentSessionTakes = []
+            return
+        }
+
+        currentSessionTakes = try archiveStore.fetchTakeSummaries(inSessionID: currentSessionID)
     }
 }

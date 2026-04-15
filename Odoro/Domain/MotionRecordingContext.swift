@@ -10,7 +10,7 @@ enum TempoSourceType: String, Codable, Sendable {
     case audioAsset
 }
 
-struct MotionRecordingContext: Codable, Sendable {
+struct MotionRecordingContext: Codable, Sendable, Equatable {
     var tempoSourceType: TempoSourceType
     var audioAssetReference: String?
     var bpm: Double

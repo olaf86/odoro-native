@@ -12,6 +12,46 @@ struct MotionTakeSaveResult: Sendable {
     var localFilePath: String
 }
 
+struct RecordingSessionSummary: Identifiable, Sendable {
+    var id: UUID
+    var createdAt: Date
+    var bpm: Double
+    var timeSignatureNumerator: Int
+    var timeSignatureDenominator: Int
+    var targetBarCount: Int
+    var countInBarCount: Int
+    var takeCount: Int
+
+    var recordingContext: MotionRecordingContext {
+        MotionRecordingContext(
+            tempoSourceType: .metronome,
+            audioAssetReference: nil,
+            bpm: bpm,
+            timeSignatureNumerator: timeSignatureNumerator,
+            timeSignatureDenominator: timeSignatureDenominator,
+            targetBarCount: targetBarCount,
+            countInBarCount: countInBarCount,
+            notes: nil
+        )
+    }
+}
+
+struct MotionTakeSummary: Identifiable, Sendable {
+    var id: UUID
+    var sessionID: UUID
+    var createdAt: Date
+    var takeIndex: Int
+    var captureMode: CaptureMode
+    var durationSeconds: Double
+    var frameCount: Int
+    var nominalFrameRate: Double
+    var barLength: Int
+    var beatLength: Double
+    var startBeatOffset: Double
+    var isAccepted: Bool
+    var localFilePath: String
+}
+
 @MainActor
 final class MotionArchiveStore {
     private let modelContainer: ModelContainer
@@ -76,6 +116,58 @@ final class MotionArchiveStore {
     func loadClip(fromLocalFilePath localFilePath: String) throws -> MotionClip {
         let payloadURL = URL(fileURLWithPath: localFilePath)
         return try payloadFileStore.read(from: payloadURL).makeMotionClip()
+    }
+
+    func fetchSessionSummary(withID sessionID: UUID) throws -> RecordingSessionSummary? {
+        let context = ModelContext(modelContainer)
+        guard let session = try fetchSession(withID: sessionID, context: context) else {
+            return nil
+        }
+
+        return RecordingSessionSummary(
+            id: session.id,
+            createdAt: session.createdAt,
+            bpm: session.bpm,
+            timeSignatureNumerator: session.timeSignatureNumerator,
+            timeSignatureDenominator: session.timeSignatureDenominator,
+            targetBarCount: session.targetBarCount,
+            countInBarCount: session.countInBarCount,
+            takeCount: session.takes.count
+        )
+    }
+
+    func fetchTakeSummaries(inSessionID sessionID: UUID) throws -> [MotionTakeSummary] {
+        let context = ModelContext(modelContainer)
+        let descriptor = FetchDescriptor<MotionTakeRecord>(
+            predicate: #Predicate { take in
+                take.session?.id == sessionID
+            }
+        )
+        return try context.fetch(descriptor)
+            .sorted { lhs, rhs in
+                if lhs.takeIndex == rhs.takeIndex {
+                    return lhs.createdAt > rhs.createdAt
+                }
+
+                return lhs.takeIndex > rhs.takeIndex
+            }
+            .map { take in
+                MotionTakeSummary(
+                    id: take.id,
+                    sessionID: take.session?.id ?? sessionID,
+                    createdAt: take.createdAt,
+                    takeIndex: take.takeIndex,
+                    captureMode: take.captureMode,
+                    durationSeconds: take.durationSeconds,
+                    frameCount: take.frameCount,
+                    nominalFrameRate: take.nominalFrameRate,
+                    barLength: take.barLength,
+                    beatLength: take.beatLength,
+                    startBeatOffset: take.startBeatOffset,
+                    isAccepted: take.isAccepted,
+                    localFilePath: take.localFilePath
+                )
+            }
     }
 
     private func fetchOrCreateSession(

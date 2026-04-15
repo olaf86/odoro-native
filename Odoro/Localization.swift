@@ -43,6 +43,14 @@ enum L10n {
     static let captureHintMock = text("capture.hint.mock")
     static let captureHintFront = text("capture.hint.front")
     static let captureHintRear = text("capture.hint.rear")
+    static let sessionTitle = "Recording Session"
+    static let sessionBPMTitle = "BPM"
+    static let sessionTimeSignatureTitle = "Meter"
+    static let sessionBarsTitle = "Bars"
+    static let sessionCountInTitle = "Count-In"
+    static let savedTakesTitle = "Saved Takes"
+    static let buttonOpenTake = "Open"
+    static let emptySavedTakes = "Your takes for this session will appear here."
     static let stageTitle = text("stage.title")
     static let stageDescription = text("stage.description")
     static let buttonRecording = text("button.recording")
@@ -104,5 +112,17 @@ enum L10n {
 
     static func clipDuration(_ value: String) -> String {
         formatted("label.clipDuration", value)
+    }
+
+    static func recordingSessionSummary(_ bpm: Int, _ numerator: Int, _ denominator: Int, _ bars: Int) -> String {
+        "\(bpm) BPM • \(numerator)/\(denominator) • \(bars) bars"
+    }
+
+    static func takeCardTitle(_ index: Int) -> String {
+        "Take \(index)"
+    }
+
+    static func takeCardMeta(_ duration: String, _ frameCount: Int) -> String {
+        "\(duration)s • \(frameCount) frames"
     }
 }

@@ -20,6 +20,7 @@ final class MotionStudioInteractor {
         didSet {
             state.hasClip = currentClip != nil
             state.clipDuration = currentClip?.duration ?? 0
+            state.recordedFrameCount = currentClip?.frameCount ?? 0
             onClipChange?(currentClip)
         }
     }
