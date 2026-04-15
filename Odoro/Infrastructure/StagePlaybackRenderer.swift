@@ -10,44 +10,39 @@ import UIKit
 
 @MainActor
 final class StagePlaybackRenderer: NSObject {
-    private struct RenderJoint {
-        let name: ARSkeleton.JointName
-        let fallbackRawName: String?
-    }
-
     private struct RenderLimb {
-        let start: ARSkeleton.JointName
-        let end: ARSkeleton.JointName
+        let startIndex: Int
+        let endIndex: Int
     }
 
     private let skeletonDefinition = ARSkeletonDefinition.defaultBody3D
-    private let renderJoints: [RenderJoint] = [
-        .init(name: .root, fallbackRawName: "hips_joint"),
-        .init(name: .head, fallbackRawName: "head_joint"),
-        .init(name: .leftShoulder, fallbackRawName: "left_shoulder_1_joint"),
-        .init(name: .rightShoulder, fallbackRawName: "right_shoulder_1_joint"),
-        .init(name: .leftHand, fallbackRawName: "left_hand_joint"),
-        .init(name: .rightHand, fallbackRawName: "right_hand_joint"),
-        .init(name: ARSkeleton.JointName(rawValue: "left_upLeg_joint"), fallbackRawName: nil),
-        .init(name: ARSkeleton.JointName(rawValue: "right_upLeg_joint"), fallbackRawName: nil),
-        .init(name: ARSkeleton.JointName(rawValue: "left_leg_joint"), fallbackRawName: nil),
-        .init(name: ARSkeleton.JointName(rawValue: "right_leg_joint"), fallbackRawName: nil),
-        .init(name: .leftFoot, fallbackRawName: "left_foot_joint"),
-        .init(name: .rightFoot, fallbackRawName: "right_foot_joint"),
+    private let renderJointNames: [OdoroJointName] = [
+        .root,
+        .head,
+        .leftShoulder,
+        .rightShoulder,
+        .leftWrist,
+        .rightWrist,
+        .leftHip,
+        .rightHip,
+        .leftKnee,
+        .rightKnee,
+        .leftFoot,
+        .rightFoot,
     ]
     private let renderLimbs: [RenderLimb] = [
-        .init(start: .root, end: .head),
-        .init(start: .leftShoulder, end: .rightShoulder),
-        .init(start: .root, end: .leftShoulder),
-        .init(start: .root, end: .rightShoulder),
-        .init(start: .leftShoulder, end: .leftHand),
-        .init(start: .rightShoulder, end: .rightHand),
-        .init(start: .root, end: ARSkeleton.JointName(rawValue: "left_upLeg_joint")),
-        .init(start: .root, end: ARSkeleton.JointName(rawValue: "right_upLeg_joint")),
-        .init(start: ARSkeleton.JointName(rawValue: "left_upLeg_joint"), end: ARSkeleton.JointName(rawValue: "left_leg_joint")),
-        .init(start: ARSkeleton.JointName(rawValue: "right_upLeg_joint"), end: ARSkeleton.JointName(rawValue: "right_leg_joint")),
-        .init(start: ARSkeleton.JointName(rawValue: "left_leg_joint"), end: .leftFoot),
-        .init(start: ARSkeleton.JointName(rawValue: "right_leg_joint"), end: .rightFoot),
+        .init(startIndex: 0, endIndex: 1),
+        .init(startIndex: 2, endIndex: 3),
+        .init(startIndex: 0, endIndex: 2),
+        .init(startIndex: 0, endIndex: 3),
+        .init(startIndex: 2, endIndex: 4),
+        .init(startIndex: 3, endIndex: 5),
+        .init(startIndex: 0, endIndex: 6),
+        .init(startIndex: 0, endIndex: 7),
+        .init(startIndex: 6, endIndex: 8),
+        .init(startIndex: 7, endIndex: 9),
+        .init(startIndex: 8, endIndex: 10),
+        .init(startIndex: 9, endIndex: 11),
     ]
 
     private weak var view: ARView?
@@ -147,7 +142,7 @@ final class StagePlaybackRenderer: NSObject {
     }
 
     private func buildDancerHierarchy() {
-        for _ in renderJoints {
+        for _ in renderJointNames {
             let joint = ModelEntity(
                 mesh: .generateSphere(radius: 0.075),
                 materials: [UnlitMaterial(color: UIColor(red: 1, green: 0.33, blue: 0.48, alpha: 1))]
@@ -203,8 +198,10 @@ final class StagePlaybackRenderer: NSObject {
         for (index, limb) in renderLimbs.enumerated() {
             let limbEntity = limbEntities[index]
             guard
-                let start = renderedPosition(for: limb.start, in: jointPositions),
-                let end = renderedPosition(for: limb.end, in: jointPositions)
+                jointPositions.indices.contains(limb.startIndex),
+                jointPositions.indices.contains(limb.endIndex),
+                let start = jointPositions[limb.startIndex],
+                let end = jointPositions[limb.endIndex]
             else {
                 limbEntity.isEnabled = false
                 continue
@@ -225,30 +222,31 @@ final class StagePlaybackRenderer: NSObject {
     }
 
     private func resolvedJointPositions(from frame: MotionFrame) -> [SIMD3<Float>?] {
-        renderJoints.map { joint in
-            resolvedPosition(for: joint.name, fallbackRawName: joint.fallbackRawName, in: frame)
+        if frame.jointPositions.count == OdoroSkeletonDefinition.jointCount {
+            return renderJointNames.map { jointName in
+                canonicalPosition(for: jointName, in: frame)
+            }
         }
+
+        return [
+            resolvedPosition(for: .root, fallbackRawName: "hips_joint", in: frame),
+            resolvedPosition(for: .head, fallbackRawName: "head_joint", in: frame),
+            resolvedPosition(for: .leftShoulder, fallbackRawName: "left_shoulder_1_joint", in: frame),
+            resolvedPosition(for: .rightShoulder, fallbackRawName: "right_shoulder_1_joint", in: frame),
+            resolvedPosition(for: .leftHand, fallbackRawName: "left_hand_joint", in: frame),
+            resolvedPosition(for: .rightHand, fallbackRawName: "right_hand_joint", in: frame),
+            resolvedPosition(for: ARSkeleton.JointName(rawValue: "left_upLeg_joint"), in: frame),
+            resolvedPosition(for: ARSkeleton.JointName(rawValue: "right_upLeg_joint"), in: frame),
+            resolvedPosition(for: ARSkeleton.JointName(rawValue: "left_leg_joint"), in: frame),
+            resolvedPosition(for: ARSkeleton.JointName(rawValue: "right_leg_joint"), in: frame),
+            resolvedPosition(for: .leftFoot, fallbackRawName: "left_foot_joint", in: frame),
+            resolvedPosition(for: .rightFoot, fallbackRawName: "right_foot_joint", in: frame),
+        ]
     }
 
-    private func resolvedPosition(
-        for jointName: ARSkeleton.JointName,
-        fallbackRawName: String? = nil,
-        in frame: MotionFrame
-    ) -> SIMD3<Float>? {
-        if let position = position(for: jointName, in: frame) {
-            return position
-        }
-
-        guard let fallbackRawName else {
-            return nil
-        }
-
-        return position(for: ARSkeleton.JointName(rawValue: fallbackRawName), in: frame)
-    }
-
-    private func position(for jointName: ARSkeleton.JointName, in frame: MotionFrame) -> SIMD3<Float>? {
-        let index = skeletonDefinition.index(for: jointName)
-        guard index != NSNotFound, frame.jointPositions.indices.contains(index) else {
+    private func canonicalPosition(for jointName: OdoroJointName, in frame: MotionFrame) -> SIMD3<Float>? {
+        let index = OdoroSkeletonDefinition.index(of: jointName)
+        guard frame.jointPositions.indices.contains(index) else {
             return nil
         }
 
@@ -258,17 +256,6 @@ final class StagePlaybackRenderer: NSObject {
         }
 
         return position
-    }
-
-    private func renderedPosition(
-        for jointName: ARSkeleton.JointName,
-        in jointPositions: [SIMD3<Float>?]
-    ) -> SIMD3<Float>? {
-        guard let index = renderJoints.firstIndex(where: { $0.name == jointName }) else {
-            return nil
-        }
-
-        return jointPositions[index]
     }
 
     private func shouldUseProceduralFallback(for jointPositions: [SIMD3<Float>?]) -> Bool {
@@ -301,6 +288,36 @@ final class StagePlaybackRenderer: NSObject {
         let depth = maxZ - minZ
 
         return width > 3 || height > 3.5 || depth > 3 || maxY < 0.4 || minY < -1.2
+    }
+
+    private func resolvedPosition(
+        for jointName: ARSkeleton.JointName,
+        fallbackRawName: String? = nil,
+        in frame: MotionFrame
+    ) -> SIMD3<Float>? {
+        if let position = position(for: jointName, in: frame) {
+            return position
+        }
+
+        guard let fallbackRawName else {
+            return nil
+        }
+
+        return position(for: ARSkeleton.JointName(rawValue: fallbackRawName), in: frame)
+    }
+
+    private func position(for jointName: ARSkeleton.JointName, in frame: MotionFrame) -> SIMD3<Float>? {
+        let index = skeletonDefinition.index(for: jointName)
+        guard index != NSNotFound, frame.jointPositions.indices.contains(index) else {
+            return nil
+        }
+
+        let position = frame.jointPositions[index]
+        guard position.x.isFinite, position.y.isFinite, position.z.isFinite, position.y > -5 else {
+            return nil
+        }
+
+        return position
     }
 
     private func fallbackJointPositions(for frame: MotionFrame) -> [SIMD3<Float>] {

@@ -69,15 +69,14 @@ struct MotionPayload: Codable, Sendable {
         self.sourcePlatform = sourcePlatform
         self.sourceBackend = sourceBackend
         self.frames = clip.frames.map { frame in
-            MotionPayloadFrame(
+            let canonicalFrame = OdoroCanonicalPoseMapper.map(frame: frame)
+            return MotionPayloadFrame(
                 timeSeconds: frame.time,
                 timeBeats: frame.time * recordingContext.referenceBPM / 60,
-                positions: frame.jointPositions.map { position in
-                    MotionPayloadVector3(x: position.x, y: position.y, z: position.z)
-                },
+                positions: canonicalFrame.0,
                 rotations: nil,
                 confidences: nil,
-                jointStatuses: nil
+                jointStatuses: canonicalFrame.1
             )
         }
     }
