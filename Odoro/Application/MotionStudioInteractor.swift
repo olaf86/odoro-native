@@ -110,6 +110,10 @@ final class MotionStudioInteractor {
         state.isPlaying = isPlaying
     }
 
+    func replaceCurrentClip(_ clip: MotionClip) {
+        currentClip = clip
+    }
+
     private func consume(frame: MotionFrame) {
         state.statusText = state.isRecording
             ? L10n.statusRecordingSaving

@@ -10,22 +10,28 @@ import SwiftData
 
 @main
 struct OdoroApp: App {
-    var sharedModelContainer: ModelContainer = {
+    private let sharedModelContainer: ModelContainer
+    private let archiveStore: MotionArchiveStore
+
+    init() {
         let schema = Schema([
-            Item.self,
+            RecordingSessionRecord.self,
+            MotionTakeRecord.self,
         ])
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 
         do {
-            return try ModelContainer(for: schema, configurations: [modelConfiguration])
+            let container = try ModelContainer(for: schema, configurations: [modelConfiguration])
+            self.sharedModelContainer = container
+            self.archiveStore = MotionArchiveStore(modelContainer: container)
         } catch {
             fatalError("Could not create ModelContainer: \(error)")
         }
-    }()
+    }
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            ContentView(archiveStore: archiveStore)
         }
         .modelContainer(sharedModelContainer)
     }

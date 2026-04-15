@@ -5,7 +5,7 @@
 
 import Foundation
 
-enum CaptureMode: String, CaseIterable, Identifiable {
+enum CaptureMode: String, CaseIterable, Identifiable, Codable, Sendable {
     case rearBody3D
     case frontUpperBody
     case mock

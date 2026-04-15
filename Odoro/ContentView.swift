@@ -7,11 +7,22 @@
 
 import ARKit
 import RealityKit
-import SwiftData
 import SwiftUI
 
 struct ContentView: View {
-    @StateObject private var studio = StudioViewModel()
+    @StateObject private var studio: StudioViewModel
+
+    init(
+        archiveStore: MotionArchiveStore? = nil,
+        recordingContext: MotionRecordingContext? = nil
+    ) {
+        _studio = StateObject(
+            wrappedValue: StudioViewModel(
+                archiveStore: archiveStore,
+                recordingContext: recordingContext
+            )
+        )
+    }
 
     var body: some View {
         switch studio.presentation {
@@ -249,5 +260,4 @@ private struct StagePlaybackView: UIViewRepresentable {
 
 #Preview {
     ContentView()
-        .modelContainer(for: Item.self, inMemory: true)
 }

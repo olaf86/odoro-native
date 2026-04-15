@@ -39,18 +39,26 @@ final class StudioViewModel: ObservableObject {
     }
 
     private let supportedCaptureModes: [CaptureMode]
+    private let archiveStore: MotionArchiveStore?
+    private let recordingContext: MotionRecordingContext
     private var source: MotionSource
     private var interactor: MotionStudioInteractor
     private let stageRenderer = StagePlaybackRenderer()
     private weak var attachedCaptureARView: ARView?
     private weak var attachedFrontPreviewView: UIView?
+    private var currentSessionID: UUID?
 
-    init() {
+    init(
+        archiveStore: MotionArchiveStore? = nil,
+        recordingContext: MotionRecordingContext? = nil
+    ) {
         let modes = Self.makeSupportedCaptureModes()
         let initialMode = Self.defaultCaptureMode(from: modes)
         let source = Self.makeMotionSource(for: initialMode)
 
         self.supportedCaptureModes = modes
+        self.archiveStore = archiveStore
+        self.recordingContext = recordingContext ?? .defaultMetronomeLoop
         self.captureMode = initialMode
         self.source = source
         self.interactor = MotionStudioInteractor(source: source)
@@ -66,6 +74,7 @@ final class StudioViewModel: ObservableObject {
 
     func stopRecording() {
         interactor.stopRecording()
+        persistCurrentClipIfPossible()
         if state.presentation == .stage {
             prepareStagePlayback()
         }
@@ -207,6 +216,29 @@ final class StudioViewModel: ObservableObject {
             VisionFrontCameraMotionSource()
         case .mock:
             MockMotionSource()
+        }
+    }
+
+    private func persistCurrentClipIfPossible() {
+        guard
+            let archiveStore,
+            let currentClip = interactor.currentClip
+        else {
+            return
+        }
+
+        do {
+            let saveResult = try archiveStore.saveTake(
+                clip: currentClip,
+                captureMode: captureMode,
+                recordingContext: recordingContext,
+                existingSessionID: currentSessionID
+            )
+            currentSessionID = saveResult.sessionID
+            let savedClip = try archiveStore.loadClip(fromLocalFilePath: saveResult.localFilePath)
+            interactor.replaceCurrentClip(savedClip)
+        } catch {
+            print("Failed to persist motion take: \(error)")
         }
     }
 }

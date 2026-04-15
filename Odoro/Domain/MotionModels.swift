@@ -31,6 +31,14 @@ struct MotionClip: Sendable {
         frames.isEmpty
     }
 
+    var estimatedFrameRate: Double {
+        guard frames.count > 1, duration > 0 else {
+            return 0
+        }
+
+        return Double(frames.count - 1) / duration
+    }
+
     func normalizedForStage() -> MotionClip {
         guard let firstFrame = frames.first, !frames.isEmpty else {
             return self
