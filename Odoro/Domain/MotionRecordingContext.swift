@@ -13,7 +13,7 @@ enum TempoSourceType: String, Codable, Sendable {
 struct MotionRecordingContext: Codable, Sendable {
     var tempoSourceType: TempoSourceType
     var audioAssetReference: String?
-    var referenceBPM: Double
+    var bpm: Double
     var timeSignatureNumerator: Int
     var timeSignatureDenominator: Int
     var targetBarCount: Int
@@ -27,7 +27,7 @@ struct MotionRecordingContext: Codable, Sendable {
     static let defaultMetronomeLoop = MotionRecordingContext(
         tempoSourceType: .metronome,
         audioAssetReference: nil,
-        referenceBPM: 120,
+        bpm: 120,
         timeSignatureNumerator: 4,
         timeSignatureDenominator: 4,
         targetBarCount: 2,

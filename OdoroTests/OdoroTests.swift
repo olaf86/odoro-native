@@ -15,7 +15,7 @@ struct OdoroTests {
         let context = MotionRecordingContext(
             tempoSourceType: .metronome,
             audioAssetReference: nil,
-            referenceBPM: 96,
+            bpm: 96,
             timeSignatureNumerator: 3,
             timeSignatureDenominator: 4,
             targetBarCount: 2,

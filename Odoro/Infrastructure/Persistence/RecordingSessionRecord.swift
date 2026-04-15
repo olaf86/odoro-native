@@ -12,7 +12,7 @@ final class RecordingSessionRecord {
     var createdAt: Date
     var tempoSourceTypeRawValue: String
     var audioAssetReference: String?
-    var referenceBPM: Double
+    var bpm: Double
     var timeSignatureNumerator: Int
     var timeSignatureDenominator: Int
     var targetBarCount: Int
@@ -36,7 +36,7 @@ final class RecordingSessionRecord {
         self.createdAt = createdAt
         self.tempoSourceTypeRawValue = recordingContext.tempoSourceType.rawValue
         self.audioAssetReference = recordingContext.audioAssetReference
-        self.referenceBPM = recordingContext.referenceBPM
+        self.bpm = recordingContext.bpm
         self.timeSignatureNumerator = recordingContext.timeSignatureNumerator
         self.timeSignatureDenominator = recordingContext.timeSignatureDenominator
         self.targetBarCount = recordingContext.targetBarCount

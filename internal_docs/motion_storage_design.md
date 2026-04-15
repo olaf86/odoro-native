@@ -35,7 +35,7 @@ Recommended fields:
 - `createdAt`
 - `tempoSourceType`
 - `audioAssetReference`
-- `referenceBPM`
+- `bpm`
 - `timeSignatureNumerator`
 - `timeSignatureDenominator`
 - `targetBarCount`

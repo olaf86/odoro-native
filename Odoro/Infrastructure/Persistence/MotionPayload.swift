@@ -72,7 +72,7 @@ struct MotionPayload: Codable, Sendable {
             let canonicalFrame = OdoroCanonicalPoseMapper.map(frame: frame)
             return MotionPayloadFrame(
                 timeSeconds: frame.time,
-                timeBeats: frame.time * recordingContext.referenceBPM / 60,
+                timeBeats: frame.time * recordingContext.bpm / 60,
                 positions: canonicalFrame.0,
                 rotations: nil,
                 confidences: nil,
