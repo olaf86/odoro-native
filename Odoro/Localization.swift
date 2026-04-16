@@ -61,8 +61,6 @@ enum L10n {
     static let buttonPlay = text("button.play")
     static let buttonRecordAgain = text("button.recordAgain")
     static let buttonResetClip = text("button.resetClip")
-    static let mockDanceTitle = text("mock.title")
-    static let mockDanceDescription = text("mock.description")
 
     static let captureModeRearTitle = text("captureMode.rear.title")
     static let captureModeFrontTitle = text("captureMode.front.title")
