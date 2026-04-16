@@ -23,6 +23,7 @@ final class StudioViewModel: ObservableObject {
     @Published private(set) var captureMode: CaptureMode
     @Published private(set) var recordingContext: MotionRecordingContext
     @Published private(set) var currentSessionTakes: [MotionTakeSummary] = []
+    @Published private(set) var currentTakeID: UUID?
 
     var presentation: StudioPresentation { state.presentation }
     var statusText: String { state.statusText }
@@ -33,6 +34,20 @@ final class StudioViewModel: ObservableObject {
     var availableCaptureModes: [CaptureMode] { supportedCaptureModes }
     var availableTimeSignatures: [TimeSignatureOption] { Self.supportedTimeSignatures }
     var hasSavedTakes: Bool { !currentSessionTakes.isEmpty }
+    var hasCurrentTake: Bool { currentTake != nil }
+    var isCurrentTakeAccepted: Bool { currentTake?.isAccepted == true }
+
+    var currentTake: MotionTakeSummary? {
+        guard let currentTakeID else {
+            return currentSessionTakes.first
+        }
+
+        return currentSessionTakes.first { $0.id == currentTakeID } ?? currentSessionTakes.first
+    }
+
+    var acceptedTake: MotionTakeSummary? {
+        currentSessionTakes.first { $0.isAccepted }
+    }
 
     var selectedTimeSignature: TimeSignatureOption {
         TimeSignatureOption(
@@ -129,6 +144,7 @@ final class StudioViewModel: ObservableObject {
         interactor.setPlaybackActive(false)
         stageRenderer.setClip(nil)
         interactor.resetClip()
+        currentTakeID = nil
     }
 
     func prepareStagePlayback() {
@@ -162,6 +178,9 @@ final class StudioViewModel: ObservableObject {
         source = Self.makeMotionSource(for: mode)
         interactor = MotionStudioInteractor(source: source)
         state = MotionStudioState(statusText: mode.descriptionText)
+        currentSessionID = nil
+        currentTakeID = nil
+        currentSessionTakes = []
 
         configureForCurrentSource()
         attachCurrentSourceIfPossible()
@@ -229,12 +248,29 @@ final class StudioViewModel: ObservableObject {
 
             let clip = try archiveStore.loadClip(fromLocalFilePath: take.localFilePath)
             currentSessionID = take.sessionID
+            currentTakeID = take.id
             interactor.replaceCurrentClip(clip)
             try refreshCurrentSessionTakes()
             interactor.enterStageMode()
             prepareStagePlayback()
         } catch {
             print("Failed to load motion take: \(error)")
+        }
+    }
+
+    func confirmCurrentTake() {
+        guard
+            let archiveStore,
+            let currentTake
+        else {
+            return
+        }
+
+        do {
+            try archiveStore.acceptTake(withID: currentTake.id, inSessionID: currentTake.sessionID)
+            try refreshCurrentSessionTakes()
+        } catch {
+            print("Failed to confirm motion take: \(error)")
         }
     }
 
@@ -311,6 +347,7 @@ final class StudioViewModel: ObservableObject {
                 existingSessionID: currentSessionID
             )
             currentSessionID = saveResult.sessionID
+            currentTakeID = saveResult.takeID
             let savedClip = try archiveStore.loadClip(fromLocalFilePath: saveResult.localFilePath)
             interactor.replaceCurrentClip(savedClip)
             try refreshCurrentSessionTakes()
@@ -329,6 +366,7 @@ final class StudioViewModel: ObservableObject {
 
         recordingContext = nextContext
         currentSessionID = nil
+        currentTakeID = nil
         currentSessionTakes = []
     }
 

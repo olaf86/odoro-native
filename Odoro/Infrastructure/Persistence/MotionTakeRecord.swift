@@ -54,7 +54,7 @@ final class MotionTakeRecord {
         barLength: Int,
         beatLength: Double,
         startBeatOffset: Double,
-        isAccepted: Bool = true,
+        isAccepted: Bool = false,
         localFilePath: String,
         uploadStatus: MotionTakeUploadStatus = .localOnly,
         remoteObjectKey: String? = nil,

@@ -96,6 +96,7 @@ final class MotionArchiveStore {
                 barLength: recordingContext.targetBarCount,
                 beatLength: recordingContext.beatLength,
                 startBeatOffset: startBeatOffset,
+                isAccepted: false,
                 localFilePath: payloadURL.path(),
                 session: session
             )
@@ -168,6 +169,35 @@ final class MotionArchiveStore {
                     localFilePath: take.localFilePath
                 )
             }
+    }
+
+    func acceptTake(withID takeID: UUID, inSessionID sessionID: UUID) throws {
+        let context = ModelContext(modelContainer)
+        let descriptor = FetchDescriptor<MotionTakeRecord>(
+            predicate: #Predicate { take in
+                take.session?.id == sessionID
+            }
+        )
+        let takes = try context.fetch(descriptor)
+        guard takes.contains(where: { $0.id == takeID }) else {
+            return
+        }
+
+        var didChange = false
+
+        for take in takes {
+            let shouldBeAccepted = take.id == takeID
+            guard take.isAccepted != shouldBeAccepted else {
+                continue
+            }
+
+            take.isAccepted = shouldBeAccepted
+            didChange = true
+        }
+
+        if didChange {
+            try context.save()
+        }
     }
 
     private func fetchOrCreateSession(

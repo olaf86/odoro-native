@@ -187,5 +187,62 @@ struct OdoroTests {
 
         #expect(secondSaveResult.sessionID == saveResult.sessionID)
         #expect(secondSaveResult.takeID != saveResult.takeID)
+
+        let summaries = try archiveStore.fetchTakeSummaries(inSessionID: saveResult.sessionID)
+        #expect(summaries.count == 2)
+        #expect(summaries.allSatisfy { !$0.isAccepted })
+    }
+
+    @MainActor
+    @Test func archiveStoreAcceptsOnlyOneTakePerSession() throws {
+        let modelConfiguration = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(
+            for: RecordingSessionRecord.self,
+            MotionTakeRecord.self,
+            configurations: modelConfiguration
+        )
+        let tempDirectory = FileManager.default.temporaryDirectory
+            .appending(path: UUID().uuidString, directoryHint: .isDirectory)
+        let archiveStore = MotionArchiveStore(
+            modelContainer: container,
+            payloadFileStore: MotionPayloadFileStore(baseDirectoryURL: tempDirectory)
+        )
+        let runtimeClip = MotionClip(frames: [
+            MotionFrame(
+                time: 0,
+                jointPositions: [
+                    SIMD3<Float>(0, 1, 0),
+                    SIMD3<Float>(0.2, 1.2, 0.1),
+                ]
+            )
+        ])
+
+        defer {
+            try? FileManager.default.removeItem(at: tempDirectory)
+        }
+
+        let firstSave = try archiveStore.saveTake(
+            clip: runtimeClip,
+            captureMode: .rearBody3D,
+            recordingContext: .defaultMetronomeLoop
+        )
+        let secondSave = try archiveStore.saveTake(
+            clip: runtimeClip,
+            captureMode: .rearBody3D,
+            recordingContext: .defaultMetronomeLoop,
+            existingSessionID: firstSave.sessionID
+        )
+
+        try archiveStore.acceptTake(withID: firstSave.takeID, inSessionID: firstSave.sessionID)
+
+        var summaries = try archiveStore.fetchTakeSummaries(inSessionID: firstSave.sessionID)
+        #expect(summaries.first(where: { $0.id == firstSave.takeID })?.isAccepted == true)
+        #expect(summaries.first(where: { $0.id == secondSave.takeID })?.isAccepted == false)
+
+        try archiveStore.acceptTake(withID: secondSave.takeID, inSessionID: firstSave.sessionID)
+
+        summaries = try archiveStore.fetchTakeSummaries(inSessionID: firstSave.sessionID)
+        #expect(summaries.first(where: { $0.id == firstSave.takeID })?.isAccepted == false)
+        #expect(summaries.first(where: { $0.id == secondSave.takeID })?.isAccepted == true)
     }
 }
