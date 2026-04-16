@@ -129,7 +129,11 @@ final class MotionStudioInteractor {
         }
 
         let relativeTime = frame.time - (recordingStartTimestamp ?? frame.time)
-        let capturedFrame = MotionFrame(time: relativeTime, jointPositions: frame.jointPositions)
+        let capturedFrame = MotionFrame(
+            time: relativeTime,
+            jointPositions: frame.jointPositions,
+            jointRotations: frame.jointRotations
+        )
         capturedFrames.append(capturedFrame)
         state.recordedFrameCount = capturedFrames.count
         state.recordingDuration = relativeTime

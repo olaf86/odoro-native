@@ -31,13 +31,24 @@ struct MotionPayloadQuaternion: Codable, Sendable {
     var iy: Float
     var iz: Float
     var r: Float
+
+    nonisolated init(_ rotation: MotionJointRotation) {
+        self.ix = rotation.ix
+        self.iy = rotation.iy
+        self.iz = rotation.iz
+        self.r = rotation.r
+    }
+
+    var motionValue: MotionJointRotation {
+        MotionJointRotation(ix: ix, iy: iy, iz: iz, r: r)
+    }
 }
 
 struct MotionPayloadFrame: Codable, Sendable {
     var timeSeconds: Double
     var timeBeats: Double
     var positions: [MotionPayloadVector3]
-    var rotations: [MotionPayloadQuaternion]?
+    var rotations: [MotionPayloadQuaternion?]?
     var confidences: [Float]?
     var jointStatuses: [OdoroJointStatus]?
 }
@@ -73,10 +84,10 @@ struct MotionPayload: Codable, Sendable {
             return MotionPayloadFrame(
                 timeSeconds: frame.time,
                 timeBeats: frame.time * recordingContext.bpm / 60,
-                positions: canonicalFrame.0,
-                rotations: nil,
+                positions: canonicalFrame.positions,
+                rotations: canonicalFrame.rotations?.map { $0.map(MotionPayloadQuaternion.init) },
                 confidences: nil,
-                jointStatuses: canonicalFrame.1
+                jointStatuses: canonicalFrame.statuses
             )
         }
     }
@@ -84,9 +95,13 @@ struct MotionPayload: Codable, Sendable {
     func makeMotionClip() -> MotionClip {
         MotionClip(
             frames: frames.map { frame in
-                MotionFrame(
+                let rotations = frame.rotations?.count == frame.positions.count
+                    ? frame.rotations?.map { $0?.motionValue }
+                    : nil
+                return MotionFrame(
                     time: frame.timeSeconds,
-                    jointPositions: frame.positions.map(\.simdValue)
+                    jointPositions: frame.positions.map(\.simdValue),
+                    jointRotations: rotations
                 )
             }
         )

@@ -11,9 +11,43 @@ enum StudioPresentation {
     case stage
 }
 
+struct MotionJointRotation: Codable, Sendable, Equatable {
+    let ix: Float
+    let iy: Float
+    let iz: Float
+    let r: Float
+
+    nonisolated init(ix: Float, iy: Float, iz: Float, r: Float) {
+        self.ix = ix
+        self.iy = iy
+        self.iz = iz
+        self.r = r
+    }
+
+    nonisolated init(_ quaternion: simd_quatf) {
+        let vector = quaternion.vector
+        self.init(ix: vector.x, iy: vector.y, iz: vector.z, r: vector.w)
+    }
+
+    var simdValue: simd_quatf {
+        simd_quatf(vector: SIMD4<Float>(ix, iy, iz, r))
+    }
+}
+
 struct MotionFrame: Sendable {
     let time: TimeInterval
     let jointPositions: [SIMD3<Float>]
+    let jointRotations: [MotionJointRotation?]?
+
+    nonisolated init(
+        time: TimeInterval,
+        jointPositions: [SIMD3<Float>],
+        jointRotations: [MotionJointRotation?]? = nil
+    ) {
+        self.time = time
+        self.jointPositions = jointPositions
+        self.jointRotations = jointRotations
+    }
 }
 
 struct MotionClip: Sendable {
@@ -54,7 +88,8 @@ struct MotionClip: Sendable {
         let normalizedFrames = frames.map { frame in
             MotionFrame(
                 time: frame.time,
-                jointPositions: frame.jointPositions.map { $0 - origin }
+                jointPositions: frame.jointPositions.map { $0 - origin },
+                jointRotations: frame.jointRotations
             )
         }
 

@@ -55,13 +55,22 @@ final class ARKitMotionSource: NSObject, MotionSource {
 
     nonisolated private static func makeFrame(from bodyAnchor: ARBodyAnchor, timestamp: TimeInterval) -> MotionFrame {
         let worldTransform = bodyAnchor.transform
-        let positions = bodyAnchor.skeleton.jointModelTransforms.map { jointTransform in
-            let finalTransform = simd_mul(worldTransform, jointTransform)
+        let jointTransforms = bodyAnchor.skeleton.jointModelTransforms.map { jointTransform in
+            simd_mul(worldTransform, jointTransform)
+        }
+        let positions = jointTransforms.map { finalTransform in
             let translation = finalTransform.columns.3
             return SIMD3<Float>(translation.x, translation.y, translation.z)
         }
+        let rotations = jointTransforms.map { transform in
+            Optional(MotionJointRotation(simd_quaternion(transform)))
+        }
 
-        return MotionFrame(time: timestamp, jointPositions: positions)
+        return MotionFrame(
+            time: timestamp,
+            jointPositions: positions,
+            jointRotations: rotations
+        )
     }
 }
 
