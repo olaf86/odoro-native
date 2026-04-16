@@ -168,7 +168,7 @@ private struct StageExperienceView: View {
                             studio.confirmCurrentTake()
                         }
                         .buttonStyle(.borderedProminent)
-                        .disabled(!studio.hasCurrentTake || studio.isCurrentTakeAccepted)
+                        .disabled(!studio.canConfirmCurrentTake)
                         .frame(maxWidth: .infinity, alignment: .leading)
 
                         Button(studio.isPlaying ? L10n.buttonPause : L10n.buttonPlay) {

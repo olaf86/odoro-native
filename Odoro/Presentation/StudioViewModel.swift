@@ -36,6 +36,7 @@ final class StudioViewModel: ObservableObject {
     var hasSavedTakes: Bool { !currentSessionTakes.isEmpty }
     var hasCurrentTake: Bool { currentTake != nil }
     var isCurrentTakeAccepted: Bool { currentTake?.isAccepted == true }
+    var canConfirmCurrentTake: Bool { archiveStore != nil && hasClip && !isCurrentTakeAccepted }
 
     var currentTake: MotionTakeSummary? {
         guard let currentTakeID else {
@@ -259,15 +260,9 @@ final class StudioViewModel: ObservableObject {
     }
 
     func confirmCurrentTake() {
-        guard
-            let archiveStore,
-            let currentTake
-        else {
-            return
-        }
-
         do {
-            try archiveStore.acceptTake(withID: currentTake.id, inSessionID: currentTake.sessionID)
+            let takeToConfirm = try ensureCurrentTakeForConfirmation()
+            try archiveStore?.acceptTake(withID: takeToConfirm.id, inSessionID: takeToConfirm.sessionID)
             try refreshCurrentSessionTakes()
         } catch {
             print("Failed to confirm motion take: \(error)")
@@ -370,6 +365,35 @@ final class StudioViewModel: ObservableObject {
         currentSessionTakes = []
     }
 
+    private func ensureCurrentTakeForConfirmation() throws -> MotionTakeSummary {
+        if let currentTake {
+            return currentTake
+        }
+
+        guard
+            let archiveStore,
+            let currentClip = interactor.currentClip
+        else {
+            throw ConfirmationError.missingClip
+        }
+
+        let saveResult = try archiveStore.saveTake(
+            clip: currentClip,
+            captureMode: captureMode,
+            recordingContext: recordingContext,
+            existingSessionID: currentSessionID
+        )
+        currentSessionID = saveResult.sessionID
+        currentTakeID = saveResult.takeID
+        try refreshCurrentSessionTakes()
+
+        guard let persistedTake = currentTake else {
+            throw ConfirmationError.missingTakeAfterSave
+        }
+
+        return persistedTake
+    }
+
     private func refreshCurrentSessionTakes() throws {
         guard let archiveStore, let currentSessionID else {
             currentSessionTakes = []
@@ -378,4 +402,9 @@ final class StudioViewModel: ObservableObject {
 
         currentSessionTakes = try archiveStore.fetchTakeSummaries(inSessionID: currentSessionID)
     }
+}
+
+private enum ConfirmationError: Error {
+    case missingClip
+    case missingTakeAfterSave
 }
