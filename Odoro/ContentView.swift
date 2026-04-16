@@ -361,26 +361,12 @@ private struct SavedTakeCard: View {
 
 private struct MockCapturePreviewView: View {
     var body: some View {
-        ZStack {
-            LinearGradient(
-                colors: [Color(red: 0.08, green: 0.1, blue: 0.16), Color.black],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .ignoresSafeArea()
-
-            VStack(spacing: 20) {
-                Image(systemName: "figure.dance")
-                    .font(.system(size: 72))
-                Text(L10n.mockDanceTitle)
-                    .font(.title3.weight(.semibold))
-                Text(L10n.mockDanceDescription)
-                    .multilineTextAlignment(.center)
-                    .foregroundStyle(Color.white.opacity(0.8))
-                    .padding(.horizontal, 36)
-            }
-            .foregroundStyle(.white)
-        }
+        LinearGradient(
+            colors: [Color(red: 0.08, green: 0.1, blue: 0.16), Color.black],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+        .ignoresSafeArea()
     }
 }
 
