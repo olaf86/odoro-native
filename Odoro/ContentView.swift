@@ -94,25 +94,23 @@ private struct CaptureExperienceView: View {
                     studio.revealSwipeHints()
                 }
 
-            VStack(spacing: 0) {
-                CaptureHeader(studio: studio)
-                    .padding(.horizontal, 16)
-                    .padding(.top, 14)
-
-                Spacer()
-
-                CaptureSwipeHintCluster(isVisible: studio.swipeHintsVisible)
-                    .padding(.horizontal, 28)
-                    .padding(.bottom, 96)
-
-                CaptureRecordBar(studio: studio)
-                    .padding(.horizontal, 28)
-                    .padding(.bottom, 28)
-            }
-            .safeAreaPadding(.top, 18)
-            .safeAreaPadding(.bottom, 8)
+            CaptureSwipeHintCluster(isVisible: studio.swipeHintsVisible)
+                .padding(.horizontal, 28)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
         }
         .ignoresSafeArea()
+        .safeAreaInset(edge: .top, spacing: 0) {
+            CaptureHeader(studio: studio)
+                .padding(.horizontal, 16)
+                .padding(.top, 12)
+                .padding(.bottom, 8)
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            CaptureRecordBar(studio: studio)
+                .padding(.horizontal, 28)
+                .padding(.top, 12)
+                .padding(.bottom, 20)
+        }
         .onAppear {
             studio.prepareCapturePreviewIfNeeded()
         }
@@ -158,18 +156,20 @@ private struct StageExperienceView: View {
                 .ignoresSafeArea()
 
             VStack(spacing: 0) {
-                StageHeader(studio: studio)
-                    .padding(.horizontal, 16)
-                    .padding(.top, 18)
-
                 Spacer()
-
-                StageBottomBar(studio: studio)
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, 24)
             }
-            .safeAreaPadding(.top, 22)
-            .safeAreaPadding(.bottom, 8)
+        }
+        .safeAreaInset(edge: .top, spacing: 0) {
+            StageHeader(studio: studio)
+                .padding(.horizontal, 16)
+                .padding(.top, 14)
+                .padding(.bottom, 10)
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            StageBottomBar(studio: studio)
+                .padding(.horizontal, 20)
+                .padding(.top, 12)
+                .padding(.bottom, 18)
         }
         .onAppear {
             studio.prepareStagePlayback()
