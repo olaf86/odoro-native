@@ -179,7 +179,7 @@ final class StagePlaybackRenderer: NSObject {
 
     private func buildDancerHierarchy() {
         // Character model takes priority over the procedural skeleton.
-        let hasCharacter = characterEntity != nil && !characterJointEntityMap.isEmpty
+        let hasCharacter = characterEntity != nil
 
         if let character = characterEntity {
             character.removeFromParent()
@@ -228,12 +228,12 @@ final class StagePlaybackRenderer: NSObject {
     }
 
     private func render(frame: MotionFrame) {
-        if !characterJointEntityMap.isEmpty {
-            if let rotations = frame.jointRotations, !rotations.isEmpty {
+        if characterEntity != nil {
+            if !characterJointEntityMap.isEmpty, let rotations = frame.jointRotations, !rotations.isEmpty {
                 // ARKit capture: full per-joint pose via world-space rotations.
                 renderCharacter(frame: frame, rotations: rotations)
             } else {
-                // Mock / Vision capture: no rotation data — show character in bind pose at root.
+                // Mock / Vision capture, or joints not mapped — show character in bind pose at root.
                 renderCharacterAtRoot(frame: frame)
             }
             return
