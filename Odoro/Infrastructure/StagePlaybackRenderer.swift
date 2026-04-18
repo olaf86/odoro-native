@@ -5,11 +5,13 @@
 
 import ARKit
 import Foundation
+import os
 import RealityKit
 import UIKit
 
 @MainActor
 final class StagePlaybackRenderer: NSObject {
+    private static let logger = Logger(subsystem: Bundle.main.bundleIdentifier!, category: "StagePlaybackRenderer")
     private struct RenderLimb {
         let startIndex: Int
         let endIndex: Int
@@ -56,6 +58,56 @@ final class StagePlaybackRenderer: NSObject {
     private var jointEntities: [ModelEntity] = []
     private var limbEntities: [ModelEntity] = []
 
+    private var characterEntity: Entity?
+    private var skeletalModelEntity: ModelEntity?
+    private var hasStoppedBuiltInAnimation = false
+
+    // robot.usdz geometry is authored in meters but metersPerUnit = 0.01 causes RealityKit
+    // to apply scale 0.01, making the character 1.86cm tall (invisible).
+    // Override to 1.0 to render at the correct real-world size.
+    private static let characterScale: Float = 1.0
+    // Mesh bind-pose extent: y ∈ [-0.977, 0.880]. Raising the entity by 0.977 puts feet on the floor.
+    private static let characterFloorOffset: Float = 0.977
+    // USD skeleton joint order → ARKit joint index (NSNotFound if unmapped)
+    private var usdJointArkitIndices: [Int] = []
+    // USD skeleton joint order → parent ARKit joint index (nil = treat as world-space root)
+    private var usdJointParentArkitIndices: [Int?] = []
+
+    // Joint order and parent names extracted from robot.usdz skel:joints array.
+    // Leaf names match ARKit joint names exactly; parents not in this list (spine_3, spine_7,
+    // neck_1) exist in the full ARKit skeleton so their indices are still resolvable.
+    private static let robotUsdJoints: [(joint: String, parent: String?)] = [
+        ("spine_2_joint",         "spine_1_joint"),
+        ("spine_5_joint",         "spine_4_joint"),
+        ("hips_joint",            nil),
+        ("spine_6_joint",         "spine_5_joint"),
+        ("head_joint",            "neck_4_joint"),
+        ("spine_1_joint",         "hips_joint"),
+        ("spine_4_joint",         "spine_3_joint"),
+        ("neck_2_joint",          "neck_1_joint"),
+        ("left_leg_joint",        "left_upLeg_joint"),
+        ("left_foot_joint",       "left_leg_joint"),
+        ("left_arm_joint",        "left_shoulder_1_joint"),
+        ("left_forearm_joint",    "left_arm_joint"),
+        ("left_upLeg_joint",      "hips_joint"),
+        ("left_hand_joint",       "left_forearm_joint"),
+        ("left_shoulder_1_joint", "spine_7_joint"),
+        ("neck_3_joint",          "neck_2_joint"),
+        ("neck_4_joint",          "neck_3_joint"),
+        ("right_leg_joint",       "right_upLeg_joint"),
+        ("right_foot_joint",      "right_leg_joint"),
+        ("right_arm_joint",       "right_shoulder_1_joint"),
+        ("right_forearm_joint",   "right_arm_joint"),
+        ("right_upLeg_joint",     "hips_joint"),
+        ("right_hand_joint",      "right_forearm_joint"),
+        ("right_shoulder_1_joint","spine_7_joint"),
+    ]
+
+    override init() {
+        super.init()
+        loadCharacterIfAvailable()
+    }
+
     func attach(to view: ARView) {
         self.view = view
         configureScene(in: view)
@@ -74,6 +126,52 @@ final class StagePlaybackRenderer: NSObject {
 
     func setUsesProceduralMockPlayback(_ usesProceduralMockPlayback: Bool) {
         self.usesProceduralMockPlayback = usesProceduralMockPlayback
+    }
+
+    // MARK: - Character model loading
+
+    private func loadCharacterIfAvailable() {
+        do {
+            let entity = try Entity.load(named: "robot")
+            characterEntity = entity
+            skeletalModelEntity = findModelEntity(entity)
+            setupSkeletalMapping()
+            let mappedCount = self.usdJointArkitIndices.filter { $0 != NSNotFound }.count
+            let animCount = entity.availableAnimations.count
+            Self.logger.info("robot.usdz loaded — skeletal model: \(self.skeletalModelEntity != nil), mapped: \(mappedCount)/\(Self.robotUsdJoints.count), animations: \(animCount)")
+        } catch {
+            Self.logger.error("Failed to load robot.usdz: \(error)")
+        }
+    }
+
+    private func logEntityTransforms(_ entity: Entity, depth: Int) {
+        let indent = String(repeating: "  ", count: depth)
+        let p = entity.position
+        let s = entity.scale
+        let isModel = entity is ModelEntity
+        Self.logger.debug("\(indent)'\(entity.name)' \(isModel ? "[Model]" : "") pos=(\(p.x, format: .fixed(precision: 3)),\(p.y, format: .fixed(precision: 3)),\(p.z, format: .fixed(precision: 3))) scale=(\(s.x, format: .fixed(precision: 3)),\(s.y, format: .fixed(precision: 3)),\(s.z, format: .fixed(precision: 3)))")
+        for child in entity.children {
+            logEntityTransforms(child, depth: depth + 1)
+        }
+    }
+
+    private func findModelEntity(_ entity: Entity) -> ModelEntity? {
+        if let me = entity as? ModelEntity { return me }
+        for child in entity.children {
+            if let found = findModelEntity(child) { return found }
+        }
+        return nil
+    }
+
+    private func setupSkeletalMapping() {
+        usdJointArkitIndices = Self.robotUsdJoints.map { entry in
+            skeletonDefinition.index(for: ARSkeleton.JointName(rawValue: entry.joint))
+        }
+        usdJointParentArkitIndices = Self.robotUsdJoints.map { entry in
+            guard let parentName = entry.parent else { return nil }
+            let idx = skeletonDefinition.index(for: ARSkeleton.JointName(rawValue: parentName))
+            return idx == NSNotFound ? nil : idx
+        }
     }
 
     func play() {
@@ -142,20 +240,60 @@ final class StagePlaybackRenderer: NSObject {
     }
 
     private func buildDancerHierarchy() {
+        hasStoppedBuiltInAnimation = false
+
+        // Character model takes priority over the procedural skeleton
+        // whenever the entity loaded, even if individual joints are not yet mapped.
+        let hasCharacter = characterEntity != nil
+
+        if let character = characterEntity {
+            character.removeFromParent()
+            // metersPerUnit = 0.01 in the USDZ causes RealityKit to scale the entity down by 0.01.
+            // The geometry is actually in meters, so override the scale to 1.0 to restore the correct size.
+            character.scale = SIMD3<Float>(repeating: Self.characterScale)
+            // Bind-pose feet sit at local y = -0.977; raise by that amount to place feet on the floor.
+            character.position = SIMD3<Float>(0, Self.characterFloorOffset, 0)
+            dancerRoot.addChild(character)
+            logEntityTransforms(character, depth: 0)
+
+            // Play any built-in animation embedded in the USDZ (idle loop, etc.).
+            // This serves as a rendering path for Simulator where ARKit joint indices
+            // are unavailable and SkeletalPosesComponent cannot be driven from motion data.
+            if let animation = character.availableAnimations.first {
+                character.playAnimation(animation.repeat(duration: .infinity))
+                Self.logger.debug("Playing built-in character animation")
+            } else if #available(iOS 18.0, *), let modelEntity = skeletalModelEntity {
+                // No built-in animation. USD Skeleton skinned meshes may not produce any
+                // rendered output until the deformation pipeline is activated. Setting an
+                // empty SkeletalPosesComponent is enough to trigger it so the bind pose renders.
+                if modelEntity.components[SkeletalPosesComponent.self] == nil {
+                    modelEntity.components[SkeletalPosesComponent.self] = SkeletalPosesComponent(poses: [])
+                }
+            }
+        }
+
         for _ in renderJointNames {
             let joint = ModelEntity(
-                mesh: .generateSphere(radius: 0.075),
+                mesh: .generateSphere(radius: 0.045),
                 materials: [UnlitMaterial(color: UIColor(red: 1, green: 0.33, blue: 0.48, alpha: 1))]
             )
+            joint.isEnabled = !hasCharacter
             jointEntities.append(joint)
             dancerRoot.addChild(joint)
         }
 
         for _ in renderLimbs {
+            let limbMesh: MeshResource
+            if #available(iOS 18.0, *) {
+                limbMesh = .generateCylinder(height: 1.0, radius: 0.025)
+            } else {
+                limbMesh = .generateBox(size: [0.05, 1.0, 0.05])
+            }
             let limb = ModelEntity(
-                mesh: .generateBox(size: [0.04, 1.0, 0.04]),
+                mesh: limbMesh,
                 materials: [UnlitMaterial(color: UIColor(red: 0.38, green: 0.89, blue: 0.86, alpha: 1))]
             )
+            limb.isEnabled = !hasCharacter
             limbEntities.append(limb)
             dancerRoot.addChild(limb)
         }
@@ -176,6 +314,21 @@ final class StagePlaybackRenderer: NSObject {
     }
 
     private func render(frame: MotionFrame) {
+        if characterEntity != nil {
+            if !usdJointArkitIndices.isEmpty, let rotations = frame.jointRotations, !rotations.isEmpty {
+                // ARKit rear-camera: drive skeleton via SkeletalPosesComponent with rotations.
+                renderCharacter(frame: frame, rotations: rotations)
+            } else if frame.jointPositions.contains(where: { $0.y > -5 }) {
+                // Front-camera or other source: real positions available but no rotations.
+                renderCharacterAtRoot(frame: frame)
+            } else {
+                // Simulator / MockMotionSource: all positions invalid (y = -10).
+                // Drive the skeleton procedurally so the character animates.
+                renderCharacterFallback(frame: frame)
+            }
+            return
+        }
+
         var jointPositions = resolvedJointPositions(from: frame)
         guard jointEntities.count == jointPositions.count, limbEntities.count == renderLimbs.count else {
             return
@@ -318,6 +471,109 @@ final class StagePlaybackRenderer: NSObject {
         }
 
         return position
+    }
+
+    // MARK: - Character model rendering
+
+    /// Positions the character at floor level (y = 0) tracking the hip's x/z,
+    /// without posing individual joints. Used when rotation data is unavailable
+    /// (simulator / front-camera captures).
+    /// y is fixed at 0 because humanoid USDZ models typically have their pivot at foot level.
+    private func renderCharacterAtRoot(frame: MotionFrame) {
+        guard let character = characterEntity else { return }
+        // In Simulator, ARSkeletonDefinition indices are unavailable (all NSNotFound)
+        // and MockMotionSource initializes unset joints to y=-10. Guard against that.
+        let hipIndex = skeletonDefinition.index(for: .root)
+        let validPosition: ((SIMD3<Float>) -> Bool) = { $0.y > -5 }
+        let hip: SIMD3<Float>?
+        if hipIndex != NSNotFound,
+           frame.jointPositions.indices.contains(hipIndex),
+           validPosition(frame.jointPositions[hipIndex]) {
+            hip = frame.jointPositions[hipIndex]
+        } else if let first = frame.jointPositions.first(where: validPosition) {
+            hip = first
+        } else {
+            hip = nil  // No valid position — leave character at its current position.
+        }
+        if let hip {
+            character.setPosition(SIMD3<Float>(hip.x, Self.characterFloorOffset, hip.z), relativeTo: nil)
+        }
+    }
+
+    /// Drives the skeleton via SkeletalPosesComponent.
+    ///
+    /// robot.usdz uses USD Skeleton schema — joints are not exposed as entity children.
+    /// We convert world-space ARKit rotations/positions to local-space transforms
+    /// (each joint relative to its parent) and push them via SkeletalPosesComponent.
+    private func renderCharacter(frame: MotionFrame, rotations: [MotionJointRotation?]) {
+        guard let modelEntity = skeletalModelEntity,
+              frame.jointPositions.count == rotations.count else { return }
+
+        // Stop the built-in animation the first time ARKit data drives the joints
+        // so it doesn't interfere with SkeletalPosesComponent.
+        if !hasStoppedBuiltInAnimation {
+            characterEntity?.stopAllAnimations()
+            hasStoppedBuiltInAnimation = true
+        }
+
+        var joints: [(String, Transform)] = []
+        joints.reserveCapacity(Self.robotUsdJoints.count)
+
+        for usdIdx in 0..<Self.robotUsdJoints.count {
+            let jointName = Self.robotUsdJoints[usdIdx].joint
+            let arkitIdx = usdJointArkitIndices[usdIdx]
+            guard arkitIdx != NSNotFound,
+                  frame.jointPositions.indices.contains(arkitIdx),
+                  let worldRot = rotations[arkitIdx]?.simdValue else { continue }
+
+            let worldPos = frame.jointPositions[arkitIdx]
+            let localTransform: Transform
+
+            if let parentArkitIdx = usdJointParentArkitIndices[usdIdx],
+               frame.jointPositions.indices.contains(parentArkitIdx),
+               let parentWorldRot = rotations[parentArkitIdx]?.simdValue {
+                // Convert world-space to parent-relative local-space.
+                let parentPos = frame.jointPositions[parentArkitIdx]
+                let parentRotInv = parentWorldRot.inverse
+                localTransform = Transform(
+                    rotation: parentRotInv * worldRot,
+                    translation: simd_act(parentRotInv, worldPos - parentPos)
+                )
+            } else {
+                // Root joint: no parent in the USD skeleton hierarchy.
+                // SkeletalPosesComponent transforms are in the skeleton entity's local space.
+                // The character entity is offset by characterFloorOffset in Y so subtract
+                // that to convert from ARKit world space to skeleton-entity local space.
+                let localPos = worldPos - SIMD3<Float>(0, Self.characterFloorOffset, 0)
+                localTransform = Transform(rotation: worldRot, translation: localPos)
+            }
+
+            joints.append((jointName, localTransform))
+        }
+
+        if #available(iOS 18.0, *) {
+            let pose = SkeletalPose(id: "live", joints: joints)
+            var posesComp = modelEntity.components[SkeletalPosesComponent.self] ?? SkeletalPosesComponent(poses: [])
+            posesComp.poses.set(pose)
+            modelEntity.components[SkeletalPosesComponent.self] = posesComp
+        }
+    }
+
+    /// Moves the character entity using the procedural hip position.
+    /// Used in Simulator where MockMotionSource produces no valid ARKit joint positions.
+    /// The character stays in its USD bind pose but translates with the animation rhythm,
+    /// giving visible movement without requiring rotation data or USD skeleton driving.
+    private func renderCharacterFallback(frame: MotionFrame) {
+        guard let character = characterEntity else { return }
+        let fallback = fallbackJointPositions(for: frame)
+        let hip = fallback[0]
+        // hip.y oscillates around 0.95; offset it relative to that baseline so the
+        // character stays near floor level while the subtle bounce comes through.
+        let yOffset = hip.y - 0.95
+        character.setPosition(
+            SIMD3<Float>(hip.x, Self.characterFloorOffset + yOffset, hip.z),
+            relativeTo: nil
+        )
     }
 
     private func fallbackJointPositions(for frame: MotionFrame) -> [SIMD3<Float>] {

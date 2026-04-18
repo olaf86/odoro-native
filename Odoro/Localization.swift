@@ -43,6 +43,7 @@ enum L10n {
     static let captureHintMock = text("capture.hint.mock")
     static let captureHintFront = text("capture.hint.front")
     static let captureHintRear = text("capture.hint.rear")
+    static let buttonConfirmTake = text("button.confirmTake")
     static let sessionTitle = "Recording Session"
     static let sessionBPMTitle = "BPM"
     static let sessionTimeSignatureTitle = "Meter"
@@ -53,16 +54,19 @@ enum L10n {
     static let emptySavedTakes = "Your takes for this session will appear here."
     static let stageTitle = text("stage.title")
     static let stageDescription = text("stage.description")
+    static let stageReviewTitle = text("stage.review.title")
+    static let stageReviewEmpty = text("stage.review.empty")
+    static let stageCurrentTakeLabel = text("stage.currentTake.label")
+    static let stageAcceptedTakeLabel = text("stage.acceptedTake.label")
     static let buttonRecording = text("button.recording")
     static let buttonStartCapture = text("button.startCapture")
     static let buttonStop = text("button.stop")
     static let buttonReplayStage = text("button.replayStage")
+    static let buttonTakeConfirmed = text("button.takeConfirmed")
     static let buttonPause = text("button.pause")
     static let buttonPlay = text("button.play")
     static let buttonRecordAgain = text("button.recordAgain")
     static let buttonResetClip = text("button.resetClip")
-    static let mockDanceTitle = text("mock.title")
-    static let mockDanceDescription = text("mock.description")
 
     static let captureModeRearTitle = text("captureMode.rear.title")
     static let captureModeFrontTitle = text("captureMode.front.title")
@@ -125,4 +129,7 @@ enum L10n {
     static func takeCardMeta(_ duration: String, _ frameCount: Int) -> String {
         "\(duration)s • \(frameCount) frames"
     }
+
+    static let takeBadgeAccepted = text("take.badge.accepted")
+    static let takeBadgeCurrent = text("take.badge.current")
 }
