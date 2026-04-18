@@ -40,6 +40,7 @@ struct MotionTakeSummary: Identifiable, Sendable {
     var id: UUID
     var sessionID: UUID
     var createdAt: Date
+    var clipName: String?
     var takeIndex: Int
     var captureMode: CaptureMode
     var durationSeconds: Double
@@ -50,6 +51,12 @@ struct MotionTakeSummary: Identifiable, Sendable {
     var startBeatOffset: Double
     var isAccepted: Bool
     var localFilePath: String
+    var tempoSourceType: TempoSourceType
+    var audioAssetReference: String?
+    var bpm: Double
+    var timeSignatureNumerator: Int
+    var timeSignatureDenominator: Int
+    var countInBarCount: Int
 }
 
 @MainActor
@@ -86,9 +93,11 @@ final class MotionArchiveStore {
         let payloadURL = try payloadFileStore.write(payload, for: takeID)
 
         do {
+            let takeIndex = nextTakeIndex(in: session)
             let take = MotionTakeRecord(
                 id: takeID,
-                takeIndex: nextTakeIndex(in: session),
+                clipName: defaultClipName(for: takeIndex),
+                takeIndex: takeIndex,
                 captureMode: captureMode,
                 durationSeconds: clip.duration,
                 frameCount: clip.frameCount,
@@ -144,31 +153,13 @@ final class MotionArchiveStore {
                 take.session?.id == sessionID
             }
         )
-        return try context.fetch(descriptor)
-            .sorted { lhs, rhs in
-                if lhs.takeIndex == rhs.takeIndex {
-                    return lhs.createdAt > rhs.createdAt
-                }
+        return try makeTakeSummaries(from: context.fetch(descriptor), fallbackSessionID: sessionID)
+    }
 
-                return lhs.takeIndex > rhs.takeIndex
-            }
-            .map { take in
-                MotionTakeSummary(
-                    id: take.id,
-                    sessionID: take.session?.id ?? sessionID,
-                    createdAt: take.createdAt,
-                    takeIndex: take.takeIndex,
-                    captureMode: take.captureMode,
-                    durationSeconds: take.durationSeconds,
-                    frameCount: take.frameCount,
-                    nominalFrameRate: take.nominalFrameRate,
-                    barLength: take.barLength,
-                    beatLength: take.beatLength,
-                    startBeatOffset: take.startBeatOffset,
-                    isAccepted: take.isAccepted,
-                    localFilePath: take.localFilePath
-                )
-            }
+    func fetchAllTakeSummaries() throws -> [MotionTakeSummary] {
+        let context = ModelContext(modelContainer)
+        let descriptor = FetchDescriptor<MotionTakeRecord>()
+        return try makeTakeSummaries(from: context.fetch(descriptor), fallbackSessionID: nil)
     }
 
     func acceptTake(withID takeID: UUID, inSessionID sessionID: UUID) throws {
@@ -200,6 +191,23 @@ final class MotionArchiveStore {
         }
     }
 
+    func renameTake(withID takeID: UUID, clipName: String) throws {
+        let context = ModelContext(modelContainer)
+        let descriptor = FetchDescriptor<MotionTakeRecord>(
+            predicate: #Predicate { take in
+                take.id == takeID
+            }
+        )
+        guard let take = try context.fetch(descriptor).first else {
+            return
+        }
+
+        take.clipName = clipName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            ? defaultClipName(for: take.takeIndex)
+            : clipName.trimmingCharacters(in: .whitespacesAndNewlines)
+        try context.save()
+    }
+
     private func fetchOrCreateSession(
         withID sessionID: UUID?,
         recordingContext: MotionRecordingContext,
@@ -228,6 +236,77 @@ final class MotionArchiveStore {
 
     private func nextTakeIndex(in session: RecordingSessionRecord) -> Int {
         (session.takes.map(\.takeIndex).max() ?? 0) + 1
+    }
+
+    private func defaultClipName(for takeIndex: Int) -> String {
+        "Clip \(takeIndex)"
+    }
+
+    private func makeTakeSummaries(
+        from takes: [MotionTakeRecord],
+        fallbackSessionID: UUID?
+    ) -> [MotionTakeSummary] {
+        takes
+            .sorted { lhs, rhs in
+                if lhs.createdAt == rhs.createdAt {
+                    return lhs.takeIndex > rhs.takeIndex
+                }
+
+                return lhs.createdAt > rhs.createdAt
+            }
+            .compactMap { take in
+                guard let session = take.session else {
+                    guard let fallbackSessionID else {
+                        return nil
+                    }
+
+                    return MotionTakeSummary(
+                        id: take.id,
+                        sessionID: fallbackSessionID,
+                        createdAt: take.createdAt,
+                        clipName: take.clipName ?? defaultClipName(for: take.takeIndex),
+                        takeIndex: take.takeIndex,
+                        captureMode: take.captureMode,
+                        durationSeconds: take.durationSeconds,
+                        frameCount: take.frameCount,
+                        nominalFrameRate: take.nominalFrameRate,
+                        barLength: take.barLength,
+                        beatLength: take.beatLength,
+                        startBeatOffset: take.startBeatOffset,
+                        isAccepted: take.isAccepted,
+                        localFilePath: take.localFilePath,
+                        tempoSourceType: .metronome,
+                        audioAssetReference: nil,
+                        bpm: 120,
+                        timeSignatureNumerator: 4,
+                        timeSignatureDenominator: 4,
+                        countInBarCount: 1
+                    )
+                }
+
+                return MotionTakeSummary(
+                    id: take.id,
+                    sessionID: session.id,
+                    createdAt: take.createdAt,
+                    clipName: take.clipName ?? defaultClipName(for: take.takeIndex),
+                    takeIndex: take.takeIndex,
+                    captureMode: take.captureMode,
+                    durationSeconds: take.durationSeconds,
+                    frameCount: take.frameCount,
+                    nominalFrameRate: take.nominalFrameRate,
+                    barLength: take.barLength,
+                    beatLength: take.beatLength,
+                    startBeatOffset: take.startBeatOffset,
+                    isAccepted: take.isAccepted,
+                    localFilePath: take.localFilePath,
+                    tempoSourceType: session.tempoSourceType,
+                    audioAssetReference: session.audioAssetReference,
+                    bpm: session.bpm,
+                    timeSignatureNumerator: session.timeSignatureNumerator,
+                    timeSignatureDenominator: session.timeSignatureDenominator,
+                    countInBarCount: session.countInBarCount
+                )
+            }
     }
 
     private func sourceBackendName(for captureMode: CaptureMode) -> String {

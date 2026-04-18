@@ -52,6 +52,7 @@ final class StagePlaybackRenderer: NSObject {
     private var playbackTimer: Timer?
     private var playbackStartedAt: Date?
     private var usesProceduralMockPlayback = false
+    private var avatarStyle: StageAvatarStyle = .robot
 
     private var stageAnchor = AnchorEntity()
     private var dancerRoot = Entity()
@@ -126,6 +127,21 @@ final class StagePlaybackRenderer: NSObject {
 
     func setUsesProceduralMockPlayback(_ usesProceduralMockPlayback: Bool) {
         self.usesProceduralMockPlayback = usesProceduralMockPlayback
+    }
+
+    func setAvatarStyle(_ avatarStyle: StageAvatarStyle) {
+        guard self.avatarStyle != avatarStyle else {
+            return
+        }
+
+        self.avatarStyle = avatarStyle
+
+        if let view {
+            configureScene(in: view)
+            if let firstFrame = clip?.frames.first {
+                render(frame: firstFrame)
+            }
+        }
     }
 
     // MARK: - Character model loading
@@ -244,9 +260,9 @@ final class StagePlaybackRenderer: NSObject {
 
         // Character model takes priority over the procedural skeleton
         // whenever the entity loaded, even if individual joints are not yet mapped.
-        let hasCharacter = characterEntity != nil
+        let hasCharacter = characterEntity != nil && avatarStyle == .robot
 
-        if let character = characterEntity {
+        if hasCharacter, let character = characterEntity {
             character.removeFromParent()
             // metersPerUnit = 0.01 in the USDZ causes RealityKit to scale the entity down by 0.01.
             // The geometry is actually in meters, so override the scale to 1.0 to restore the correct size.
@@ -314,7 +330,7 @@ final class StagePlaybackRenderer: NSObject {
     }
 
     private func render(frame: MotionFrame) {
-        if characterEntity != nil {
+        if avatarStyle == .robot, characterEntity != nil {
             if !usdJointArkitIndices.isEmpty, let rotations = frame.jointRotations, !rotations.isEmpty {
                 // ARKit rear-camera: drive skeleton via SkeletalPosesComponent with rotations.
                 renderCharacter(frame: frame, rotations: rotations)

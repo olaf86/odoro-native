@@ -17,6 +17,7 @@ enum MotionTakeUploadStatus: String, Codable, Sendable {
 final class MotionTakeRecord {
     @Attribute(.unique) var id: UUID
     var createdAt: Date
+    var clipName: String?
     var takeIndex: Int
     var captureModeRawValue: String
     var durationSeconds: Double
@@ -46,6 +47,7 @@ final class MotionTakeRecord {
     init(
         id: UUID = UUID(),
         createdAt: Date = .now,
+        clipName: String? = nil,
         takeIndex: Int,
         captureMode: CaptureMode,
         durationSeconds: Double,
@@ -63,6 +65,7 @@ final class MotionTakeRecord {
     ) {
         self.id = id
         self.createdAt = createdAt
+        self.clipName = clipName
         self.takeIndex = takeIndex
         self.captureModeRawValue = captureMode.rawValue
         self.durationSeconds = durationSeconds

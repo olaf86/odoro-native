@@ -6,9 +6,51 @@
 import Foundation
 import simd
 
-enum StudioPresentation {
+enum StudioPresentation: Equatable {
     case capture
     case stage
+}
+
+enum StudioScreen: String, Equatable {
+    case capture
+    case musicSelection
+    case sessionSettings
+    case clipsLibrary
+    case stage
+    case modelSelection
+    case archive
+}
+
+enum StudioScreenTransition: Equatable {
+    case fromLeading
+    case fromTrailing
+    case fromTop
+    case fromBottom
+}
+
+enum StageAvatarStyle: String, CaseIterable, Identifiable, Sendable, Equatable {
+    case robot
+    case proceduralSkeleton
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .robot:
+            "Robot Performer"
+        case .proceduralSkeleton:
+            "Skeleton Preview"
+        }
+    }
+
+    var subtitle: String {
+        switch self {
+        case .robot:
+            "Play the motion on the current USDZ stage model."
+        case .proceduralSkeleton:
+            "Use the lightweight joint preview for motion checking."
+        }
+    }
 }
 
 struct MotionJointRotation: Codable, Sendable, Equatable {
