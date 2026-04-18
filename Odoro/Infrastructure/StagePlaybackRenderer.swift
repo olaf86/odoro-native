@@ -56,6 +56,14 @@ final class StagePlaybackRenderer: NSObject {
     private var jointEntities: [ModelEntity] = []
     private var limbEntities: [ModelEntity] = []
 
+    private var characterEntity: Entity?
+    private var characterJointEntityMap: [Int: Entity] = [:]
+
+    override init() {
+        super.init()
+        loadCharacterIfAvailable()
+    }
+
     func attach(to view: ARView) {
         self.view = view
         configureScene(in: view)
@@ -74,6 +82,27 @@ final class StagePlaybackRenderer: NSObject {
 
     func setUsesProceduralMockPlayback(_ usesProceduralMockPlayback: Bool) {
         self.usesProceduralMockPlayback = usesProceduralMockPlayback
+    }
+
+    // MARK: - Character model loading
+
+    private func loadCharacterIfAvailable() {
+        guard let entity = try? Entity.load(named: "robot") else { return }
+        characterEntity = entity
+        buildCharacterJointMap(from: entity)
+    }
+
+    private func buildCharacterJointMap(from entity: Entity) {
+        let name = entity.name
+        if !name.isEmpty {
+            let index = skeletonDefinition.index(for: ARSkeleton.JointName(rawValue: name))
+            if index != NSNotFound {
+                characterJointEntityMap[index] = entity
+            }
+        }
+        for child in entity.children {
+            buildCharacterJointMap(from: child)
+        }
     }
 
     func play() {
@@ -142,20 +171,36 @@ final class StagePlaybackRenderer: NSObject {
     }
 
     private func buildDancerHierarchy() {
+        // Character model takes priority over the procedural skeleton.
+        let hasCharacter = characterEntity != nil && !characterJointEntityMap.isEmpty
+
+        if let character = characterEntity {
+            character.removeFromParent()
+            dancerRoot.addChild(character)
+        }
+
         for _ in renderJointNames {
             let joint = ModelEntity(
-                mesh: .generateSphere(radius: 0.075),
+                mesh: .generateSphere(radius: 0.045),
                 materials: [UnlitMaterial(color: UIColor(red: 1, green: 0.33, blue: 0.48, alpha: 1))]
             )
+            joint.isEnabled = !hasCharacter
             jointEntities.append(joint)
             dancerRoot.addChild(joint)
         }
 
         for _ in renderLimbs {
+            let limbMesh: MeshResource
+            if #available(iOS 18.0, *) {
+                limbMesh = .generateCylinder(height: 1.0, radius: 0.025)
+            } else {
+                limbMesh = .generateBox(size: [0.05, 1.0, 0.05])
+            }
             let limb = ModelEntity(
-                mesh: .generateBox(size: [0.04, 1.0, 0.04]),
+                mesh: limbMesh,
                 materials: [UnlitMaterial(color: UIColor(red: 0.38, green: 0.89, blue: 0.86, alpha: 1))]
             )
+            limb.isEnabled = !hasCharacter
             limbEntities.append(limb)
             dancerRoot.addChild(limb)
         }
@@ -176,6 +221,12 @@ final class StagePlaybackRenderer: NSObject {
     }
 
     private func render(frame: MotionFrame) {
+        // Prefer character model rendering when rotation data is available (ARKit captures only).
+        if !characterJointEntityMap.isEmpty, let rotations = frame.jointRotations, !rotations.isEmpty {
+            renderCharacter(frame: frame, rotations: rotations)
+            return
+        }
+
         var jointPositions = resolvedJointPositions(from: frame)
         guard jointEntities.count == jointPositions.count, limbEntities.count == renderLimbs.count else {
             return
@@ -318,6 +369,32 @@ final class StagePlaybackRenderer: NSObject {
         }
 
         return position
+    }
+
+    // MARK: - Character model rendering
+
+    /// Drives the USDZ character by applying world-space position and orientation
+    /// to each joint entity that was mapped by name during loading.
+    ///
+    /// This matches the ARKit body-tracking sample approach:
+    /// each joint entity in robot.usdz is named after its ARKit joint, so we look
+    /// up the entity index and apply our recorded world-space transforms directly.
+    /// `setPosition(_:relativeTo:nil)` / `setOrientation(_:relativeTo:nil)` let
+    /// RealityKit handle the local-space conversion regardless of hierarchy depth.
+    private func renderCharacter(frame: MotionFrame, rotations: [MotionJointRotation?]) {
+        guard frame.jointPositions.count == rotations.count else { return }
+
+        for (index, entity) in characterJointEntityMap {
+            guard
+                index < frame.jointPositions.count,
+                index < rotations.count,
+                let worldQuat = rotations[index]?.simdValue
+            else { continue }
+
+            let worldPos = frame.jointPositions[index]
+            entity.setPosition(worldPos, relativeTo: nil)
+            entity.setOrientation(worldQuat, relativeTo: nil)
+        }
     }
 
     private func fallbackJointPositions(for frame: MotionFrame) -> [SIMD3<Float>] {
