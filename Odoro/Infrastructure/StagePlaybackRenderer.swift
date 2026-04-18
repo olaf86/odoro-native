@@ -135,6 +135,17 @@ final class StagePlaybackRenderer: NSObject {
         }
     }
 
+    private func logEntityTransforms(_ entity: Entity, depth: Int) {
+        let indent = String(repeating: "  ", count: depth)
+        let p = entity.position
+        let s = entity.scale
+        let isModel = entity is ModelEntity
+        Self.logger.debug("\(indent)'\(entity.name)' \(isModel ? "[Model]" : "") pos=(\(p.x, format: .fixed(precision: 3)),\(p.y, format: .fixed(precision: 3)),\(p.z, format: .fixed(precision: 3))) scale=(\(s.x, format: .fixed(precision: 3)),\(s.y, format: .fixed(precision: 3)),\(s.z, format: .fixed(precision: 3)))")
+        for child in entity.children {
+            logEntityTransforms(child, depth: depth + 1)
+        }
+    }
+
     private func findModelEntity(_ entity: Entity) -> ModelEntity? {
         if let me = entity as? ModelEntity { return me }
         for child in entity.children {
@@ -228,6 +239,7 @@ final class StagePlaybackRenderer: NSObject {
             character.removeFromParent()
             character.position = .zero  // Ensure character starts at floor level.
             dancerRoot.addChild(character)
+            logEntityTransforms(character, depth: 0)
         }
 
         for _ in renderJointNames {
