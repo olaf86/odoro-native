@@ -19,6 +19,7 @@ final class ARKitMotionSource: NSObject, MotionSource {
     private let session = ARSession()
     private weak var attachedView: ARView?
     private var shouldStartWhenAttached = false
+    private var hasDetectedBody = false
 
     func attach(to view: ARView) {
         attachedView = view
@@ -46,10 +47,12 @@ final class ARKitMotionSource: NSObject, MotionSource {
         let configuration = ARBodyTrackingConfiguration()
         configuration.isAutoFocusEnabled = true
         configuration.automaticSkeletonScaleEstimationEnabled = true
+        hasDetectedBody = false
         session.run(configuration, options: [.resetTracking, .removeExistingAnchors])
     }
 
     func deactivate() {
+        hasDetectedBody = false
         session.pause()
     }
 
@@ -83,6 +86,10 @@ extension ARKitMotionSource: ARSessionDelegate {
         let timestamp = session.currentFrame?.timestamp ?? ProcessInfo.processInfo.systemUptime
         let frame = Self.makeFrame(from: bodyAnchor, timestamp: timestamp)
         Task { @MainActor in
+            if !self.hasDetectedBody {
+                self.hasDetectedBody = true
+                self.onStatusTextChange?(L10n.statusBodyDetected)
+            }
             self.onFrame?(frame)
         }
     }

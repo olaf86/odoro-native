@@ -112,10 +112,10 @@ final class StudioViewModel: ObservableObject {
         self.interactor = MotionStudioInteractor(source: source)
 
         configureForCurrentSource()
-        interactor.activateSource()
     }
 
     func beginRecording() {
+        attachCurrentSourceIfPossible()
         interactor.activateSource()
         interactor.beginRecording()
     }
@@ -137,7 +137,6 @@ final class StudioViewModel: ObservableObject {
         stageRenderer.pause()
         interactor.setPlaybackActive(false)
         interactor.returnToCapture()
-        interactor.activateSource()
     }
 
     func resetClip() {
@@ -185,19 +184,16 @@ final class StudioViewModel: ObservableObject {
 
         configureForCurrentSource()
         attachCurrentSourceIfPossible()
-        interactor.activateSource()
     }
 
     func attachCaptureView(_ view: ARView) {
         attachedCaptureARView = view
         (source as? ARKitMotionSource)?.attach(to: view)
-        interactor.activateSource()
     }
 
     func attachFrontCaptureView(_ view: UIView) {
         attachedFrontPreviewView = view
         (source as? VisionFrontCameraMotionSource)?.attachPreview(to: view)
-        interactor.activateSource()
     }
 
     func updateFrontCapturePreview(in view: UIView) {
@@ -209,9 +205,14 @@ final class StudioViewModel: ObservableObject {
         stageRenderer.setClip(interactor.currentClip)
     }
 
-    func resumeCaptureSource() {
+    func prepareCapturePreviewIfNeeded() {
         attachCurrentSourceIfPossible()
-        interactor.activateSource()
+    }
+
+    func suspendStudioForInactivity() {
+        stageRenderer.pause()
+        interactor.setPlaybackActive(false)
+        interactor.suspendForAppInactivity()
     }
 
     func updateBPM(_ bpm: Double) {

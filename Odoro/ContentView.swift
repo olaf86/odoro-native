@@ -10,6 +10,7 @@ import RealityKit
 import SwiftUI
 
 struct ContentView: View {
+    @Environment(\.scenePhase) private var scenePhase
     @StateObject private var studio: StudioViewModel
 
     init(
@@ -25,11 +26,23 @@ struct ContentView: View {
     }
 
     var body: some View {
-        switch studio.presentation {
-        case .capture:
-            CaptureExperienceView(studio: studio)
-        case .stage:
-            StageExperienceView(studio: studio)
+        Group {
+            switch studio.presentation {
+            case .capture:
+                CaptureExperienceView(studio: studio)
+            case .stage:
+                StageExperienceView(studio: studio)
+            }
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            switch newPhase {
+            case .active:
+                studio.prepareCapturePreviewIfNeeded()
+            case .inactive, .background:
+                studio.suspendStudioForInactivity()
+            @unknown default:
+                break
+            }
         }
     }
 }
@@ -127,7 +140,7 @@ private struct CaptureExperienceView: View {
             }
         }
         .onAppear {
-            studio.resumeCaptureSource()
+            studio.prepareCapturePreviewIfNeeded()
         }
     }
 }

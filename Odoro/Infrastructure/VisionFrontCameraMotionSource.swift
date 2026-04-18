@@ -11,6 +11,12 @@ import UIKit
 import Vision
 
 final class VisionFrontCameraMotionSource: NSObject, MotionSource {
+    private enum PoseStatus {
+        case detecting
+        case moveIntoFrame
+        case ready
+    }
+
     var captureMode: CaptureMode { .frontUpperBody }
     var onFrame: ((MotionFrame) -> Void)?
     var onStatusTextChange: ((String) -> Void)?
@@ -36,6 +42,7 @@ final class VisionFrontCameraMotionSource: NSObject, MotionSource {
     private var isConfigured = false
     private var shouldStartWhenAttached = false
     private var permissionRequested = false
+    private var poseStatus: PoseStatus?
 
     func attachPreview(to view: UIView) {
         previewContainerView = view
@@ -75,6 +82,7 @@ final class VisionFrontCameraMotionSource: NSObject, MotionSource {
     }
 
     func deactivate() {
+        poseStatus = nil
         session.stopRunning()
     }
 
@@ -113,7 +121,7 @@ final class VisionFrontCameraMotionSource: NSObject, MotionSource {
         }
 
         guard !session.isRunning else { return }
-        onStatusTextChange?(L10n.statusFrontDetecting)
+        emitStatusIfNeeded(.detecting, text: L10n.statusFrontDetecting)
         processingQueue.async { [weak self] in
             self?.session.startRunning()
         }
@@ -264,14 +272,25 @@ extension VisionFrontCameraMotionSource: AVCaptureVideoDataOutputSampleBufferDel
 
         guard let observation = request.results?.first, let frame = makeFrame(from: observation, at: timestamp) else {
             Task { @MainActor in
-                self.onStatusTextChange?(L10n.statusFrontMoveIntoFrame)
+                self.emitStatusIfNeeded(.moveIntoFrame, text: L10n.statusFrontMoveIntoFrame)
             }
             return
         }
 
         Task { @MainActor in
-            self.onStatusTextChange?(L10n.statusFrontReady)
+            self.emitStatusIfNeeded(.ready, text: L10n.statusFrontReady)
             self.onFrame?(frame)
         }
+    }
+}
+
+private extension VisionFrontCameraMotionSource {
+    private func emitStatusIfNeeded(_ status: PoseStatus, text: String) {
+        guard poseStatus != status else {
+            return
+        }
+
+        poseStatus = status
+        onStatusTextChange?(text)
     }
 }

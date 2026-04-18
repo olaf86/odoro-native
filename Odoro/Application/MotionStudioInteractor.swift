@@ -42,7 +42,7 @@ final class MotionStudioInteractor {
 
         source.onStatusTextChange = { [weak self] statusText in
             Task { @MainActor in
-                self?.state.statusText = statusText
+                self?.updateStatusTextIfNeeded(statusText)
             }
         }
     }
@@ -55,6 +55,24 @@ final class MotionStudioInteractor {
         source.deactivate()
     }
 
+    func suspendForAppInactivity() {
+        source.deactivate()
+
+        guard state.presentation == .capture else {
+            return
+        }
+
+        if state.isRecording {
+            capturedFrames.removeAll()
+            recordingStartTimestamp = nil
+            state.isRecording = false
+            state.recordedFrameCount = 0
+            state.recordingDuration = 0
+        }
+
+        updateStatusTextIfNeeded(currentClip == nil ? L10n.statusStandInFrame : L10n.statusClipExists)
+    }
+
     func beginRecording() {
         if state.presentation != .capture {
             returnToCapture()
@@ -65,7 +83,7 @@ final class MotionStudioInteractor {
         state.isRecording = true
         state.recordedFrameCount = 0
         state.recordingDuration = 0
-        state.statusText = L10n.statusRecordingMoveFullBody
+        updateStatusTextIfNeeded(L10n.statusRecordingMoveFullBody)
     }
 
     func stopRecording() {
@@ -73,12 +91,12 @@ final class MotionStudioInteractor {
         state.isRecording = false
 
         guard capturedFrames.count > 1 else {
-            state.statusText = L10n.statusInsufficientMotion
+            updateStatusTextIfNeeded(L10n.statusInsufficientMotion)
             return
         }
 
         currentClip = MotionClip(frames: capturedFrames).normalizedForStage()
-        state.statusText = L10n.statusCaptureComplete
+        updateStatusTextIfNeeded(L10n.statusCaptureComplete)
         state.presentation = .stage
     }
 
@@ -90,9 +108,7 @@ final class MotionStudioInteractor {
     func returnToCapture() {
         state.presentation = .capture
         state.isPlaying = false
-        state.statusText = currentClip == nil
-            ? L10n.statusStandInFrame
-            : L10n.statusClipExists
+        updateStatusTextIfNeeded(currentClip == nil ? L10n.statusStandInFrame : L10n.statusClipExists)
     }
 
     func resetClip() {
@@ -104,7 +120,7 @@ final class MotionStudioInteractor {
         state.isPlaying = false
         state.recordedFrameCount = 0
         state.recordingDuration = 0
-        state.statusText = L10n.statusClipReset
+        updateStatusTextIfNeeded(L10n.statusClipReset)
     }
 
     func setPlaybackActive(_ isPlaying: Bool) {
@@ -116,13 +132,11 @@ final class MotionStudioInteractor {
     }
 
     private func consume(frame: MotionFrame) {
-        state.statusText = state.isRecording
-            ? L10n.statusRecordingSaving
-            : L10n.statusBodyDetected
-
         guard state.isRecording else {
             return
         }
+
+        updateStatusTextIfNeeded(L10n.statusRecordingSaving)
 
         if recordingStartTimestamp == nil {
             recordingStartTimestamp = frame.time
@@ -141,5 +155,13 @@ final class MotionStudioInteractor {
         if relativeTime >= maximumCaptureDuration {
             stopRecording()
         }
+    }
+
+    private func updateStatusTextIfNeeded(_ statusText: String) {
+        guard state.statusText != statusText else {
+            return
+        }
+
+        state.statusText = statusText
     }
 }
