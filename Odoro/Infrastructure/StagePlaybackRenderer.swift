@@ -316,11 +316,15 @@ final class StagePlaybackRenderer: NSObject {
     private func render(frame: MotionFrame) {
         if characterEntity != nil {
             if !usdJointArkitIndices.isEmpty, let rotations = frame.jointRotations, !rotations.isEmpty {
-                // ARKit capture: drive skeleton via SkeletalPosesComponent.
+                // ARKit rear-camera: drive skeleton via SkeletalPosesComponent with rotations.
                 renderCharacter(frame: frame, rotations: rotations)
-            } else {
-                // Simulator / front-camera: no rotation data — bind pose at floor level.
+            } else if frame.jointPositions.contains(where: { $0.y > -5 }) {
+                // Front-camera or other source: real positions available but no rotations.
                 renderCharacterAtRoot(frame: frame)
+            } else {
+                // Simulator / MockMotionSource: all positions invalid (y = -10).
+                // Drive the skeleton procedurally so the character animates.
+                renderCharacterFallback(frame: frame)
             }
             return
         }
@@ -553,6 +557,23 @@ final class StagePlaybackRenderer: NSObject {
             posesComp.poses.set(pose)
             modelEntity.components[SkeletalPosesComponent.self] = posesComp
         }
+    }
+
+    /// Moves the character entity using the procedural hip position.
+    /// Used in Simulator where MockMotionSource produces no valid ARKit joint positions.
+    /// The character stays in its USD bind pose but translates with the animation rhythm,
+    /// giving visible movement without requiring rotation data or USD skeleton driving.
+    private func renderCharacterFallback(frame: MotionFrame) {
+        guard let character = characterEntity else { return }
+        let fallback = fallbackJointPositions(for: frame)
+        let hip = fallback[0]
+        // hip.y oscillates around 0.95; offset it relative to that baseline so the
+        // character stays near floor level while the subtle bounce comes through.
+        let yOffset = hip.y - 0.95
+        character.setPosition(
+            SIMD3<Float>(hip.x, Self.characterFloorOffset + yOffset, hip.z),
+            relativeTo: nil
+        )
     }
 
     private func fallbackJointPositions(for frame: MotionFrame) -> [SIMD3<Float>] {
