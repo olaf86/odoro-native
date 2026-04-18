@@ -27,6 +27,9 @@ struct ContentView: View {
 
     var body: some View {
         ZStack {
+            Color.black
+                .ignoresSafeArea()
+
             currentScreen
                 .id(studio.screen.rawValue)
                 .transition(studio.screenTransition.transition)
@@ -106,6 +109,8 @@ private struct CaptureExperienceView: View {
                     .padding(.horizontal, 28)
                     .padding(.bottom, 28)
             }
+            .safeAreaPadding(.top, 18)
+            .safeAreaPadding(.bottom, 8)
         }
         .ignoresSafeArea()
         .onAppear {
@@ -134,10 +139,10 @@ private struct CaptureExperienceView: View {
                 let vertical = value.translation.height
 
                 if abs(horizontal) > abs(vertical), horizontal < -60 {
-                    studio.openMusicSelection()
-                } else if abs(horizontal) > abs(vertical), horizontal > 60 {
                     studio.openClipLibrary()
-                } else if vertical < -70 {
+                } else if abs(horizontal) > abs(vertical), horizontal > 60 {
+                    studio.openMusicSelection()
+                } else if vertical > 70 {
                     studio.openSessionSettings()
                 }
             }
@@ -155,14 +160,16 @@ private struct StageExperienceView: View {
             VStack(spacing: 0) {
                 StageHeader(studio: studio)
                     .padding(.horizontal, 16)
-                    .padding(.top, 14)
+                    .padding(.top, 18)
 
                 Spacer()
 
                 StageBottomBar(studio: studio)
                     .padding(.horizontal, 20)
-                    .padding(.bottom, 26)
+                    .padding(.bottom, 24)
             }
+            .safeAreaPadding(.top, 22)
+            .safeAreaPadding(.bottom, 8)
         }
         .onAppear {
             studio.prepareStagePlayback()
@@ -176,7 +183,7 @@ private struct StageExperienceView: View {
     private var stageSwipeGesture: some Gesture {
         DragGesture(minimumDistance: 36, coordinateSpace: .local)
             .onEnded { value in
-                if value.translation.height < -70 {
+                if value.translation.height > 70 {
                     studio.openModelSelection()
                 }
             }
@@ -204,7 +211,13 @@ private struct MusicSelectionView: View {
                     }
                 }
                 .padding(.horizontal, 20)
+                .padding(.top, 4)
                 .padding(.bottom, 32)
+            }
+        }
+        .overlay(alignment: .trailing) {
+            SwipeBackEdgeZone(direction: .left) {
+                studio.goBack()
             }
         }
     }
@@ -309,7 +322,13 @@ private struct SessionSettingsView: View {
                     }
                 }
                 .padding(.horizontal, 20)
-                .padding(.bottom, 28)
+                .padding(.top, 4)
+                .padding(.bottom, 56)
+            }
+        }
+        .overlay(alignment: .bottom) {
+            SwipeBackEdgeZone(direction: .up) {
+                studio.goBack()
             }
         }
     }
@@ -355,7 +374,13 @@ private struct ClipLibraryView: View {
                     }
                 }
                 .padding(.horizontal, 20)
+                .padding(.top, 4)
                 .padding(.bottom, 30)
+            }
+        }
+        .overlay(alignment: .leading) {
+            SwipeBackEdgeZone(direction: .right) {
+                studio.goBack()
             }
         }
     }
@@ -367,7 +392,7 @@ private struct ModelSelectionView: View {
     var body: some View {
         NavigationShell(
             title: "Model Selection",
-            subtitle: "Swipe up from playback to switch how the motion is visualized.",
+            subtitle: "Swipe down from playback to switch how the motion is visualized.",
             onBack: studio.goBack
         ) {
             ScrollView(showsIndicators: false) {
@@ -382,7 +407,13 @@ private struct ModelSelectionView: View {
                     }
                 }
                 .padding(.horizontal, 20)
-                .padding(.bottom, 30)
+                .padding(.top, 4)
+                .padding(.bottom, 52)
+            }
+        }
+        .overlay(alignment: .bottom) {
+            SwipeBackEdgeZone(direction: .up) {
+                studio.goBack()
             }
         }
     }
@@ -412,7 +443,13 @@ private struct ArchiveExperienceView: View {
                     )
                 }
                 .padding(.horizontal, 20)
+                .padding(.top, 4)
                 .padding(.bottom, 30)
+            }
+        }
+        .overlay(alignment: .trailing) {
+            SwipeBackEdgeZone(direction: .left) {
+                studio.goBack()
             }
         }
     }
@@ -442,6 +479,7 @@ private struct NavigationShell<Content: View, Trailing: View>: View {
     var body: some View {
         ZStack {
             AppBackground()
+                .ignoresSafeArea()
 
             VStack(spacing: 20) {
                 HStack(alignment: .top, spacing: 16) {
@@ -472,9 +510,11 @@ private struct NavigationShell<Content: View, Trailing: View>: View {
                 .padding(.top, 16)
 
                 content
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             }
+            .safeAreaPadding(.top, 14)
+            .safeAreaPadding(.bottom, 8)
         }
-        .ignoresSafeArea()
     }
 }
 
@@ -563,20 +603,20 @@ private struct CaptureSwipeHintCluster: View {
                 VStack(spacing: 14) {
                     SwipeHintCard(
                         title: "Session Settings",
-                        subtitle: "Swipe up to adjust BPM, meter, bars, and count-in.",
-                        systemImage: "arrow.up"
+                        subtitle: "Swipe down to adjust BPM, meter, bars, and count-in.",
+                        systemImage: "arrow.down"
                     )
 
                     HStack(spacing: 14) {
                         SwipeHintCard(
-                            title: "Music Source",
-                            subtitle: "Swipe left to choose the track or metronome.",
+                            title: "Clip Library",
+                            subtitle: "Swipe left to review captured clips.",
                             systemImage: "arrow.left"
                         )
 
                         SwipeHintCard(
-                            title: "Clip Library",
-                            subtitle: "Swipe right to review captured clips.",
+                            title: "Music Source",
+                            subtitle: "Swipe right to choose the track or metronome.",
                             systemImage: "arrow.right"
                         )
                     }
@@ -626,7 +666,7 @@ private struct StageBottomBar: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Swipe up to pick another model view.")
+            Text("Swipe down to pick another model view.")
                 .font(.footnote)
                 .foregroundStyle(Color.white.opacity(0.72))
 
@@ -1182,6 +1222,64 @@ private extension StudioScreenTransition {
             .asymmetric(insertion: .move(edge: .top), removal: .move(edge: .bottom))
         case .fromBottom:
             .asymmetric(insertion: .move(edge: .bottom), removal: .move(edge: .top))
+        }
+    }
+}
+
+private enum SwipeReturnDirection {
+    case left
+    case right
+    case up
+}
+
+private struct SwipeBackEdgeZone: View {
+    let direction: SwipeReturnDirection
+    let action: () -> Void
+
+    var body: some View {
+        Color.clear
+            .contentShape(Rectangle())
+            .frame(
+                maxWidth: direction == .up ? .infinity : nil,
+                maxHeight: direction == .left || direction == .right ? .infinity : nil
+            )
+            .frame(
+                width: direction == .left || direction == .right ? 28 : nil,
+                height: direction == .up ? 34 : nil
+            )
+            .safeAreaPadding(edgeForDirection, direction == .up ? 8 : 0)
+            .gesture(
+                DragGesture(minimumDistance: 28, coordinateSpace: .local)
+                    .onEnded { value in
+                        switch direction {
+                        case .left:
+                            if value.translation.width < -70,
+                               abs(value.translation.width) > abs(value.translation.height) {
+                                action()
+                            }
+                        case .right:
+                            if value.translation.width > 70,
+                               abs(value.translation.width) > abs(value.translation.height) {
+                                action()
+                            }
+                        case .up:
+                            if value.translation.height < -70,
+                               abs(value.translation.height) > abs(value.translation.width) {
+                                action()
+                            }
+                        }
+                    }
+            )
+    }
+
+    private var edgeForDirection: Edge.Set {
+        switch direction {
+        case .left:
+            .trailing
+        case .right:
+            .leading
+        case .up:
+            .bottom
         }
     }
 }

@@ -227,7 +227,7 @@ final class StudioViewModel: ObservableObject {
 
     func beginRecording() {
         guard screen == .capture else {
-            navigate(to: .capture, transition: .fromLeading)
+            navigate(to: .capture, transition: .fromTrailing)
             return
         }
 
@@ -249,7 +249,7 @@ final class StudioViewModel: ObservableObject {
         stageRenderer.pause()
         interactor.setPlaybackActive(false)
         interactor.returnToCapture()
-        navigate(to: .capture, transition: .fromLeading)
+        navigate(to: .capture, transition: .fromTrailing)
     }
 
     func goBack() {
@@ -257,49 +257,49 @@ final class StudioViewModel: ObservableObject {
         case .capture:
             break
         case .musicSelection:
-            navigate(to: .capture, transition: .fromLeading)
-        case .sessionSettings:
-            navigate(to: .capture, transition: .fromTop)
-        case .clipsLibrary:
             navigate(to: .capture, transition: .fromTrailing)
+        case .sessionSettings:
+            navigate(to: .capture, transition: .fromBottom)
+        case .clipsLibrary:
+            navigate(to: .capture, transition: .fromLeading)
         case .stage:
             returnToCapture()
         case .modelSelection:
-            navigate(to: .stage, transition: .fromTop)
+            navigate(to: .stage, transition: .fromBottom)
         case .archive:
-            navigate(to: .stage, transition: .fromLeading)
+            navigate(to: .stage, transition: .fromTrailing)
         }
     }
 
     func openMusicSelection() {
         guard !state.isRecording else { return }
         dismissSwipeHints()
-        navigate(to: .musicSelection, transition: .fromTrailing)
+        navigate(to: .musicSelection, transition: .fromLeading)
     }
 
     func openSessionSettings() {
         guard !state.isRecording else { return }
         dismissSwipeHints()
-        navigate(to: .sessionSettings, transition: .fromBottom)
+        navigate(to: .sessionSettings, transition: .fromTop)
     }
 
     func openClipLibrary() {
         guard !state.isRecording else { return }
         dismissSwipeHints()
         refreshLibrary()
-        navigate(to: .clipsLibrary, transition: .fromLeading)
+        navigate(to: .clipsLibrary, transition: .fromTrailing)
     }
 
     func openModelSelection() {
         guard hasClip else { return }
-        navigate(to: .modelSelection, transition: .fromBottom)
+        navigate(to: .modelSelection, transition: .fromTop)
     }
 
     func saveCurrentClipToArchive() {
         guard hasClip else { return }
         confirmCurrentTake()
         refreshLibrary()
-        navigate(to: .archive, transition: .fromTrailing)
+        navigate(to: .archive, transition: .fromLeading)
     }
 
     func resetClip() {
@@ -348,7 +348,7 @@ final class StudioViewModel: ObservableObject {
 
         configureForCurrentSource()
         attachCurrentSourceIfPossible()
-        navigate(to: .capture, transition: .fromLeading)
+        navigate(to: .capture, transition: .fromTrailing)
     }
 
     func attachCaptureView(_ view: ARView) {
@@ -466,7 +466,7 @@ final class StudioViewModel: ObservableObject {
 
     func openTakeFromLibrary(_ take: MotionTakeSummary) {
         loadTake(take)
-        navigate(to: .stage, transition: .fromTrailing)
+        navigate(to: .stage, transition: .fromLeading)
     }
 
     func renameClip(_ take: MotionTakeSummary, to clipName: String) {
@@ -531,7 +531,7 @@ final class StudioViewModel: ObservableObject {
             }
 
             prepareStagePlayback()
-            navigate(to: .stage, transition: .fromTrailing)
+            navigate(to: .stage, transition: .fromLeading)
         }
     }
 
