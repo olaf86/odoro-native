@@ -226,6 +226,7 @@ final class StagePlaybackRenderer: NSObject {
 
         if let character = characterEntity {
             character.removeFromParent()
+            character.position = .zero  // Ensure character starts at floor level.
             dancerRoot.addChild(character)
         }
 
@@ -434,16 +435,23 @@ final class StagePlaybackRenderer: NSObject {
     /// y is fixed at 0 because humanoid USDZ models typically have their pivot at foot level.
     private func renderCharacterAtRoot(frame: MotionFrame) {
         guard let character = characterEntity else { return }
+        // In Simulator, ARSkeletonDefinition indices are unavailable (all NSNotFound)
+        // and MockMotionSource initializes unset joints to y=-10. Guard against that.
         let hipIndex = skeletonDefinition.index(for: .root)
-        let hip: SIMD3<Float>
-        if hipIndex != NSNotFound, frame.jointPositions.indices.contains(hipIndex) {
+        let validPosition: ((SIMD3<Float>) -> Bool) = { $0.y > -5 }
+        let hip: SIMD3<Float>?
+        if hipIndex != NSNotFound,
+           frame.jointPositions.indices.contains(hipIndex),
+           validPosition(frame.jointPositions[hipIndex]) {
             hip = frame.jointPositions[hipIndex]
-        } else if !frame.jointPositions.isEmpty {
-            hip = frame.jointPositions[0]
+        } else if let first = frame.jointPositions.first(where: validPosition) {
+            hip = first
         } else {
-            return
+            hip = nil  // No valid position — leave character at its current position.
         }
-        character.setPosition(SIMD3<Float>(hip.x, 0, hip.z), relativeTo: nil)
+        if let hip {
+            character.setPosition(SIMD3<Float>(hip.x, 0, hip.z), relativeTo: nil)
+        }
     }
 
     /// Drives the skeleton via SkeletalPosesComponent.
