@@ -5,11 +5,13 @@
 
 import ARKit
 import Foundation
+import os
 import RealityKit
 import UIKit
 
 @MainActor
 final class StagePlaybackRenderer: NSObject {
+    private static let logger = Logger(subsystem: Bundle.main.bundleIdentifier!, category: "StagePlaybackRenderer")
     private struct RenderLimb {
         let startIndex: Int
         let endIndex: Int
@@ -87,9 +89,14 @@ final class StagePlaybackRenderer: NSObject {
     // MARK: - Character model loading
 
     private func loadCharacterIfAvailable() {
-        guard let entity = try? Entity.load(named: "robot") else { return }
-        characterEntity = entity
-        buildCharacterJointMap(from: entity)
+        do {
+            let entity = try Entity.load(named: "robot")
+            characterEntity = entity
+            buildCharacterJointMap(from: entity)
+            Self.logger.info("robot.usdz loaded, joints mapped: \(self.characterJointEntityMap.count)")
+        } catch {
+            Self.logger.error("Failed to load robot.usdz: \(error)")
+        }
     }
 
     private func buildCharacterJointMap(from entity: Entity) {
@@ -221,9 +228,14 @@ final class StagePlaybackRenderer: NSObject {
     }
 
     private func render(frame: MotionFrame) {
-        // Prefer character model rendering when rotation data is available (ARKit captures only).
-        if !characterJointEntityMap.isEmpty, let rotations = frame.jointRotations, !rotations.isEmpty {
-            renderCharacter(frame: frame, rotations: rotations)
+        if !characterJointEntityMap.isEmpty {
+            if let rotations = frame.jointRotations, !rotations.isEmpty {
+                // ARKit capture: full per-joint pose via world-space rotations.
+                renderCharacter(frame: frame, rotations: rotations)
+            } else {
+                // Mock / Vision capture: no rotation data — show character in bind pose at root.
+                renderCharacterAtRoot(frame: frame)
+            }
             return
         }
 
@@ -381,6 +393,21 @@ final class StagePlaybackRenderer: NSObject {
     /// up the entity index and apply our recorded world-space transforms directly.
     /// `setPosition(_:relativeTo:nil)` / `setOrientation(_:relativeTo:nil)` let
     /// RealityKit handle the local-space conversion regardless of hierarchy depth.
+    /// Positions the character root at the hip/root joint without posing individual joints.
+    /// Used when rotation data is unavailable (mock or front-camera captures).
+    private func renderCharacterAtRoot(frame: MotionFrame) {
+        guard let character = characterEntity else { return }
+        let rootPosition: SIMD3<Float>
+        if frame.jointPositions.count == OdoroSkeletonDefinition.jointCount {
+            rootPosition = frame.jointPositions[OdoroSkeletonDefinition.index(of: .root)]
+        } else if !frame.jointPositions.isEmpty {
+            rootPosition = frame.jointPositions[0]
+        } else {
+            return
+        }
+        character.setPosition(rootPosition, relativeTo: nil)
+    }
+
     private func renderCharacter(frame: MotionFrame, rotations: [MotionJointRotation?]) {
         guard frame.jointPositions.count == rotations.count else { return }
 
