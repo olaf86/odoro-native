@@ -60,6 +60,14 @@ final class StagePlaybackRenderer: NSObject {
 
     private var characterEntity: Entity?
     private var skeletalModelEntity: ModelEntity?
+    private var hasStoppedBuiltInAnimation = false
+
+    // robot.usdz geometry is authored in meters but metersPerUnit = 0.01 causes RealityKit
+    // to apply scale 0.01, making the character 1.86cm tall (invisible).
+    // Override to 1.0 to render at the correct real-world size.
+    private static let characterScale: Float = 1.0
+    // Mesh bind-pose extent: y ∈ [-0.977, 0.880]. Raising the entity by 0.977 puts feet on the floor.
+    private static let characterFloorOffset: Float = 0.977
     // USD skeleton joint order → ARKit joint index (NSNotFound if unmapped)
     private var usdJointArkitIndices: [Int] = []
     // USD skeleton joint order → parent ARKit joint index (nil = treat as world-space root)
@@ -129,7 +137,8 @@ final class StagePlaybackRenderer: NSObject {
             skeletalModelEntity = findModelEntity(entity)
             setupSkeletalMapping()
             let mappedCount = self.usdJointArkitIndices.filter { $0 != NSNotFound }.count
-            Self.logger.info("robot.usdz loaded — skeletal model: \(self.skeletalModelEntity != nil), mapped: \(mappedCount)/\(Self.robotUsdJoints.count)")
+            let animCount = entity.availableAnimations.count
+            Self.logger.info("robot.usdz loaded — skeletal model: \(self.skeletalModelEntity != nil), mapped: \(mappedCount)/\(Self.robotUsdJoints.count), animations: \(animCount)")
         } catch {
             Self.logger.error("Failed to load robot.usdz: \(error)")
         }
@@ -231,15 +240,36 @@ final class StagePlaybackRenderer: NSObject {
     }
 
     private func buildDancerHierarchy() {
+        hasStoppedBuiltInAnimation = false
+
         // Character model takes priority over the procedural skeleton
         // whenever the entity loaded, even if individual joints are not yet mapped.
         let hasCharacter = characterEntity != nil
 
         if let character = characterEntity {
             character.removeFromParent()
-            character.position = .zero  // Ensure character starts at floor level.
+            // metersPerUnit = 0.01 in the USDZ causes RealityKit to scale the entity down by 0.01.
+            // The geometry is actually in meters, so override the scale to 1.0 to restore the correct size.
+            character.scale = SIMD3<Float>(repeating: Self.characterScale)
+            // Bind-pose feet sit at local y = -0.977; raise by that amount to place feet on the floor.
+            character.position = SIMD3<Float>(0, Self.characterFloorOffset, 0)
             dancerRoot.addChild(character)
             logEntityTransforms(character, depth: 0)
+
+            // Play any built-in animation embedded in the USDZ (idle loop, etc.).
+            // This serves as a rendering path for Simulator where ARKit joint indices
+            // are unavailable and SkeletalPosesComponent cannot be driven from motion data.
+            if let animation = character.availableAnimations.first {
+                character.playAnimation(animation.repeat(duration: .infinity))
+                Self.logger.debug("Playing built-in character animation")
+            } else if #available(iOS 18.0, *), let modelEntity = skeletalModelEntity {
+                // No built-in animation. USD Skeleton skinned meshes may not produce any
+                // rendered output until the deformation pipeline is activated. Setting an
+                // empty SkeletalPosesComponent is enough to trigger it so the bind pose renders.
+                if modelEntity.components[SkeletalPosesComponent.self] == nil {
+                    modelEntity.components[SkeletalPosesComponent.self] = SkeletalPosesComponent(poses: [])
+                }
+            }
         }
 
         for _ in renderJointNames {
@@ -462,7 +492,7 @@ final class StagePlaybackRenderer: NSObject {
             hip = nil  // No valid position — leave character at its current position.
         }
         if let hip {
-            character.setPosition(SIMD3<Float>(hip.x, 0, hip.z), relativeTo: nil)
+            character.setPosition(SIMD3<Float>(hip.x, Self.characterFloorOffset, hip.z), relativeTo: nil)
         }
     }
 
@@ -474,6 +504,13 @@ final class StagePlaybackRenderer: NSObject {
     private func renderCharacter(frame: MotionFrame, rotations: [MotionJointRotation?]) {
         guard let modelEntity = skeletalModelEntity,
               frame.jointPositions.count == rotations.count else { return }
+
+        // Stop the built-in animation the first time ARKit data drives the joints
+        // so it doesn't interfere with SkeletalPosesComponent.
+        if !hasStoppedBuiltInAnimation {
+            characterEntity?.stopAllAnimations()
+            hasStoppedBuiltInAnimation = true
+        }
 
         var joints: [(String, Transform)] = []
         joints.reserveCapacity(Self.robotUsdJoints.count)
@@ -499,8 +536,12 @@ final class StagePlaybackRenderer: NSObject {
                     translation: simd_act(parentRotInv, worldPos - parentPos)
                 )
             } else {
-                // Root joint or parent not in ARKit frame — world space is local space.
-                localTransform = Transform(rotation: worldRot, translation: worldPos)
+                // Root joint: no parent in the USD skeleton hierarchy.
+                // SkeletalPosesComponent transforms are in the skeleton entity's local space.
+                // The character entity is offset by characterFloorOffset in Y so subtract
+                // that to convert from ARKit world space to skeleton-entity local space.
+                let localPos = worldPos - SIMD3<Float>(0, Self.characterFloorOffset, 0)
+                localTransform = Transform(rotation: worldRot, translation: localPos)
             }
 
             joints.append((jointName, localTransform))
