@@ -46,6 +46,7 @@ final class StudioViewModel: ObservableObject {
     @Published private(set) var swipeHintsVisible = false
     @Published private(set) var selectedAvatarStyle: StageAvatarStyle = .robot
     @Published private(set) var transientMessage: String?
+    @Published private(set) var isImportingVideo = false
 
     var presentation: StudioPresentation { state.presentation }
     var statusText: String { state.statusText }
@@ -65,6 +66,7 @@ final class StudioViewModel: ObservableObject {
     var activeAudioSource: AudioSourceOption {
         Self.audioSources.first(where: { $0.matches(recordingContext) }) ?? Self.audioSources[0]
     }
+    var canImportVideo: Bool { archiveStore != nil && !state.isRecording && !isImportingVideo }
 
     var currentTake: MotionTakeSummary? {
         guard let currentTakeID else {
@@ -196,6 +198,8 @@ final class StudioViewModel: ObservableObject {
         ),
     ]
 
+    private let videoImporter = VideoMotionImporter()
+    private let maximumImportedVideoDuration: TimeInterval = 10
     private let archiveStore: MotionArchiveStore?
     private var source: MotionSource
     private var interactor: MotionStudioInteractor
@@ -456,6 +460,7 @@ final class StudioViewModel: ObservableObject {
             let clip = try archiveStore.loadClip(fromLocalFilePath: take.localFilePath)
             currentSessionID = take.sessionID
             currentTakeID = take.id
+            stageRenderer.setUsesProceduralMockPlayback(take.captureMode == .mock)
             interactor.replaceCurrentClip(clip)
             try refreshCurrentSessionTakes()
             interactor.enterStageMode()
@@ -494,6 +499,71 @@ final class StudioViewModel: ObservableObject {
     func clearFeatureNotice() {
         transientMessageDismissTask?.cancel()
         transientMessage = nil
+    }
+
+    func reportVideoImportFailure(_ error: Error) {
+        let message = L10n.statusVideoImportFailed(error.localizedDescription)
+        interactor.setStatusText(message)
+        showFeatureNotice(message)
+    }
+
+    func importVideo(from url: URL) async {
+        guard
+            let archiveStore,
+            !state.isRecording,
+            !isImportingVideo
+        else {
+            return
+        }
+
+        isImportingVideo = true
+        stageRenderer.pause()
+        interactor.setPlaybackActive(false)
+        interactor.setStatusText(L10n.statusVideoImportAnalyzing)
+        showFeatureNotice(L10n.statusVideoImportAnalyzing)
+
+        let hasSecurityScopedAccess = url.startAccessingSecurityScopedResource()
+
+        defer {
+            if hasSecurityScopedAccess {
+                url.stopAccessingSecurityScopedResource()
+            }
+            isImportingVideo = false
+        }
+
+        do {
+            let clip = try await videoImporter.importClip(
+                from: url,
+                maximumDuration: maximumImportedVideoDuration
+            )
+
+            guard clip.frameCount > 1 else {
+                let message = L10n.statusVideoImportNoMotion
+                interactor.setStatusText(message)
+                showFeatureNotice(message)
+                return
+            }
+
+            let normalizedClip = clip.normalizedForStage()
+            let saveResult = try archiveStore.saveTake(
+                clip: normalizedClip,
+                captureMode: .importedVideo,
+                recordingContext: recordingContext,
+                existingSessionID: currentSessionID
+            )
+
+            currentSessionID = saveResult.sessionID
+            currentTakeID = saveResult.takeID
+            let savedClip = try archiveStore.loadClip(fromLocalFilePath: saveResult.localFilePath)
+            stageRenderer.setUsesProceduralMockPlayback(false)
+            interactor.replaceCurrentClip(savedClip)
+            try refreshCurrentSessionTakes()
+            refreshLibrary()
+            interactor.setStatusText(L10n.statusVideoImportComplete)
+            interactor.enterStageMode()
+        } catch {
+            reportVideoImportFailure(error)
+        }
     }
 
     func confirmCurrentTake() {
@@ -584,6 +654,8 @@ final class StudioViewModel: ObservableObject {
             ARKitMotionSource()
         case .frontUpperBody:
             VisionFrontCameraMotionSource()
+        case .importedVideo:
+            MockMotionSource()
         case .mock:
             MockMotionSource()
         }
@@ -591,27 +663,35 @@ final class StudioViewModel: ObservableObject {
 
     private func persistCurrentClipIfPossible() {
         guard
-            let archiveStore,
             let currentClip = interactor.currentClip
         else {
             return
         }
 
         do {
-            let saveResult = try archiveStore.saveTake(
-                clip: currentClip,
-                captureMode: captureMode,
-                recordingContext: recordingContext,
-                existingSessionID: currentSessionID
-            )
-            currentSessionID = saveResult.sessionID
-            currentTakeID = saveResult.takeID
-            let savedClip = try archiveStore.loadClip(fromLocalFilePath: saveResult.localFilePath)
-            interactor.replaceCurrentClip(savedClip)
-            try refreshCurrentSessionTakes()
+            try persistClip(currentClip, captureMode: captureMode)
         } catch {
             print("Failed to persist motion take: \(error)")
         }
+    }
+
+    private func persistClip(_ clip: MotionClip, captureMode: CaptureMode) throws {
+        guard let archiveStore else {
+            return
+        }
+
+        let saveResult = try archiveStore.saveTake(
+            clip: clip,
+            captureMode: captureMode,
+            recordingContext: recordingContext,
+            existingSessionID: currentSessionID
+        )
+        currentSessionID = saveResult.sessionID
+        currentTakeID = saveResult.takeID
+        let savedClip = try archiveStore.loadClip(fromLocalFilePath: saveResult.localFilePath)
+        stageRenderer.setUsesProceduralMockPlayback(captureMode == .mock)
+        interactor.replaceCurrentClip(savedClip)
+        try refreshCurrentSessionTakes()
     }
 
     private func updateRecordingContext(_ update: (inout MotionRecordingContext) -> Void) {

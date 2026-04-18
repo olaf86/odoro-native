@@ -50,6 +50,7 @@ enum L10n {
     static let sessionBarsTitle = "Bars"
     static let sessionCountInTitle = "Count-In"
     static let savedTakesTitle = "Saved Takes"
+    static let buttonImportVideo = "Import Video"
     static let buttonOpenTake = "Open"
     static let emptySavedTakes = "Your takes for this session will appear here."
     static let stageTitle = text("stage.title")
@@ -70,9 +71,11 @@ enum L10n {
 
     static let captureModeRearTitle = text("captureMode.rear.title")
     static let captureModeFrontTitle = text("captureMode.front.title")
+    static let captureModeImportedTitle = "Imported Video"
     static let captureModeMockTitle = text("captureMode.mock.title")
     static let captureModeRearDescription = text("captureMode.rear.description")
     static let captureModeFrontDescription = text("captureMode.front.description")
+    static let captureModeImportedDescription = "Analyze an uploaded video with Vision pose detection."
     static let captureModeMockDescription = text("captureMode.mock.description")
 
     static let statusStandInFrame = text("status.standInFrame")
@@ -105,6 +108,12 @@ enum L10n {
     }
     static let statusFrontMoveIntoFrame = text("status.front.moveIntoFrame")
     static let statusFrontReady = text("status.front.ready")
+    static let statusVideoImportAnalyzing = "Analyzing video..."
+    static let statusVideoImportComplete = "Video analysis complete."
+    static let statusVideoImportNoMotion = "Couldn't detect enough body motion in that video."
+    static func statusVideoImportFailed(_ error: String) -> String {
+        "Video import failed: \(error)"
+    }
 
     static func frames(_ count: Int) -> String {
         formatted("label.frames", count)

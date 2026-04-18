@@ -127,6 +127,10 @@ final class MotionStudioInteractor {
         state.isPlaying = isPlaying
     }
 
+    func setStatusText(_ statusText: String) {
+        updateStatusTextIfNeeded(statusText)
+    }
+
     func replaceCurrentClip(_ clip: MotionClip) {
         currentClip = clip
     }

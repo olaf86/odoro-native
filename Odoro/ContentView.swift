@@ -336,6 +336,7 @@ private struct SessionSettingsView: View {
 
 private struct ClipLibraryView: View {
     @ObservedObject var studio: StudioViewModel
+    @State private var isImportPickerPresented = false
 
     var body: some View {
         NavigationShell(
@@ -343,9 +344,9 @@ private struct ClipLibraryView: View {
             subtitle: "Review past takes and jump straight back into playback.",
             trailing: {
                 Button {
-                    studio.showFeatureNotice("Video import and motion analysis are next on the list.")
+                    isImportPickerPresented = true
                 } label: {
-                    Label("Upload", systemImage: "plus.rectangle.on.folder")
+                    Label(L10n.buttonImportVideo, systemImage: "plus.rectangle.on.folder")
                         .font(.footnote.weight(.semibold))
                         .padding(.horizontal, 12)
                         .padding(.vertical, 10)
@@ -353,6 +354,7 @@ private struct ClipLibraryView: View {
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(.white)
+                .disabled(!studio.canImportVideo)
             },
             onBack: studio.goBack
         ) {
@@ -381,6 +383,21 @@ private struct ClipLibraryView: View {
         .overlay(alignment: .leading) {
             SwipeBackEdgeZone(direction: .right) {
                 studio.goBack()
+            }
+        }
+        .fileImporter(
+            isPresented: $isImportPickerPresented,
+            allowedContentTypes: [.movie, .mpeg4Movie, .quickTimeMovie],
+            allowsMultipleSelection: false
+        ) { result in
+            switch result {
+            case let .success(urls):
+                guard let url = urls.first else { return }
+                Task {
+                    await studio.importVideo(from: url)
+                }
+            case let .failure(error):
+                studio.reportVideoImportFailure(error)
             }
         }
     }
@@ -910,6 +927,8 @@ private struct ClipThumbnail: View {
             [Color(red: 0.16, green: 0.32, blue: 0.58), Color(red: 0.04, green: 0.08, blue: 0.18)]
         case .frontUpperBody:
             [Color(red: 0.24, green: 0.42, blue: 0.28), Color(red: 0.07, green: 0.12, blue: 0.08)]
+        case .importedVideo:
+            [Color(red: 0.45, green: 0.30, blue: 0.10), Color(red: 0.16, green: 0.10, blue: 0.04)]
         case .mock:
             [Color(red: 0.48, green: 0.22, blue: 0.18), Color(red: 0.17, green: 0.05, blue: 0.08)]
         }
@@ -1290,6 +1309,8 @@ private func iconName(for captureMode: CaptureMode) -> String {
         "figure.walk.motion"
     case .frontUpperBody:
         "person.crop.rectangle"
+    case .importedVideo:
+        "film.stack"
     case .mock:
         "sparkles.rectangle.stack"
     }

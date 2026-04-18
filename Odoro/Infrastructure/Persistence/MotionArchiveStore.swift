@@ -315,6 +315,8 @@ final class MotionArchiveStore {
             "arkit.bodyTracking"
         case .frontUpperBody:
             "vision.frontBodyPose"
+        case .importedVideo:
+            "vision.videoImport"
         case .mock:
             "mock.procedural"
         }
