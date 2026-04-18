@@ -59,7 +59,41 @@ final class StagePlaybackRenderer: NSObject {
     private var limbEntities: [ModelEntity] = []
 
     private var characterEntity: Entity?
-    private var characterJointEntityMap: [Int: Entity] = [:]
+    private var skeletalModelEntity: ModelEntity?
+    // USD skeleton joint order → ARKit joint index (NSNotFound if unmapped)
+    private var usdJointArkitIndices: [Int] = []
+    // USD skeleton joint order → parent ARKit joint index (nil = treat as world-space root)
+    private var usdJointParentArkitIndices: [Int?] = []
+
+    // Joint order and parent names extracted from robot.usdz skel:joints array.
+    // Leaf names match ARKit joint names exactly; parents not in this list (spine_3, spine_7,
+    // neck_1) exist in the full ARKit skeleton so their indices are still resolvable.
+    private static let robotUsdJoints: [(joint: String, parent: String?)] = [
+        ("spine_2_joint",         "spine_1_joint"),
+        ("spine_5_joint",         "spine_4_joint"),
+        ("hips_joint",            nil),
+        ("spine_6_joint",         "spine_5_joint"),
+        ("head_joint",            "neck_4_joint"),
+        ("spine_1_joint",         "hips_joint"),
+        ("spine_4_joint",         "spine_3_joint"),
+        ("neck_2_joint",          "neck_1_joint"),
+        ("left_leg_joint",        "left_upLeg_joint"),
+        ("left_foot_joint",       "left_leg_joint"),
+        ("left_arm_joint",        "left_shoulder_1_joint"),
+        ("left_forearm_joint",    "left_arm_joint"),
+        ("left_upLeg_joint",      "hips_joint"),
+        ("left_hand_joint",       "left_forearm_joint"),
+        ("left_shoulder_1_joint", "spine_7_joint"),
+        ("neck_3_joint",          "neck_2_joint"),
+        ("neck_4_joint",          "neck_3_joint"),
+        ("right_leg_joint",       "right_upLeg_joint"),
+        ("right_foot_joint",      "right_leg_joint"),
+        ("right_arm_joint",       "right_shoulder_1_joint"),
+        ("right_forearm_joint",   "right_arm_joint"),
+        ("right_upLeg_joint",     "hips_joint"),
+        ("right_hand_joint",      "right_forearm_joint"),
+        ("right_shoulder_1_joint","spine_7_joint"),
+    ]
 
     override init() {
         super.init()
@@ -92,34 +126,31 @@ final class StagePlaybackRenderer: NSObject {
         do {
             let entity = try Entity.load(named: "robot")
             characterEntity = entity
-            buildCharacterJointMap(from: entity)
-            Self.logger.info("robot.usdz loaded, joints mapped: \(self.characterJointEntityMap.count)")
-            if characterJointEntityMap.isEmpty {
-                logEntityHierarchy(entity, depth: 0)
-            }
+            skeletalModelEntity = findModelEntity(entity)
+            setupSkeletalMapping()
+            let mappedCount = self.usdJointArkitIndices.filter { $0 != NSNotFound }.count
+            Self.logger.info("robot.usdz loaded — skeletal model: \(self.skeletalModelEntity != nil), mapped: \(mappedCount)/\(Self.robotUsdJoints.count)")
         } catch {
             Self.logger.error("Failed to load robot.usdz: \(error)")
         }
     }
 
-    private func logEntityHierarchy(_ entity: Entity, depth: Int) {
-        let indent = String(repeating: "  ", count: depth)
-        Self.logger.debug("\(indent)'\(entity.name)'")
+    private func findModelEntity(_ entity: Entity) -> ModelEntity? {
+        if let me = entity as? ModelEntity { return me }
         for child in entity.children {
-            logEntityHierarchy(child, depth: depth + 1)
+            if let found = findModelEntity(child) { return found }
         }
+        return nil
     }
 
-    private func buildCharacterJointMap(from entity: Entity) {
-        let name = entity.name
-        if !name.isEmpty {
-            let index = skeletonDefinition.index(for: ARSkeleton.JointName(rawValue: name))
-            if index != NSNotFound {
-                characterJointEntityMap[index] = entity
-            }
+    private func setupSkeletalMapping() {
+        usdJointArkitIndices = Self.robotUsdJoints.map { entry in
+            skeletonDefinition.index(for: ARSkeleton.JointName(rawValue: entry.joint))
         }
-        for child in entity.children {
-            buildCharacterJointMap(from: child)
+        usdJointParentArkitIndices = Self.robotUsdJoints.map { entry in
+            guard let parentName = entry.parent else { return nil }
+            let idx = skeletonDefinition.index(for: ARSkeleton.JointName(rawValue: parentName))
+            return idx == NSNotFound ? nil : idx
         }
     }
 
@@ -241,11 +272,11 @@ final class StagePlaybackRenderer: NSObject {
 
     private func render(frame: MotionFrame) {
         if characterEntity != nil {
-            if !characterJointEntityMap.isEmpty, let rotations = frame.jointRotations, !rotations.isEmpty {
-                // ARKit capture: full per-joint pose via world-space rotations.
+            if !usdJointArkitIndices.isEmpty, let rotations = frame.jointRotations, !rotations.isEmpty {
+                // ARKit capture: drive skeleton via SkeletalPosesComponent.
                 renderCharacter(frame: frame, rotations: rotations)
             } else {
-                // Joints not yet mapped, or no rotation data — bind pose at floor level.
+                // Simulator / front-camera: no rotation data — bind pose at floor level.
                 renderCharacterAtRoot(frame: frame)
             }
             return
@@ -397,17 +428,9 @@ final class StagePlaybackRenderer: NSObject {
 
     // MARK: - Character model rendering
 
-    /// Drives the USDZ character by applying world-space position and orientation
-    /// to each joint entity that was mapped by name during loading.
-    ///
-    /// This matches the ARKit body-tracking sample approach:
-    /// each joint entity in robot.usdz is named after its ARKit joint, so we look
-    /// up the entity index and apply our recorded world-space transforms directly.
-    /// `setPosition(_:relativeTo:nil)` / `setOrientation(_:relativeTo:nil)` let
-    /// RealityKit handle the local-space conversion regardless of hierarchy depth.
     /// Positions the character at floor level (y = 0) tracking the hip's x/z,
-    /// without posing individual joints. Used when joint mapping or rotation data
-    /// is unavailable (e.g. simulator / front-camera captures).
+    /// without posing individual joints. Used when rotation data is unavailable
+    /// (simulator / front-camera captures).
     /// y is fixed at 0 because humanoid USDZ models typically have their pivot at foot level.
     private func renderCharacterAtRoot(frame: MotionFrame) {
         guard let character = characterEntity else { return }
@@ -423,19 +446,51 @@ final class StagePlaybackRenderer: NSObject {
         character.setPosition(SIMD3<Float>(hip.x, 0, hip.z), relativeTo: nil)
     }
 
+    /// Drives the skeleton via SkeletalPosesComponent.
+    ///
+    /// robot.usdz uses USD Skeleton schema — joints are not exposed as entity children.
+    /// We convert world-space ARKit rotations/positions to local-space transforms
+    /// (each joint relative to its parent) and push them via SkeletalPosesComponent.
     private func renderCharacter(frame: MotionFrame, rotations: [MotionJointRotation?]) {
-        guard frame.jointPositions.count == rotations.count else { return }
+        guard let modelEntity = skeletalModelEntity,
+              frame.jointPositions.count == rotations.count else { return }
 
-        for (index, entity) in characterJointEntityMap {
-            guard
-                index < frame.jointPositions.count,
-                index < rotations.count,
-                let worldQuat = rotations[index]?.simdValue
-            else { continue }
+        var joints: [(String, Transform)] = []
+        joints.reserveCapacity(Self.robotUsdJoints.count)
 
-            let worldPos = frame.jointPositions[index]
-            entity.setPosition(worldPos, relativeTo: nil)
-            entity.setOrientation(worldQuat, relativeTo: nil)
+        for usdIdx in 0..<Self.robotUsdJoints.count {
+            let jointName = Self.robotUsdJoints[usdIdx].joint
+            let arkitIdx = usdJointArkitIndices[usdIdx]
+            guard arkitIdx != NSNotFound,
+                  frame.jointPositions.indices.contains(arkitIdx),
+                  let worldRot = rotations[arkitIdx]?.simdValue else { continue }
+
+            let worldPos = frame.jointPositions[arkitIdx]
+            let localTransform: Transform
+
+            if let parentArkitIdx = usdJointParentArkitIndices[usdIdx],
+               frame.jointPositions.indices.contains(parentArkitIdx),
+               let parentWorldRot = rotations[parentArkitIdx]?.simdValue {
+                // Convert world-space to parent-relative local-space.
+                let parentPos = frame.jointPositions[parentArkitIdx]
+                let parentRotInv = parentWorldRot.inverse
+                localTransform = Transform(
+                    rotation: parentRotInv * worldRot,
+                    translation: simd_act(parentRotInv, worldPos - parentPos)
+                )
+            } else {
+                // Root joint or parent not in ARKit frame — world space is local space.
+                localTransform = Transform(rotation: worldRot, translation: worldPos)
+            }
+
+            joints.append((jointName, localTransform))
+        }
+
+        if #available(iOS 18.0, *) {
+            let pose = SkeletalPose(id: "live", joints: joints)
+            var posesComp = modelEntity.components[SkeletalPosesComponent.self] ?? SkeletalPosesComponent(poses: [])
+            posesComp.poses.set(pose)
+            modelEntity.components[SkeletalPosesComponent.self] = posesComp
         }
     }
 
