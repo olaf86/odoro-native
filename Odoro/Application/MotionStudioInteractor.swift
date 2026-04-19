@@ -26,7 +26,7 @@ final class MotionStudioInteractor {
     }
 
     private let source: MotionSource
-    private let maximumCaptureDuration: TimeInterval
+    private var maximumCaptureDuration: TimeInterval
     private var capturedFrames: [MotionFrame] = []
     private var recordingStartTimestamp: TimeInterval?
 
@@ -49,6 +49,10 @@ final class MotionStudioInteractor {
 
     func activateSource() {
         source.activate()
+    }
+
+    func updateMaximumCaptureDuration(_ duration: TimeInterval) {
+        maximumCaptureDuration = duration
     }
 
     func deactivateSource() {

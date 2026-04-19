@@ -231,7 +231,6 @@ private struct SessionSettingsView: View {
     @ObservedObject var studio: StudioViewModel
 
     private let bpmRange = Array(stride(from: 60, through: 180, by: 2)).map { Int($0) }
-    private let barRange = Array(1...8)
 
     var body: some View {
         NavigationShell(
@@ -296,18 +295,17 @@ private struct SessionSettingsView: View {
                     }
 
                     SettingsCard(title: "Bars", icon: "rectangle.split.3x1") {
-                        Picker(
-                            "Bars",
-                            selection: Binding(
-                                get: { studio.recordingContext.targetBarCount },
-                                set: { studio.updateTargetBarCount($0) }
-                            )
-                        ) {
-                            ForEach(barRange, id: \.self) { bars in
-                                Text("\(bars)").tag(bars)
-                            }
+                        HStack {
+                            Text(studio.fixedRecordingBarCountText)
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(.white)
+
+                            Spacer()
+
+                            Text("Capture completes automatically.")
+                                .font(.caption)
+                                .foregroundStyle(Color.white.opacity(0.64))
                         }
-                        .pickerStyle(.menu)
                     }
 
                     SettingsCard(title: "Count-In", icon: "waveform.badge.plus") {
