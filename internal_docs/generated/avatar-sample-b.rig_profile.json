@@ -1,0 +1,210 @@
+{
+  "profile": {
+    "bindings": [
+      {
+        "boneName": "J_Bip_C_Hips",
+        "parentSourceJoint": null,
+        "rotationOffset": null,
+        "sourceJoint": {
+          "canonicalJoint": "root",
+          "rawJointName": "J_Bip_C_Hips"
+        },
+        "translationMode": "direct",
+        "weight": 1
+      },
+      {
+        "boneName": "J_Bip_C_Head",
+        "parentSourceJoint": {
+          "canonicalJoint": "root",
+          "rawJointName": "J_Bip_C_Hips"
+        },
+        "rotationOffset": null,
+        "sourceJoint": {
+          "canonicalJoint": "head",
+          "rawJointName": "J_Bip_C_Head"
+        },
+        "translationMode": "direct",
+        "weight": 1
+      },
+      {
+        "boneName": "J_Bip_L_Shoulder",
+        "parentSourceJoint": {
+          "canonicalJoint": "root",
+          "rawJointName": "J_Bip_C_Hips"
+        },
+        "rotationOffset": null,
+        "sourceJoint": {
+          "canonicalJoint": "leftShoulder",
+          "rawJointName": "J_Bip_L_Shoulder"
+        },
+        "translationMode": "direct",
+        "weight": 1
+      },
+      {
+        "boneName": "J_Bip_L_UpperArm",
+        "parentSourceJoint": {
+          "canonicalJoint": "leftShoulder",
+          "rawJointName": "J_Bip_L_Shoulder"
+        },
+        "rotationOffset": null,
+        "sourceJoint": {
+          "canonicalJoint": "leftElbow",
+          "rawJointName": "J_Bip_L_UpperArm"
+        },
+        "translationMode": "direct",
+        "weight": 1
+      },
+      {
+        "boneName": "J_Bip_L_LowerArm",
+        "parentSourceJoint": {
+          "canonicalJoint": "leftElbow",
+          "rawJointName": "J_Bip_L_UpperArm"
+        },
+        "rotationOffset": null,
+        "sourceJoint": {
+          "canonicalJoint": "leftWrist",
+          "rawJointName": "J_Bip_L_LowerArm"
+        },
+        "translationMode": "direct",
+        "weight": 1
+      },
+      {
+        "boneName": "J_Bip_R_Shoulder",
+        "parentSourceJoint": {
+          "canonicalJoint": "root",
+          "rawJointName": "J_Bip_C_Hips"
+        },
+        "rotationOffset": null,
+        "sourceJoint": {
+          "canonicalJoint": "rightShoulder",
+          "rawJointName": "J_Bip_R_Shoulder"
+        },
+        "translationMode": "direct",
+        "weight": 1
+      },
+      {
+        "boneName": "J_Bip_R_UpperArm",
+        "parentSourceJoint": {
+          "canonicalJoint": "rightShoulder",
+          "rawJointName": "J_Bip_R_Shoulder"
+        },
+        "rotationOffset": null,
+        "sourceJoint": {
+          "canonicalJoint": "rightElbow",
+          "rawJointName": "J_Bip_R_UpperArm"
+        },
+        "translationMode": "direct",
+        "weight": 1
+      },
+      {
+        "boneName": "J_Bip_R_LowerArm",
+        "parentSourceJoint": {
+          "canonicalJoint": "rightElbow",
+          "rawJointName": "J_Bip_R_UpperArm"
+        },
+        "rotationOffset": null,
+        "sourceJoint": {
+          "canonicalJoint": "rightWrist",
+          "rawJointName": "J_Bip_R_LowerArm"
+        },
+        "translationMode": "direct",
+        "weight": 1
+      },
+      {
+        "boneName": "J_Bip_L_UpperLeg",
+        "parentSourceJoint": {
+          "canonicalJoint": "root",
+          "rawJointName": "J_Bip_C_Hips"
+        },
+        "rotationOffset": null,
+        "sourceJoint": {
+          "canonicalJoint": "leftHip",
+          "rawJointName": "J_Bip_L_UpperLeg"
+        },
+        "translationMode": "direct",
+        "weight": 1
+      },
+      {
+        "boneName": "J_Bip_L_LowerLeg",
+        "parentSourceJoint": {
+          "canonicalJoint": "leftHip",
+          "rawJointName": "J_Bip_L_UpperLeg"
+        },
+        "rotationOffset": null,
+        "sourceJoint": {
+          "canonicalJoint": "leftKnee",
+          "rawJointName": "J_Bip_L_LowerLeg"
+        },
+        "translationMode": "direct",
+        "weight": 1
+      },
+      {
+        "boneName": "J_Bip_L_Foot",
+        "parentSourceJoint": {
+          "canonicalJoint": "leftKnee",
+          "rawJointName": "J_Bip_L_LowerLeg"
+        },
+        "rotationOffset": null,
+        "sourceJoint": {
+          "canonicalJoint": "leftFoot",
+          "rawJointName": "J_Bip_L_Foot"
+        },
+        "translationMode": "direct",
+        "weight": 1
+      },
+      {
+        "boneName": "J_Bip_R_UpperLeg",
+        "parentSourceJoint": {
+          "canonicalJoint": "root",
+          "rawJointName": "J_Bip_C_Hips"
+        },
+        "rotationOffset": null,
+        "sourceJoint": {
+          "canonicalJoint": "rightHip",
+          "rawJointName": "J_Bip_R_UpperLeg"
+        },
+        "translationMode": "direct",
+        "weight": 1
+      },
+      {
+        "boneName": "J_Bip_R_LowerLeg",
+        "parentSourceJoint": {
+          "canonicalJoint": "rightHip",
+          "rawJointName": "J_Bip_R_UpperLeg"
+        },
+        "rotationOffset": null,
+        "sourceJoint": {
+          "canonicalJoint": "rightKnee",
+          "rawJointName": "J_Bip_R_LowerLeg"
+        },
+        "translationMode": "direct",
+        "weight": 1
+      },
+      {
+        "boneName": "J_Bip_R_Foot",
+        "parentSourceJoint": {
+          "canonicalJoint": "rightKnee",
+          "rawJointName": "J_Bip_R_LowerLeg"
+        },
+        "rotationOffset": null,
+        "sourceJoint": {
+          "canonicalJoint": "rightFoot",
+          "rawJointName": "J_Bip_R_Foot"
+        },
+        "translationMode": "direct",
+        "weight": 1
+      }
+    ],
+    "displayName": "Avatar Sample B Rig",
+    "floorOffset": 0,
+    "id": "avatar-sample-b.v1",
+    "rootBoneName": "J_Bip_C_Hips",
+    "runtimeAssetRelativePath": "model.glb",
+    "runtimeFormat": "glb",
+    "scaleCompensation": 1,
+    "schemaVersion": 1,
+    "skeletonId": "odoro.body.v1",
+    "sourceFormat": "glb"
+  },
+  "schemaVersion": 1
+}
