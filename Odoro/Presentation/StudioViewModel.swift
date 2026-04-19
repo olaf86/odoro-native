@@ -48,7 +48,7 @@ final class StudioViewModel: ObservableObject {
     @Published private(set) var screen: StudioScreen = .capture
     @Published private(set) var screenTransition: StudioScreenTransition = .fromTrailing
     @Published private(set) var swipeHintsVisible = false
-    @Published private(set) var selectedAvatarStyle: StageAvatarStyle = .robot
+    @Published private(set) var selectedAvatarSelection: StageAvatarSelection = AvatarCatalog.defaultSelection
     @Published private(set) var transientMessage: String?
     @Published private(set) var isImportingVideo = false
     @Published private(set) var previewingAudioSourceID: String?
@@ -62,7 +62,8 @@ final class StudioViewModel: ObservableObject {
     var availableCaptureModes: [CaptureMode] { supportedCaptureModes }
     var availableTimeSignatures: [TimeSignatureOption] { Self.supportedTimeSignatures }
     var availableAudioSources: [AudioSourceOption] { Self.audioSources }
-    var availableAvatarStyles: [StageAvatarStyle] { StageAvatarStyle.allCases }
+    var availableAvatarOptions: [StageAvatarOption] { AvatarCatalog.stageOptions }
+    var selectedAvatarOption: StageAvatarOption { AvatarCatalog.option(for: selectedAvatarSelection) }
     var hasSavedTakes: Bool { !currentSessionTakes.isEmpty }
     var hasCurrentTake: Bool { currentTake != nil }
     var hasLibraryClips: Bool { !libraryClips.isEmpty }
@@ -336,7 +337,7 @@ final class StudioViewModel: ObservableObject {
     func prepareStagePlayback() {
         stopAudioPlayback()
         interactor.deactivateSource()
-        stageRenderer.setAvatarStyle(selectedAvatarStyle)
+        stageRenderer.setAvatarSelection(selectedAvatarSelection)
         stageRenderer.setClip(interactor.currentClip)
         stageRenderer.play()
         interactor.setPlaybackActive(true)
@@ -395,7 +396,7 @@ final class StudioViewModel: ObservableObject {
 
     func attachStageView(_ view: ARView) {
         stageRenderer.attach(to: view)
-        stageRenderer.setAvatarStyle(selectedAvatarStyle)
+        stageRenderer.setAvatarSelection(selectedAvatarSelection)
         stageRenderer.setClip(interactor.currentClip)
     }
 
@@ -472,10 +473,14 @@ final class StudioViewModel: ObservableObject {
         }
     }
 
-    func selectAvatarStyle(_ style: StageAvatarStyle) {
-        guard selectedAvatarStyle != style else { return }
-        selectedAvatarStyle = style
-        stageRenderer.setAvatarStyle(style)
+    func selectAvatarOption(_ option: StageAvatarOption) {
+        guard selectedAvatarSelection != option.selection else { return }
+        selectedAvatarSelection = option.selection
+        stageRenderer.setAvatarSelection(option.selection)
+
+        if !option.isReadyForPlayback {
+            showFeatureNotice("On-demand avatar downloads are next. Playback falls back to the skeleton preview until the package is installed.")
+        }
 
         if state.isPlaying {
             prepareStagePlayback()
@@ -632,7 +637,7 @@ final class StudioViewModel: ObservableObject {
 
     private func configureForCurrentSource() {
         stageRenderer.setUsesProceduralMockPlayback(source is MockMotionSource)
-        stageRenderer.setAvatarStyle(selectedAvatarStyle)
+        stageRenderer.setAvatarSelection(selectedAvatarSelection)
 
         interactor.onStateChange = { [weak self] newState in
             self?.handleInteractorStateChange(newState)

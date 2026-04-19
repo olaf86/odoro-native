@@ -28,32 +28,7 @@ enum StudioScreenTransition: Equatable {
     case fromBottom
 }
 
-enum StageAvatarStyle: String, CaseIterable, Identifiable, Sendable, Equatable {
-    case robot
-    case proceduralSkeleton
-
-    var id: String { rawValue }
-
-    var title: String {
-        switch self {
-        case .robot:
-            "Robot Performer"
-        case .proceduralSkeleton:
-            "Skeleton Preview"
-        }
-    }
-
-    var subtitle: String {
-        switch self {
-        case .robot:
-            "Play the motion on the current USDZ stage model."
-        case .proceduralSkeleton:
-            "Use the lightweight joint preview for motion checking."
-        }
-    }
-}
-
-struct MotionJointRotation: Codable, Sendable, Equatable {
+struct MotionJointRotation: Codable, Sendable, Equatable, Hashable {
     let ix: Float
     let iy: Float
     let iz: Float

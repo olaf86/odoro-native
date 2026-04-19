@@ -416,12 +416,12 @@ private struct ModelSelectionView: View {
         ) {
             ScrollView(showsIndicators: false) {
                 VStack(spacing: 16) {
-                    ForEach(studio.availableAvatarStyles) { style in
+                    ForEach(studio.availableAvatarOptions) { option in
                         AvatarStyleCard(
-                            style: style,
-                            isSelected: studio.selectedAvatarStyle == style
+                            option: option,
+                            isSelected: studio.selectedAvatarSelection == option.selection
                         ) {
-                            studio.selectAvatarStyle(style)
+                            studio.selectAvatarOption(option)
                         }
                     }
                 }
@@ -673,7 +673,7 @@ private struct StageHeader: View {
 
             Spacer(minLength: 0)
 
-            CapturePill(text: studio.selectedAvatarStyle.title, systemImage: "cube.transparent")
+            CapturePill(text: studio.selectedAvatarOption.titleText, systemImage: "cube.transparent")
         }
         .padding(16)
         .background(Color.black.opacity(0.24), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
@@ -952,7 +952,7 @@ private struct ClipThumbnail: View {
 }
 
 private struct AvatarStyleCard: View {
-    let style: StageAvatarStyle
+    let option: StageAvatarOption
     let isSelected: Bool
     let onSelect: () -> Void
 
@@ -969,23 +969,34 @@ private struct AvatarStyleCard: View {
                     ))
                     .frame(width: 92, height: 92)
                     .overlay {
-                        Image(systemName: style == .robot ? "figure.dance" : "figure.stand.line.dotted.figure.stand")
+                        Image(systemName: option.systemImageName)
                             .font(.largeTitle)
                             .foregroundStyle(.white)
                     }
 
                 VStack(alignment: .leading, spacing: 8) {
-                    Text(style.title)
+                    Text(option.titleText)
                         .font(.headline.weight(.semibold))
                         .foregroundStyle(.white)
 
-                    Text(style.subtitle)
+                    Text(option.subtitle)
                         .font(.footnote)
                         .foregroundStyle(Color.white.opacity(0.72))
 
-                    Text(isSelected ? "Selected" : "Tap to use this view")
-                        .font(.caption.weight(.medium))
-                        .foregroundStyle(isSelected ? Color.orange.opacity(0.9) : Color.white.opacity(0.54))
+                    HStack(spacing: 8) {
+                        Text(isSelected ? "Selected" : "Tap to use this view")
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(isSelected ? Color.orange.opacity(0.9) : Color.white.opacity(0.54))
+
+                        if let badgeText = option.badgeText {
+                            Text(badgeText)
+                                .font(.caption2.weight(.semibold))
+                                .foregroundStyle(Color.white.opacity(0.82))
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(Color.white.opacity(0.12), in: Capsule())
+                        }
+                    }
                 }
 
                 Spacer(minLength: 0)
@@ -1011,7 +1022,7 @@ private struct ArchiveHeroCard: View {
                 .foregroundStyle(Color.white.opacity(0.72))
 
             HStack(spacing: 10) {
-                InfoChip(text: studio.selectedAvatarStyle.title, systemImage: "cube.transparent")
+                InfoChip(text: studio.selectedAvatarOption.titleText, systemImage: "cube.transparent")
                 InfoChip(text: studio.clipDurationText, systemImage: "timer")
 
                 if studio.isCurrentTakeAccepted {

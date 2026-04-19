@@ -52,7 +52,8 @@ final class StagePlaybackRenderer: NSObject {
     private var playbackTimer: Timer?
     private var playbackStartedAt: Date?
     private var usesProceduralMockPlayback = false
-    private var avatarStyle: StageAvatarStyle = .robot
+    private var avatarSelection: StageAvatarSelection = AvatarCatalog.defaultSelection
+    private var currentAvatarOption = AvatarCatalog.option(for: AvatarCatalog.defaultSelection)
 
     private var stageAnchor = AnchorEntity()
     private var dancerRoot = Entity()
@@ -61,52 +62,12 @@ final class StagePlaybackRenderer: NSObject {
 
     private var characterEntity: Entity?
     private var skeletalModelEntity: ModelEntity?
+    private var activeRigProfile: AvatarRigProfile?
     private var hasStoppedBuiltInAnimation = false
-
-    // robot.usdz geometry is authored in meters but metersPerUnit = 0.01 causes RealityKit
-    // to apply scale 0.01, making the character 1.86cm tall (invisible).
-    // Override to 1.0 to render at the correct real-world size.
-    private static let characterScale: Float = 1.0
-    // Mesh bind-pose extent: y ∈ [-0.977, 0.880]. Raising the entity by 0.977 puts feet on the floor.
-    private static let characterFloorOffset: Float = 0.977
-    // USD skeleton joint order → ARKit joint index (NSNotFound if unmapped)
-    private var usdJointArkitIndices: [Int] = []
-    // USD skeleton joint order → parent ARKit joint index (nil = treat as world-space root)
-    private var usdJointParentArkitIndices: [Int?] = []
-
-    // Joint order and parent names extracted from robot.usdz skel:joints array.
-    // Leaf names match ARKit joint names exactly; parents not in this list (spine_3, spine_7,
-    // neck_1) exist in the full ARKit skeleton so their indices are still resolvable.
-    private static let robotUsdJoints: [(joint: String, parent: String?)] = [
-        ("spine_2_joint",         "spine_1_joint"),
-        ("spine_5_joint",         "spine_4_joint"),
-        ("hips_joint",            nil),
-        ("spine_6_joint",         "spine_5_joint"),
-        ("head_joint",            "neck_4_joint"),
-        ("spine_1_joint",         "hips_joint"),
-        ("spine_4_joint",         "spine_3_joint"),
-        ("neck_2_joint",          "neck_1_joint"),
-        ("left_leg_joint",        "left_upLeg_joint"),
-        ("left_foot_joint",       "left_leg_joint"),
-        ("left_arm_joint",        "left_shoulder_1_joint"),
-        ("left_forearm_joint",    "left_arm_joint"),
-        ("left_upLeg_joint",      "hips_joint"),
-        ("left_hand_joint",       "left_forearm_joint"),
-        ("left_shoulder_1_joint", "spine_7_joint"),
-        ("neck_3_joint",          "neck_2_joint"),
-        ("neck_4_joint",          "neck_3_joint"),
-        ("right_leg_joint",       "right_upLeg_joint"),
-        ("right_foot_joint",      "right_leg_joint"),
-        ("right_arm_joint",       "right_shoulder_1_joint"),
-        ("right_forearm_joint",   "right_arm_joint"),
-        ("right_upLeg_joint",     "hips_joint"),
-        ("right_hand_joint",      "right_forearm_joint"),
-        ("right_shoulder_1_joint","spine_7_joint"),
-    ]
 
     override init() {
         super.init()
-        loadCharacterIfAvailable()
+        reloadAvatarAsset()
     }
 
     func attach(to view: ARView) {
@@ -129,12 +90,14 @@ final class StagePlaybackRenderer: NSObject {
         self.usesProceduralMockPlayback = usesProceduralMockPlayback
     }
 
-    func setAvatarStyle(_ avatarStyle: StageAvatarStyle) {
-        guard self.avatarStyle != avatarStyle else {
+    func setAvatarSelection(_ avatarSelection: StageAvatarSelection) {
+        guard self.avatarSelection != avatarSelection else {
             return
         }
 
-        self.avatarStyle = avatarStyle
+        self.avatarSelection = avatarSelection
+        currentAvatarOption = AvatarCatalog.option(for: avatarSelection)
+        reloadAvatarAsset()
 
         if let view {
             configureScene(in: view)
@@ -146,17 +109,30 @@ final class StagePlaybackRenderer: NSObject {
 
     // MARK: - Character model loading
 
-    private func loadCharacterIfAvailable() {
+    private func reloadAvatarAsset() {
+        characterEntity = nil
+        skeletalModelEntity = nil
+        activeRigProfile = nil
+
+        guard
+            currentAvatarOption.selection.kind == .avatar,
+            currentAvatarOption.isReadyForPlayback,
+            let variant = AvatarCatalog.assetVariant(for: avatarSelection)
+        else {
+            return
+        }
+
         do {
-            let entity = try Entity.load(named: "robot")
+            let assetName = URL(fileURLWithPath: variant.runtimeAssetRelativePath).deletingPathExtension().lastPathComponent
+            let entity = try Entity.load(named: assetName)
             characterEntity = entity
             skeletalModelEntity = findModelEntity(entity)
-            setupSkeletalMapping()
-            let mappedCount = self.usdJointArkitIndices.filter { $0 != NSNotFound }.count
+            activeRigProfile = AvatarCatalog.rigProfile(for: avatarSelection)
             let animCount = entity.availableAnimations.count
-            Self.logger.info("robot.usdz loaded — skeletal model: \(self.skeletalModelEntity != nil), mapped: \(mappedCount)/\(Self.robotUsdJoints.count), animations: \(animCount)")
+            let bindingCount = activeRigProfile?.bindings.count ?? 0
+            Self.logger.info("avatar loaded — asset: \(assetName), skeletal model: \(self.skeletalModelEntity != nil), bindings: \(bindingCount), animations: \(animCount)")
         } catch {
-            Self.logger.error("Failed to load robot.usdz: \(error)")
+            Self.logger.error("Failed to load avatar asset: \(error)")
         }
     }
 
@@ -177,17 +153,6 @@ final class StagePlaybackRenderer: NSObject {
             if let found = findModelEntity(child) { return found }
         }
         return nil
-    }
-
-    private func setupSkeletalMapping() {
-        usdJointArkitIndices = Self.robotUsdJoints.map { entry in
-            skeletonDefinition.index(for: ARSkeleton.JointName(rawValue: entry.joint))
-        }
-        usdJointParentArkitIndices = Self.robotUsdJoints.map { entry in
-            guard let parentName = entry.parent else { return nil }
-            let idx = skeletonDefinition.index(for: ARSkeleton.JointName(rawValue: parentName))
-            return idx == NSNotFound ? nil : idx
-        }
     }
 
     func play() {
@@ -253,15 +218,14 @@ final class StagePlaybackRenderer: NSObject {
 
         // Character model takes priority over the procedural skeleton
         // whenever the entity loaded, even if individual joints are not yet mapped.
-        let hasCharacter = characterEntity != nil && avatarStyle == .robot
+        let hasCharacter = characterEntity != nil && currentAvatarOption.selection.kind == .avatar
 
         if hasCharacter, let character = characterEntity {
             character.removeFromParent()
-            // metersPerUnit = 0.01 in the USDZ causes RealityKit to scale the entity down by 0.01.
-            // The geometry is actually in meters, so override the scale to 1.0 to restore the correct size.
-            character.scale = SIMD3<Float>(repeating: Self.characterScale)
-            // Bind-pose feet sit at local y = -0.977; raise by that amount to place feet on the floor.
-            character.position = SIMD3<Float>(0, Self.characterFloorOffset, 0)
+            let scale = activeRigProfile?.scaleCompensation ?? 1
+            let floorOffset = activeRigProfile?.floorOffset ?? 0
+            character.scale = SIMD3<Float>(repeating: scale)
+            character.position = SIMD3<Float>(0, floorOffset, 0)
             dancerRoot.addChild(character)
             logEntityTransforms(character, depth: 0)
 
@@ -323,10 +287,9 @@ final class StagePlaybackRenderer: NSObject {
     }
 
     private func render(frame: MotionFrame) {
-        if avatarStyle == .robot, characterEntity != nil {
-            if !usdJointArkitIndices.isEmpty, let rotations = frame.jointRotations, !rotations.isEmpty {
-                // ARKit rear-camera: drive skeleton via SkeletalPosesComponent with rotations.
-                renderCharacter(frame: frame, rotations: rotations)
+        if currentAvatarOption.selection.kind == .avatar, characterEntity != nil {
+            if let rigProfile = activeRigProfile, let rotations = frame.jointRotations, !rotations.isEmpty {
+                renderCharacter(frame: frame, rigProfile: rigProfile)
             } else if frame.jointPositions.contains(where: { $0.y > -5 }) {
                 // Front-camera or other source: real positions available but no rotations.
                 renderCharacterAtRoot(frame: frame)
@@ -407,6 +370,10 @@ final class StagePlaybackRenderer: NSObject {
     }
 
     private func canonicalPosition(for jointName: OdoroJointName, in frame: MotionFrame) -> SIMD3<Float>? {
+        guard frame.jointPositions.count == OdoroSkeletonDefinition.jointCount else {
+            return nil
+        }
+
         let index = OdoroSkeletonDefinition.index(of: jointName)
         guard frame.jointPositions.indices.contains(index) else {
             return nil
@@ -418,6 +385,22 @@ final class StagePlaybackRenderer: NSObject {
         }
 
         return position
+    }
+
+    private func canonicalRotation(for jointName: OdoroJointName, in frame: MotionFrame) -> MotionJointRotation? {
+        guard
+            frame.jointPositions.count == OdoroSkeletonDefinition.jointCount,
+            let rotations = frame.jointRotations
+        else {
+            return nil
+        }
+
+        let index = OdoroSkeletonDefinition.index(of: jointName)
+        guard rotations.indices.contains(index) else {
+            return nil
+        }
+
+        return rotations[index]
     }
 
     private func shouldUseProceduralFallback(for jointPositions: [SIMD3<Float>?]) -> Bool {
@@ -482,6 +465,45 @@ final class StagePlaybackRenderer: NSObject {
         return position
     }
 
+    private func rotation(for jointName: ARSkeleton.JointName, in frame: MotionFrame) -> MotionJointRotation? {
+        guard let jointRotations = frame.jointRotations else {
+            return nil
+        }
+
+        let index = skeletonDefinition.index(for: jointName)
+        guard index != NSNotFound, jointRotations.indices.contains(index) else {
+            return nil
+        }
+
+        return jointRotations[index]
+    }
+
+    private func position(for reference: AvatarRigJointReference, in frame: MotionFrame) -> SIMD3<Float>? {
+        if let canonicalJoint = reference.canonicalJoint,
+           let position = canonicalPosition(for: canonicalJoint, in: frame) {
+            return position
+        }
+
+        if let rawJointName = reference.rawJointName {
+            return position(for: ARSkeleton.JointName(rawValue: rawJointName), in: frame)
+        }
+
+        return nil
+    }
+
+    private func rotation(for reference: AvatarRigJointReference, in frame: MotionFrame) -> MotionJointRotation? {
+        if let canonicalJoint = reference.canonicalJoint,
+           let rotation = canonicalRotation(for: canonicalJoint, in: frame) {
+            return rotation
+        }
+
+        if let rawJointName = reference.rawJointName {
+            return rotation(for: ARSkeleton.JointName(rawValue: rawJointName), in: frame)
+        }
+
+        return nil
+    }
+
     // MARK: - Character model rendering
 
     /// Positions the character at floor level (y = 0) tracking the hip's x/z,
@@ -505,18 +527,14 @@ final class StagePlaybackRenderer: NSObject {
             hip = nil  // No valid position — leave character at its current position.
         }
         if let hip {
-            character.setPosition(SIMD3<Float>(hip.x, Self.characterFloorOffset, hip.z), relativeTo: nil)
+            let floorOffset = activeRigProfile?.floorOffset ?? 0
+            character.setPosition(SIMD3<Float>(hip.x, floorOffset, hip.z), relativeTo: nil)
         }
     }
 
-    /// Drives the skeleton via SkeletalPosesComponent.
-    ///
-    /// robot.usdz uses USD Skeleton schema — joints are not exposed as entity children.
-    /// We convert world-space ARKit rotations/positions to local-space transforms
-    /// (each joint relative to its parent) and push them via SkeletalPosesComponent.
-    private func renderCharacter(frame: MotionFrame, rotations: [MotionJointRotation?]) {
-        guard let modelEntity = skeletalModelEntity,
-              frame.jointPositions.count == rotations.count else { return }
+    /// Drives the skeleton via SkeletalPosesComponent using the active rig profile.
+    private func renderCharacter(frame: MotionFrame, rigProfile: AvatarRigProfile) {
+        guard let modelEntity = skeletalModelEntity else { return }
 
         // Stop the built-in animation the first time ARKit data drives the joints
         // so it doesn't interfere with SkeletalPosesComponent.
@@ -526,38 +544,33 @@ final class StagePlaybackRenderer: NSObject {
         }
 
         var joints: [(String, Transform)] = []
-        joints.reserveCapacity(Self.robotUsdJoints.count)
+        joints.reserveCapacity(rigProfile.bindings.count)
 
-        for usdIdx in 0..<Self.robotUsdJoints.count {
-            let jointName = Self.robotUsdJoints[usdIdx].joint
-            let arkitIdx = usdJointArkitIndices[usdIdx]
-            guard arkitIdx != NSNotFound,
-                  frame.jointPositions.indices.contains(arkitIdx),
-                  let worldRot = rotations[arkitIdx]?.simdValue else { continue }
+        for binding in rigProfile.bindings {
+            guard
+                let worldRot = rotation(for: binding.sourceJoint, in: frame)?.simdValue,
+                let worldPos = position(for: binding.sourceJoint, in: frame)
+            else {
+                continue
+            }
 
-            let worldPos = frame.jointPositions[arkitIdx]
+            let resolvedRotation = binding.rotationOffset.map { worldRot * $0.simdValue } ?? worldRot
             let localTransform: Transform
 
-            if let parentArkitIdx = usdJointParentArkitIndices[usdIdx],
-               frame.jointPositions.indices.contains(parentArkitIdx),
-               let parentWorldRot = rotations[parentArkitIdx]?.simdValue {
-                // Convert world-space to parent-relative local-space.
-                let parentPos = frame.jointPositions[parentArkitIdx]
+            if let parentReference = binding.parentSourceJoint,
+               let parentWorldRot = rotation(for: parentReference, in: frame)?.simdValue,
+               let parentPos = position(for: parentReference, in: frame) {
                 let parentRotInv = parentWorldRot.inverse
                 localTransform = Transform(
-                    rotation: parentRotInv * worldRot,
+                    rotation: parentRotInv * resolvedRotation,
                     translation: simd_act(parentRotInv, worldPos - parentPos)
                 )
             } else {
-                // Root joint: no parent in the USD skeleton hierarchy.
-                // SkeletalPosesComponent transforms are in the skeleton entity's local space.
-                // The character entity is offset by characterFloorOffset in Y so subtract
-                // that to convert from ARKit world space to skeleton-entity local space.
-                let localPos = worldPos - SIMD3<Float>(0, Self.characterFloorOffset, 0)
-                localTransform = Transform(rotation: worldRot, translation: localPos)
+                let localPos = worldPos - SIMD3<Float>(0, rigProfile.floorOffset, 0)
+                localTransform = Transform(rotation: resolvedRotation, translation: localPos)
             }
 
-            joints.append((jointName, localTransform))
+            joints.append((binding.boneName, localTransform))
         }
 
         if #available(iOS 18.0, *) {
@@ -579,8 +592,9 @@ final class StagePlaybackRenderer: NSObject {
         // hip.y oscillates around 0.95; offset it relative to that baseline so the
         // character stays near floor level while the subtle bounce comes through.
         let yOffset = hip.y - 0.95
+        let floorOffset = activeRigProfile?.floorOffset ?? 0
         character.setPosition(
-            SIMD3<Float>(hip.x, Self.characterFloorOffset + yOffset, hip.z),
+            SIMD3<Float>(hip.x, floorOffset + yOffset, hip.z),
             relativeTo: nil
         )
     }
