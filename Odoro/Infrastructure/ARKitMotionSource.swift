@@ -17,6 +17,7 @@ final class ARKitMotionSource: NSObject, MotionSource {
     }
 
     private let session = ARSession()
+    private let overlayRenderer = ARKitCaptureOverlayRenderer()
     private weak var attachedView: ARView?
     private var shouldStartWhenAttached = false
     private var hasDetectedBody = false
@@ -25,6 +26,7 @@ final class ARKitMotionSource: NSObject, MotionSource {
         attachedView = view
         view.session = session
         session.delegate = self
+        overlayRenderer.attach(to: view)
 
         if shouldStartWhenAttached {
             shouldStartWhenAttached = false
@@ -54,6 +56,7 @@ final class ARKitMotionSource: NSObject, MotionSource {
     func deactivate() {
         hasDetectedBody = false
         session.pause()
+        overlayRenderer.clear()
     }
 
     nonisolated private static func makeFrame(from bodyAnchor: ARBodyAnchor, timestamp: TimeInterval) -> MotionFrame {
@@ -90,24 +93,42 @@ extension ARKitMotionSource: ARSessionDelegate {
                 self.hasDetectedBody = true
                 self.onStatusTextChange?(L10n.statusBodyDetected)
             }
+            self.overlayRenderer.render(frame: frame)
             self.onFrame?(frame)
+        }
+    }
+
+    nonisolated func session(_ session: ARSession, didRemove anchors: [ARAnchor]) {
+        guard anchors.contains(where: { $0 is ARBodyAnchor }) else {
+            return
+        }
+
+        Task { @MainActor in
+            self.hasDetectedBody = false
+            self.overlayRenderer.clear()
+            self.onStatusTextChange?(L10n.statusStandInFrame)
         }
     }
 
     nonisolated func session(_ session: ARSession, didFailWithError error: any Error) {
         Task { @MainActor in
+            self.overlayRenderer.clear()
             self.onStatusTextChange?(L10n.statusARSessionFailed(error.localizedDescription))
         }
     }
 
     nonisolated func sessionWasInterrupted(_ session: ARSession) {
         Task { @MainActor in
+            self.hasDetectedBody = false
+            self.overlayRenderer.clear()
             self.onStatusTextChange?(L10n.statusARInterrupted)
         }
     }
 
     nonisolated func sessionInterruptionEnded(_ session: ARSession) {
         Task { @MainActor in
+            self.hasDetectedBody = false
+            self.overlayRenderer.clear()
             self.onStatusTextChange?(L10n.statusARResumed)
         }
     }
