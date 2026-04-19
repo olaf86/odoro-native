@@ -204,9 +204,13 @@ private struct MusicSelectionView: View {
                     ForEach(studio.availableAudioSources) { option in
                         AudioSourceCard(
                             option: option,
-                            isSelected: studio.activeAudioSource.id == option.id
+                            isSelected: studio.activeAudioSource.id == option.id,
+                            isPreviewAvailable: studio.canPreviewAudioSource(option),
+                            isPreviewing: studio.isPreviewingAudioSource(option)
                         ) {
                             studio.selectAudioSource(option)
+                        } onPreview: {
+                            studio.toggleAudioPreview(for: option)
                         }
                     }
                 }
@@ -727,42 +731,56 @@ private struct StageBottomBar: View {
 private struct AudioSourceCard: View {
     let option: AudioSourceOption
     let isSelected: Bool
+    let isPreviewAvailable: Bool
+    let isPreviewing: Bool
     let onSelect: () -> Void
+    let onPreview: () -> Void
 
     var body: some View {
-        Button(action: onSelect) {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack(alignment: .top) {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(option.title)
-                            .font(.headline.weight(.semibold))
-                            .foregroundStyle(.white)
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(option.title)
+                        .font(.headline.weight(.semibold))
+                        .foregroundStyle(.white)
 
-                        Text(option.subtitle)
-                            .font(.footnote)
-                            .foregroundStyle(Color.white.opacity(0.72))
-                    }
-
-                    Spacer(minLength: 0)
-
-                    Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                        .font(.title3)
-                        .foregroundStyle(isSelected ? Color.red : Color.white.opacity(0.5))
+                    Text(option.subtitle)
+                        .font(.footnote)
+                        .foregroundStyle(Color.white.opacity(0.72))
                 }
 
-                HStack(spacing: 10) {
-                    InfoChip(text: option.tempoSourceType == .metronome ? "Metronome" : "Reference Track", systemImage: "music.note")
+                Spacer(minLength: 0)
 
-                    if let preferredBPM = option.preferredBPM {
-                        InfoChip(text: "\(Int(preferredBPM.rounded())) BPM", systemImage: "metronome")
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                    .font(.title3)
+                    .foregroundStyle(isSelected ? Color.red : Color.white.opacity(0.5))
+            }
+
+            HStack(spacing: 10) {
+                InfoChip(text: option.tempoSourceType == .metronome ? "Metronome" : "Reference Track", systemImage: "music.note")
+
+                if let preferredBPM = option.preferredBPM {
+                    InfoChip(text: "\(Int(preferredBPM.rounded())) BPM", systemImage: "metronome")
+                }
+
+                if isPreviewAvailable {
+                    Button(action: onPreview) {
+                        Label(isPreviewing ? "Stop" : "Preview", systemImage: isPreviewing ? "stop.fill" : "play.fill")
+                            .font(.caption.weight(.semibold))
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 8)
+                            .background(Color.white.opacity(0.12), in: Capsule())
                     }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.white)
                 }
             }
-            .padding(18)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.white.opacity(isSelected ? 0.16 : 0.08), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
         }
-        .buttonStyle(.plain)
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.white.opacity(isSelected ? 0.16 : 0.08), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .contentShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .onTapGesture(perform: onSelect)
     }
 }
 
