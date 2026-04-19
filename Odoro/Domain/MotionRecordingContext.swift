@@ -11,6 +11,8 @@ enum TempoSourceType: String, Codable, Sendable {
 }
 
 struct MotionRecordingContext: Codable, Sendable, Equatable {
+    static let fixedCaptureBarCount = 2
+
     var tempoSourceType: TempoSourceType
     var audioAssetReference: String?
     var bpm: Double
@@ -22,6 +24,24 @@ struct MotionRecordingContext: Codable, Sendable, Equatable {
 
     var beatLength: Double {
         Double(targetBarCount * timeSignatureNumerator)
+    }
+
+    var fixedCaptureBeatLength: Double {
+        Double(Self.fixedCaptureBarCount * timeSignatureNumerator)
+    }
+
+    var fixedCaptureDuration: TimeInterval {
+        guard bpm > 0 else {
+            return 0
+        }
+
+        return fixedCaptureBeatLength * 60 / bpm
+    }
+
+    func normalizedForFixedCaptureLength() -> MotionRecordingContext {
+        var normalized = self
+        normalized.targetBarCount = Self.fixedCaptureBarCount
+        return normalized
     }
 
     static let defaultMetronomeLoop = MotionRecordingContext(

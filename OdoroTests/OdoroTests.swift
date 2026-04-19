@@ -27,6 +27,25 @@ struct OdoroTests {
         #expect(context.beatLength == 6)
     }
 
+    @Test func recordingContextNormalizesToFixedTwoBarCaptureLength() {
+        let context = MotionRecordingContext(
+            tempoSourceType: .metronome,
+            audioAssetReference: nil,
+            bpm: 120,
+            timeSignatureNumerator: 3,
+            timeSignatureDenominator: 4,
+            targetBarCount: 6,
+            countInBarCount: 1,
+            notes: nil
+        )
+
+        let normalized = context.normalizedForFixedCaptureLength()
+
+        #expect(normalized.targetBarCount == MotionRecordingContext.fixedCaptureBarCount)
+        #expect(normalized.fixedCaptureBeatLength == 6)
+        #expect(normalized.fixedCaptureDuration == 3)
+    }
+
     @Test func motionClipNormalizationMovesOriginToFootLevelAndFirstFrameCenter() {
         let rotations: [MotionJointRotation?] = [
             MotionJointRotation(simd_quatf(angle: 0.25, axis: SIMD3<Float>(0, 1, 0))),
@@ -326,6 +345,27 @@ struct OdoroTests {
 
         #expect(audioPlaybackController.stopCallCount >= 1)
     }
+
+    @MainActor
+    @Test func motionStudioInteractorStopsRecordingAtConfiguredDuration() async {
+        let source = TestMotionSource()
+        let interactor = MotionStudioInteractor(source: source, maximumCaptureDuration: 1)
+
+        source.activate()
+        interactor.beginRecording()
+        source.emitFrame(at: 0, joints: 2)
+        source.emitFrame(at: 0.4, joints: 2)
+        await Task.yield()
+
+        #expect(interactor.state.isRecording)
+
+        source.emitFrame(at: 1.05, joints: 2)
+        await Task.yield()
+
+        #expect(!interactor.state.isRecording)
+        #expect(interactor.currentClip?.frameCount == 3)
+        #expect(interactor.state.presentation == .stage)
+    }
 }
 
 private final class TestAudioPlaybackController: StudioAudioPlaybackControlling {
@@ -338,5 +378,20 @@ private final class TestAudioPlaybackController: StudioAudioPlaybackControlling 
 
     func stop() {
         stopCallCount += 1
+    }
+}
+
+private final class TestMotionSource: MotionSource {
+    var captureMode: CaptureMode { .mock }
+    let isSupported = true
+    var onFrame: ((MotionFrame) -> Void)?
+    var onStatusTextChange: ((String) -> Void)?
+
+    func activate() {}
+    func deactivate() {}
+
+    func emitFrame(at time: TimeInterval, joints: Int) {
+        let positions = Array(repeating: SIMD3<Float>(0, 1, 0), count: joints)
+        onFrame?(MotionFrame(time: time, jointPositions: positions))
     }
 }

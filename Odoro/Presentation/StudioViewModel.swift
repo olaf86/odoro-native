@@ -92,6 +92,10 @@ final class StudioViewModel: ObservableObject {
         )
     }
 
+    var fixedRecordingBarCountText: String {
+        "\(MotionRecordingContext.fixedCaptureBarCount) bars"
+    }
+
     var recordingSessionSummaryText: String {
         let bpm = Int(recordingContext.bpm.rounded())
         return "\(audioSourceTitle) • \(bpm) BPM • \(selectedTimeSignature.title) • \(recordingContext.targetBarCount) bars"
@@ -224,14 +228,18 @@ final class StudioViewModel: ObservableObject {
         let modes = Self.makeSupportedCaptureModes()
         let initialMode = Self.defaultCaptureMode(from: modes)
         let source = Self.makeMotionSource(for: initialMode)
+        let normalizedRecordingContext = Self.normalizedRecordingContext(recordingContext ?? .defaultMetronomeLoop)
 
         self.supportedCaptureModes = modes
         self.audioPlaybackController = audioPlaybackController ?? StudioAudioPlaybackController()
         self.archiveStore = archiveStore
-        self.recordingContext = recordingContext ?? .defaultMetronomeLoop
+        self.recordingContext = normalizedRecordingContext
         self.captureMode = initialMode
         self.source = source
-        self.interactor = MotionStudioInteractor(source: source)
+        self.interactor = MotionStudioInteractor(
+            source: source,
+            maximumCaptureDuration: normalizedRecordingContext.fixedCaptureDuration
+        )
 
         configureForCurrentSource()
         refreshLibrary()
@@ -357,7 +365,10 @@ final class StudioViewModel: ObservableObject {
 
         captureMode = mode
         source = Self.makeMotionSource(for: mode)
-        interactor = MotionStudioInteractor(source: source)
+        interactor = MotionStudioInteractor(
+            source: source,
+            maximumCaptureDuration: recordingContext.fixedCaptureDuration
+        )
         state = MotionStudioState(statusText: mode.descriptionText)
         currentSessionID = nil
         currentTakeID = nil
@@ -414,7 +425,7 @@ final class StudioViewModel: ObservableObject {
 
     func updateTargetBarCount(_ value: Int) {
         updateRecordingContext {
-            $0.targetBarCount = value
+            $0.targetBarCount = MotionRecordingContext.fixedCaptureBarCount
         }
     }
 
@@ -495,7 +506,8 @@ final class StudioViewModel: ObservableObject {
 
         do {
             if let sessionSummary = try archiveStore.fetchSessionSummary(withID: take.sessionID) {
-                recordingContext = sessionSummary.recordingContext
+                recordingContext = Self.normalizedRecordingContext(sessionSummary.recordingContext)
+                interactor.updateMaximumCaptureDuration(recordingContext.fixedCaptureDuration)
             }
 
             let clip = try archiveStore.loadClip(fromLocalFilePath: take.localFilePath)
@@ -710,6 +722,10 @@ final class StudioViewModel: ObservableObject {
         }
     }
 
+    private static func normalizedRecordingContext(_ context: MotionRecordingContext) -> MotionRecordingContext {
+        context.normalizedForFixedCaptureLength()
+    }
+
     private func persistCurrentClipIfPossible() {
         guard
             let currentClip = interactor.currentClip
@@ -746,12 +762,14 @@ final class StudioViewModel: ObservableObject {
     private func updateRecordingContext(_ update: (inout MotionRecordingContext) -> Void) {
         var nextContext = recordingContext
         update(&nextContext)
+        nextContext = Self.normalizedRecordingContext(nextContext)
 
         guard nextContext != recordingContext else {
             return
         }
 
         recordingContext = nextContext
+        interactor.updateMaximumCaptureDuration(recordingContext.fixedCaptureDuration)
         currentSessionID = nil
         currentTakeID = nil
         currentSessionTakes = []

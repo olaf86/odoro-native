@@ -237,13 +237,6 @@ final class StagePlaybackRenderer: NSObject {
         backdrop.position = [0, 0.9, -1.1]
         stageAnchor.addChild(backdrop)
 
-        let spotlight = ModelEntity(
-            mesh: .generateSphere(radius: 0.18),
-            materials: [UnlitMaterial(color: UIColor(red: 0.99, green: 0.74, blue: 0.28, alpha: 1))]
-        )
-        spotlight.position = [0, 1.55, -0.75]
-        stageAnchor.addChild(spotlight)
-
         buildDancerHierarchy()
         stageAnchor.addChild(dancerRoot)
 
