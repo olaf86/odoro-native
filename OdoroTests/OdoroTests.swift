@@ -291,4 +291,52 @@ struct OdoroTests {
         #expect(summaries.count == 1)
         #expect(summaries.first?.captureMode == .importedVideo)
     }
+
+    @MainActor
+    @Test func studioViewModelTogglesMetronomePreviewFromMusicSelection() {
+        let audioPlaybackController = TestAudioPlaybackController()
+        let studio = StudioViewModel(audioPlaybackController: audioPlaybackController)
+        let metronome = studio.availableAudioSources[0]
+
+        studio.openMusicSelection()
+        studio.toggleAudioPreview(for: metronome)
+
+        #expect(audioPlaybackController.playRequests.count == 1)
+        #expect(audioPlaybackController.playRequests.first?.tempoSourceType == .metronome)
+        #expect(studio.isPreviewingAudioSource(metronome))
+
+        studio.toggleAudioPreview(for: metronome)
+
+        #expect(audioPlaybackController.stopCallCount == 1)
+        #expect(!studio.isPreviewingAudioSource(metronome))
+    }
+
+    @MainActor
+    @Test func studioViewModelStartsAndStopsMetronomeDuringRecording() {
+        let audioPlaybackController = TestAudioPlaybackController()
+        let studio = StudioViewModel(audioPlaybackController: audioPlaybackController)
+
+        studio.beginRecording()
+
+        #expect(audioPlaybackController.playRequests.count == 1)
+        #expect(audioPlaybackController.playRequests.first?.bpm == MotionRecordingContext.defaultMetronomeLoop.bpm)
+
+        studio.stopRecording()
+        studio.suspendStudioForInactivity()
+
+        #expect(audioPlaybackController.stopCallCount >= 1)
+    }
+}
+
+private final class TestAudioPlaybackController: StudioAudioPlaybackControlling {
+    private(set) var playRequests: [MotionRecordingContext] = []
+    private(set) var stopCallCount = 0
+
+    func playMetronome(with context: MotionRecordingContext) {
+        playRequests.append(context)
+    }
+
+    func stop() {
+        stopCallCount += 1
+    }
 }

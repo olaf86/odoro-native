@@ -31,6 +31,10 @@ struct AudioSourceOption: Identifiable, Hashable {
 
         return tempoSourceType == .metronome || context.audioAssetReference == audioAssetReference
     }
+
+    var supportsPreview: Bool {
+        tempoSourceType == .metronome
+    }
 }
 
 @MainActor
@@ -47,6 +51,7 @@ final class StudioViewModel: ObservableObject {
     @Published private(set) var selectedAvatarStyle: StageAvatarStyle = .robot
     @Published private(set) var transientMessage: String?
     @Published private(set) var isImportingVideo = false
+    @Published private(set) var previewingAudioSourceID: String?
 
     var presentation: StudioPresentation { state.presentation }
     var statusText: String { state.statusText }
@@ -200,6 +205,7 @@ final class StudioViewModel: ObservableObject {
 
     private let videoImporter = VideoMotionImporter()
     private let maximumImportedVideoDuration: TimeInterval = 10
+    private let audioPlaybackController: StudioAudioPlaybackControlling
     private let archiveStore: MotionArchiveStore?
     private var source: MotionSource
     private var interactor: MotionStudioInteractor
@@ -212,13 +218,15 @@ final class StudioViewModel: ObservableObject {
 
     init(
         archiveStore: MotionArchiveStore? = nil,
-        recordingContext: MotionRecordingContext? = nil
+        recordingContext: MotionRecordingContext? = nil,
+        audioPlaybackController: StudioAudioPlaybackControlling? = nil
     ) {
         let modes = Self.makeSupportedCaptureModes()
         let initialMode = Self.defaultCaptureMode(from: modes)
         let source = Self.makeMotionSource(for: initialMode)
 
         self.supportedCaptureModes = modes
+        self.audioPlaybackController = audioPlaybackController ?? StudioAudioPlaybackController()
         self.archiveStore = archiveStore
         self.recordingContext = recordingContext ?? .defaultMetronomeLoop
         self.captureMode = initialMode
@@ -236,12 +244,15 @@ final class StudioViewModel: ObservableObject {
         }
 
         dismissSwipeHints()
+        stopAudioPreview()
         attachCurrentSourceIfPossible()
         interactor.activateSource()
         interactor.beginRecording()
+        startRecordingAudioIfNeeded()
     }
 
     func stopRecording() {
+        stopAudioPlayback()
         interactor.stopRecording()
     }
 
@@ -315,6 +326,7 @@ final class StudioViewModel: ObservableObject {
     }
 
     func prepareStagePlayback() {
+        stopAudioPlayback()
         interactor.deactivateSource()
         stageRenderer.setAvatarStyle(selectedAvatarStyle)
         stageRenderer.setClip(interactor.currentClip)
@@ -338,6 +350,7 @@ final class StudioViewModel: ObservableObject {
     func selectCaptureMode(_ mode: CaptureMode) {
         guard captureMode != mode, !state.isRecording else { return }
 
+        stopAudioPlayback()
         stageRenderer.pause()
         stageRenderer.setClip(nil)
         interactor.deactivateSource()
@@ -380,6 +393,7 @@ final class StudioViewModel: ObservableObject {
     }
 
     func suspendStudioForInactivity() {
+        stopAudioPlayback()
         stageRenderer.pause()
         interactor.setPlaybackActive(false)
         interactor.suspendForAppInactivity()
@@ -411,12 +425,39 @@ final class StudioViewModel: ObservableObject {
     }
 
     func selectAudioSource(_ option: AudioSourceOption) {
+        if previewingAudioSourceID != option.id {
+            stopAudioPreview()
+        }
+
         updateRecordingContext {
             $0.tempoSourceType = option.tempoSourceType
             $0.audioAssetReference = option.audioAssetReference
             if let preferredBPM = option.preferredBPM {
                 $0.bpm = preferredBPM
             }
+        }
+    }
+
+    func canPreviewAudioSource(_ option: AudioSourceOption) -> Bool {
+        option.supportsPreview
+    }
+
+    func isPreviewingAudioSource(_ option: AudioSourceOption) -> Bool {
+        previewingAudioSourceID == option.id
+    }
+
+    func toggleAudioPreview(for option: AudioSourceOption) {
+        guard option.supportsPreview else {
+            showFeatureNotice("Preview audio for reference tracks is coming next.")
+            return
+        }
+
+        selectAudioSource(option)
+
+        if previewingAudioSourceID == option.id {
+            stopAudioPreview()
+        } else {
+            startAudioPreview(for: option)
         }
     }
 
@@ -594,6 +635,10 @@ final class StudioViewModel: ObservableObject {
         let previousState = state
         state = newState
 
+        if previousState.isRecording, !newState.isRecording {
+            stopAudioPlayback()
+        }
+
         if previousState.presentation != .stage, newState.presentation == .stage {
             if previousState.isRecording {
                 persistCurrentClipIfPossible()
@@ -618,6 +663,10 @@ final class StudioViewModel: ObservableObject {
     private func navigate(to screen: StudioScreen, transition: StudioScreenTransition) {
         guard self.screen != screen || screenTransition != transition else {
             return
+        }
+
+        if self.screen == .musicSelection, screen != .musicSelection {
+            stopAudioPreview()
         }
 
         self.screen = screen
@@ -706,6 +755,10 @@ final class StudioViewModel: ObservableObject {
         currentSessionID = nil
         currentTakeID = nil
         currentSessionTakes = []
+
+        if previewingAudioSourceID == activeAudioSource.id {
+            startAudioPreview(for: activeAudioSource)
+        }
     }
 
     private func ensureCurrentTakeForConfirmation() throws -> MotionTakeSummary {
@@ -758,6 +811,34 @@ final class StudioViewModel: ObservableObject {
             print("Failed to fetch clip library: \(error)")
             libraryClips = []
         }
+    }
+
+    private func startAudioPreview(for option: AudioSourceOption) {
+        guard option.supportsPreview else { return }
+
+        audioPlaybackController.playMetronome(with: recordingContext)
+        previewingAudioSourceID = option.id
+    }
+
+    private func stopAudioPreview() {
+        guard previewingAudioSourceID != nil else {
+            return
+        }
+
+        stopAudioPlayback()
+    }
+
+    private func startRecordingAudioIfNeeded() {
+        guard activeAudioSource.tempoSourceType == .metronome else {
+            return
+        }
+
+        audioPlaybackController.playMetronome(with: recordingContext)
+    }
+
+    private func stopAudioPlayback() {
+        audioPlaybackController.stop()
+        previewingAudioSourceID = nil
     }
 }
 
