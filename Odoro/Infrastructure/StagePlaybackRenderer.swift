@@ -52,8 +52,7 @@ final class StagePlaybackRenderer: NSObject {
     private var playbackTimer: Timer?
     private var playbackStartedAt: Date?
     private var usesProceduralMockPlayback = false
-    private var avatarSelection: StageAvatarSelection = AvatarCatalog.defaultSelection
-    private var currentAvatarOption = AvatarCatalog.option(for: AvatarCatalog.defaultSelection)
+    private var currentAvatarOption = AvatarCatalog.defaultOption
 
     private var stageAnchor = AnchorEntity()
     private var dancerRoot = Entity()
@@ -90,13 +89,12 @@ final class StagePlaybackRenderer: NSObject {
         self.usesProceduralMockPlayback = usesProceduralMockPlayback
     }
 
-    func setAvatarSelection(_ avatarSelection: StageAvatarSelection) {
-        guard self.avatarSelection != avatarSelection else {
+    func setAvatarOption(_ avatarOption: StageAvatarOption) {
+        guard self.currentAvatarOption != avatarOption else {
             return
         }
 
-        self.avatarSelection = avatarSelection
-        currentAvatarOption = AvatarCatalog.option(for: avatarSelection)
+        currentAvatarOption = avatarOption
         reloadAvatarAsset()
 
         if let view {
@@ -116,18 +114,29 @@ final class StagePlaybackRenderer: NSObject {
 
         guard
             currentAvatarOption.selection.kind == .avatar,
-            currentAvatarOption.isReadyForPlayback,
-            let variant = AvatarCatalog.assetVariant(for: avatarSelection)
+            currentAvatarOption.isReadyForPlayback
         else {
             return
         }
 
         do {
-            let assetName = URL(fileURLWithPath: variant.runtimeAssetRelativePath).deletingPathExtension().lastPathComponent
-            let entity = try Entity.load(named: assetName)
+            let entity: Entity
+            let assetName: String
+
+            if let runtimeAssetURL = currentAvatarOption.runtimeAssetURL {
+                assetName = runtimeAssetURL.lastPathComponent
+                Self.logger.info("Installed local avatar asset '\(assetName)' is present, but direct URL loading is not enabled in this renderer yet. Falling back to the procedural skeleton.")
+                return
+            } else if let resourceName = currentAvatarOption.runtimeAssetResourceName {
+                assetName = resourceName
+                entity = try Entity.load(named: resourceName)
+            } else {
+                return
+            }
+
             characterEntity = entity
             skeletalModelEntity = findModelEntity(entity)
-            activeRigProfile = AvatarCatalog.rigProfile(for: avatarSelection)
+            activeRigProfile = currentAvatarOption.rigProfile
             let animCount = entity.availableAnimations.count
             let bindingCount = activeRigProfile?.bindings.count ?? 0
             Self.logger.info("avatar loaded — asset: \(assetName), skeletal model: \(self.skeletalModelEntity != nil), bindings: \(bindingCount), animations: \(animCount)")

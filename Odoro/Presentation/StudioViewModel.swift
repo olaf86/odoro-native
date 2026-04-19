@@ -48,9 +48,11 @@ final class StudioViewModel: ObservableObject {
     @Published private(set) var screen: StudioScreen = .capture
     @Published private(set) var screenTransition: StudioScreenTransition = .fromTrailing
     @Published private(set) var swipeHintsVisible = false
-    @Published private(set) var selectedAvatarSelection: StageAvatarSelection = AvatarCatalog.defaultSelection
+    @Published private(set) var availableAvatarOptions: [StageAvatarOption] = AvatarCatalog.builtInStageOptions
+    @Published private(set) var selectedAvatarOption: StageAvatarOption = AvatarCatalog.defaultOption
     @Published private(set) var transientMessage: String?
     @Published private(set) var isImportingVideo = false
+    @Published private(set) var isImportingAvatar = false
     @Published private(set) var previewingAudioSourceID: String?
 
     var presentation: StudioPresentation { state.presentation }
@@ -62,8 +64,6 @@ final class StudioViewModel: ObservableObject {
     var availableCaptureModes: [CaptureMode] { supportedCaptureModes }
     var availableTimeSignatures: [TimeSignatureOption] { Self.supportedTimeSignatures }
     var availableAudioSources: [AudioSourceOption] { Self.audioSources }
-    var availableAvatarOptions: [StageAvatarOption] { AvatarCatalog.stageOptions }
-    var selectedAvatarOption: StageAvatarOption { AvatarCatalog.option(for: selectedAvatarSelection) }
     var hasSavedTakes: Bool { !currentSessionTakes.isEmpty }
     var hasCurrentTake: Bool { currentTake != nil }
     var hasLibraryClips: Bool { !libraryClips.isEmpty }
@@ -212,6 +212,7 @@ final class StudioViewModel: ObservableObject {
     private let maximumImportedVideoDuration: TimeInterval = 10
     private let audioPlaybackController: StudioAudioPlaybackControlling
     private let archiveStore: MotionArchiveStore?
+    private let avatarAssetStore: AvatarAssetStore
     private var source: MotionSource
     private var interactor: MotionStudioInteractor
     private let stageRenderer = StagePlaybackRenderer()
@@ -224,7 +225,8 @@ final class StudioViewModel: ObservableObject {
     init(
         archiveStore: MotionArchiveStore? = nil,
         recordingContext: MotionRecordingContext? = nil,
-        audioPlaybackController: StudioAudioPlaybackControlling? = nil
+        audioPlaybackController: StudioAudioPlaybackControlling? = nil,
+        avatarAssetStore: AvatarAssetStore? = nil
     ) {
         let modes = Self.makeSupportedCaptureModes()
         let initialMode = Self.defaultCaptureMode(from: modes)
@@ -234,6 +236,7 @@ final class StudioViewModel: ObservableObject {
         self.supportedCaptureModes = modes
         self.audioPlaybackController = audioPlaybackController ?? StudioAudioPlaybackController()
         self.archiveStore = archiveStore
+        self.avatarAssetStore = avatarAssetStore ?? AvatarAssetStore()
         self.recordingContext = normalizedRecordingContext
         self.captureMode = initialMode
         self.source = source
@@ -244,6 +247,7 @@ final class StudioViewModel: ObservableObject {
 
         configureForCurrentSource()
         refreshLibrary()
+        refreshAvatarLibrary()
     }
 
     func beginRecording() {
@@ -337,7 +341,7 @@ final class StudioViewModel: ObservableObject {
     func prepareStagePlayback() {
         stopAudioPlayback()
         interactor.deactivateSource()
-        stageRenderer.setAvatarSelection(selectedAvatarSelection)
+        stageRenderer.setAvatarOption(selectedAvatarOption)
         stageRenderer.setClip(interactor.currentClip)
         stageRenderer.play()
         interactor.setPlaybackActive(true)
@@ -396,7 +400,7 @@ final class StudioViewModel: ObservableObject {
 
     func attachStageView(_ view: ARView) {
         stageRenderer.attach(to: view)
-        stageRenderer.setAvatarSelection(selectedAvatarSelection)
+        stageRenderer.setAvatarOption(selectedAvatarOption)
         stageRenderer.setClip(interactor.currentClip)
     }
 
@@ -474,18 +478,47 @@ final class StudioViewModel: ObservableObject {
     }
 
     func selectAvatarOption(_ option: StageAvatarOption) {
-        guard selectedAvatarSelection != option.selection else { return }
-        selectedAvatarSelection = option.selection
-        stageRenderer.setAvatarSelection(option.selection)
+        guard selectedAvatarOption.selection != option.selection else { return }
+        selectedAvatarOption = option
+        stageRenderer.setAvatarOption(option)
 
         if !option.isReadyForPlayback {
             showFeatureNotice("On-demand avatar downloads are next. Playback falls back to the skeleton preview until the package is installed.")
+        } else if option.runtimeFormat == .glb {
+            showFeatureNotice("GLB import is installed locally. If RealityKit cannot load this file directly yet, stage playback will fall back to the skeleton preview.")
         }
 
         if state.isPlaying {
             prepareStagePlayback()
         } else {
             stageRenderer.setClip(interactor.currentClip)
+        }
+    }
+
+    func importAvatar(from url: URL) {
+        guard !state.isRecording, !isImportingAvatar else {
+            return
+        }
+
+        isImportingAvatar = true
+        let hasSecurityScopedAccess = url.startAccessingSecurityScopedResource()
+
+        defer {
+            if hasSecurityScopedAccess {
+                url.stopAccessingSecurityScopedResource()
+            }
+            isImportingAvatar = false
+        }
+
+        do {
+            let option = try avatarAssetStore.installDevelopmentAvatar(from: url)
+            refreshAvatarLibrary()
+            if let installedOption = availableAvatarOptions.first(where: { $0.selection == option.selection }) {
+                selectAvatarOption(installedOption)
+            }
+            showFeatureNotice("Imported \(option.titleText). Generated package_manifest.json and rig_profile.json were written to Application Support/AvatarAssets.")
+        } catch {
+            showFeatureNotice("Avatar import failed: \(error.localizedDescription)")
         }
     }
 
@@ -637,7 +670,7 @@ final class StudioViewModel: ObservableObject {
 
     private func configureForCurrentSource() {
         stageRenderer.setUsesProceduralMockPlayback(source is MockMotionSource)
-        stageRenderer.setAvatarSelection(selectedAvatarSelection)
+        stageRenderer.setAvatarOption(selectedAvatarOption)
 
         interactor.onStateChange = { [weak self] newState in
             self?.handleInteractorStateChange(newState)
@@ -833,6 +866,18 @@ final class StudioViewModel: ObservableObject {
         } catch {
             print("Failed to fetch clip library: \(error)")
             libraryClips = []
+        }
+    }
+
+    private func refreshAvatarLibrary() {
+        let builtInOptions = AvatarCatalog.builtInStageOptions
+        let installedOptions = avatarAssetStore.fetchInstalledAvatarOptions()
+        availableAvatarOptions = builtInOptions + installedOptions
+
+        if let matchingSelection = availableAvatarOptions.first(where: { $0.selection == selectedAvatarOption.selection }) {
+            selectedAvatarOption = matchingSelection
+        } else {
+            selectedAvatarOption = AvatarCatalog.defaultOption
         }
     }
 

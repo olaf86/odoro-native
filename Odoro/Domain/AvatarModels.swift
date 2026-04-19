@@ -9,6 +9,7 @@ import simd
 enum AvatarAssetSource: String, Codable, Sendable {
     case bundled
     case downloadable
+    case localDevelopment
 }
 
 enum AvatarRuntimeFormat: String, Codable, Sendable {
@@ -151,6 +152,22 @@ struct AvatarRigProfileDocument: Codable, Hashable, Sendable {
     var profile: AvatarRigProfile
 }
 
+struct AvatarPackageManifest: Codable, Hashable, Sendable {
+    var schemaVersion: Int
+    var avatarID: String
+    var variantID: String
+    var displayName: String
+    var source: AvatarAssetSource
+    var version: String
+    var runtimeFormat: AvatarRuntimeFormat
+    var runtimeAssetFilename: String
+    var generatedRigProfileID: String
+    var installedAt: Date
+    var sourceFilename: String
+    var sourceFileByteCount: Int
+    var detectedNodeNames: [String]
+}
+
 struct StageAvatarOption: Identifiable, Hashable, Sendable {
     var selection: StageAvatarSelection
     var title: String
@@ -159,18 +176,25 @@ struct StageAvatarOption: Identifiable, Hashable, Sendable {
     var source: AvatarAssetSource
     var installState: AvatarInstallState
     var runtimeFormat: AvatarRuntimeFormat?
+    var runtimeAssetResourceName: String?
+    var runtimeAssetURL: URL?
     var rigProfileID: String?
+    var rigProfile: AvatarRigProfile?
 
     var id: String { selection.id }
 
     var badgeText: String? {
+        if source == .localDevelopment {
+            return "Local"
+        }
+
         switch installState {
         case .bundled:
-            "Bundled"
+            return "Bundled"
         case .installed:
-            "Installed"
+            return "Installed"
         case .notInstalled:
-            "Download"
+            return "Download"
         }
     }
 
@@ -194,6 +218,12 @@ enum AvatarCatalog {
         avatarID: robotAvatarID,
         variantID: robotVariantID
     )
+
+    static var defaultOption: StageAvatarOption {
+        builtInStageOptions.first {
+            $0.selection == defaultSelection
+        } ?? builtInStageOptions[0]
+    }
 
     static let robotRigProfile = AvatarRigProfile(
         id: robotRigProfileID,
@@ -432,7 +462,7 @@ enum AvatarCatalog {
         ]
     )
 
-    static let stageOptions: [StageAvatarOption] = [
+    static let builtInStageOptions: [StageAvatarOption] = [
         StageAvatarOption(
             selection: .proceduralSkeleton,
             title: "Skeleton Preview",
@@ -441,7 +471,10 @@ enum AvatarCatalog {
             source: .bundled,
             installState: .bundled,
             runtimeFormat: nil,
-            rigProfileID: nil
+            runtimeAssetResourceName: nil,
+            runtimeAssetURL: nil,
+            rigProfileID: nil,
+            rigProfile: nil
         )
     ] + manifest.avatars.map { item in
         let variant = item.availableVariants.first { $0.id == item.defaultVariantID } ?? item.availableVariants[0]
@@ -453,37 +486,10 @@ enum AvatarCatalog {
             source: item.source,
             installState: variant.installState,
             runtimeFormat: variant.runtimeFormat,
-            rigProfileID: variant.rigProfileID
+            runtimeAssetResourceName: item.source == .bundled ? "robot" : nil,
+            runtimeAssetURL: nil,
+            rigProfileID: variant.rigProfileID,
+            rigProfile: variant.rigProfileID == robotRigProfileID ? robotRigProfile : nil
         )
-    }
-
-    static func option(for selection: StageAvatarSelection) -> StageAvatarOption {
-        stageOptions.first(where: { $0.selection == selection }) ?? stageOptions[0]
-    }
-
-    static func assetVariant(for selection: StageAvatarSelection) -> AvatarAssetVariant? {
-        guard
-            selection.kind == .avatar,
-            let avatarID = selection.avatarID,
-            let variantID = selection.variantID,
-            let avatar = manifest.avatars.first(where: { $0.id == avatarID })
-        else {
-            return nil
-        }
-
-        return avatar.availableVariants.first(where: { $0.id == variantID })
-    }
-
-    static func rigProfile(for selection: StageAvatarSelection) -> AvatarRigProfile? {
-        guard let variant = assetVariant(for: selection) else {
-            return nil
-        }
-
-        switch variant.rigProfileID {
-        case robotRigProfileID:
-            return robotRigProfile
-        default:
-            return nil
-        }
     }
 }
