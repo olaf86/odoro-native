@@ -8,7 +8,7 @@
       buildArchitectures = "Automatic">
       <BuildActionEntries>
          <BuildActionEntry
-            buildForTesting = "YES"
+            buildForTesting = "NO"
             buildForRunning = "YES"
             buildForProfiling = "YES"
             buildForArchiving = "YES"
@@ -18,6 +18,20 @@
                BlueprintIdentifier = "EDAB181C2F85378A00710FFB"
                BuildableName = "Odoro Staging.app"
                BlueprintName = "Odoro Staging"
+               ReferencedContainer = "container:Odoro.xcodeproj">
+            </BuildableReference>
+         </BuildActionEntry>
+         <BuildActionEntry
+            buildForTesting = "YES"
+            buildForRunning = "NO"
+            buildForProfiling = "NO"
+            buildForArchiving = "NO"
+            buildForAnalyzing = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "EDAB17E32F85378A00710FFB"
+               BuildableName = "Odoro.app"
+               BlueprintName = "Odoro"
                ReferencedContainer = "container:Odoro.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
@@ -32,12 +46,25 @@
       <MacroExpansion>
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "EDAB181C2F85378A00710FFB"
-            BuildableName = "Odoro Staging.app"
-            BlueprintName = "Odoro Staging"
+            BlueprintIdentifier = "EDAB17E32F85378A00710FFB"
+            BuildableName = "Odoro.app"
+            BlueprintName = "Odoro"
             ReferencedContainer = "container:Odoro.xcodeproj">
          </BuildableReference>
       </MacroExpansion>
+      <Testables>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "YES">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "EDAB17F22F85378A00710FFB"
+               BuildableName = "OdoroTests.xctest"
+               BlueprintName = "OdoroTests"
+               ReferencedContainer = "container:Odoro.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
+      </Testables>
    </TestAction>
    <LaunchAction
       buildConfiguration = "Staging"
