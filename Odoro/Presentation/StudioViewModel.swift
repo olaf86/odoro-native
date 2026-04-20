@@ -213,6 +213,7 @@ final class StudioViewModel: ObservableObject {
     private let audioPlaybackController: StudioAudioPlaybackControlling
     private let archiveStore: MotionArchiveStore?
     private let avatarAssetStore: AvatarAssetStore
+    private let motionSourceFactory: (CaptureMode) -> MotionSource
     private var source: MotionSource
     private var interactor: MotionStudioInteractor
     private let stageRenderer = StagePlaybackRenderer()
@@ -226,17 +227,20 @@ final class StudioViewModel: ObservableObject {
         archiveStore: MotionArchiveStore? = nil,
         recordingContext: MotionRecordingContext? = nil,
         audioPlaybackController: StudioAudioPlaybackControlling? = nil,
-        avatarAssetStore: AvatarAssetStore? = nil
+        avatarAssetStore: AvatarAssetStore? = nil,
+        motionSourceFactory: ((CaptureMode) -> MotionSource)? = nil
     ) {
         let modes = Self.makeSupportedCaptureModes()
         let initialMode = Self.defaultCaptureMode(from: modes)
-        let source = Self.makeMotionSource(for: initialMode)
+        let resolvedMotionSourceFactory = motionSourceFactory ?? Self.makeMotionSource
+        let source = resolvedMotionSourceFactory(initialMode)
         let normalizedRecordingContext = Self.normalizedRecordingContext(recordingContext ?? .defaultMetronomeLoop)
 
         self.supportedCaptureModes = modes
         self.audioPlaybackController = audioPlaybackController ?? StudioAudioPlaybackController()
         self.archiveStore = archiveStore
         self.avatarAssetStore = avatarAssetStore ?? AvatarAssetStore()
+        self.motionSourceFactory = resolvedMotionSourceFactory
         self.recordingContext = normalizedRecordingContext
         self.captureMode = initialMode
         self.source = source
@@ -369,7 +373,7 @@ final class StudioViewModel: ObservableObject {
         interactor.deactivateSource()
 
         captureMode = mode
-        source = Self.makeMotionSource(for: mode)
+        source = motionSourceFactory(mode)
         interactor = MotionStudioInteractor(
             source: source,
             maximumCaptureDuration: recordingContext.fixedCaptureDuration
@@ -381,6 +385,7 @@ final class StudioViewModel: ObservableObject {
 
         configureForCurrentSource()
         attachCurrentSourceIfPossible()
+        interactor.activateSource()
         navigate(to: .capture, transition: .fromTrailing)
     }
 
@@ -405,7 +410,12 @@ final class StudioViewModel: ObservableObject {
     }
 
     func prepareCapturePreviewIfNeeded() {
+        guard screen == .capture else {
+            return
+        }
+
         attachCurrentSourceIfPossible()
+        interactor.activateSource()
     }
 
     func suspendStudioForInactivity() {

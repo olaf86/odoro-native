@@ -347,6 +347,19 @@ struct OdoroTests {
     }
 
     @MainActor
+    @Test func studioViewModelActivatesCaptureSourceWhenPreparingPreview() {
+        let source = TestMotionSource()
+        let studio = StudioViewModel(
+            audioPlaybackController: TestAudioPlaybackController(),
+            motionSourceFactory: { _ in source }
+        )
+
+        studio.prepareCapturePreviewIfNeeded()
+
+        #expect(source.activateCallCount == 1)
+    }
+
+    @MainActor
     @Test func motionStudioInteractorStopsRecordingAtConfiguredDuration() async {
         let source = TestMotionSource()
         let interactor = MotionStudioInteractor(source: source, maximumCaptureDuration: 1)
@@ -386,8 +399,11 @@ private final class TestMotionSource: MotionSource {
     let isSupported = true
     var onFrame: ((MotionFrame) -> Void)?
     var onStatusTextChange: ((String) -> Void)?
+    private(set) var activateCallCount = 0
 
-    func activate() {}
+    func activate() {
+        activateCallCount += 1
+    }
     func deactivate() {}
 
     func emitFrame(at time: TimeInterval, joints: Int) {

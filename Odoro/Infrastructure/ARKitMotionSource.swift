@@ -21,6 +21,7 @@ final class ARKitMotionSource: NSObject, MotionSource {
     private weak var attachedView: ARView?
     private var shouldStartWhenAttached = false
     private var hasDetectedBody = false
+    private var isSessionActive = false
 
     func attach(to view: ARView) {
         attachedView = view
@@ -46,15 +47,21 @@ final class ARKitMotionSource: NSObject, MotionSource {
             return
         }
 
+        guard !isSessionActive else {
+            return
+        }
+
         let configuration = ARBodyTrackingConfiguration()
         configuration.isAutoFocusEnabled = true
         configuration.automaticSkeletonScaleEstimationEnabled = true
         hasDetectedBody = false
+        isSessionActive = true
         session.run(configuration, options: [.resetTracking, .removeExistingAnchors])
     }
 
     func deactivate() {
         hasDetectedBody = false
+        isSessionActive = false
         session.pause()
         overlayRenderer.clear()
     }
@@ -112,6 +119,7 @@ extension ARKitMotionSource: ARSessionDelegate {
 
     nonisolated func session(_ session: ARSession, didFailWithError error: any Error) {
         Task { @MainActor in
+            self.isSessionActive = false
             self.overlayRenderer.clear()
             self.onStatusTextChange?(L10n.statusARSessionFailed(error.localizedDescription))
         }
