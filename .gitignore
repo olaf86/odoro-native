@@ -40,3 +40,6 @@ Carthage/Build/
 *.dSYM.zip
 *.dSYM
 *.log
+
+# Local app configuration
+Configs/AvatarStorage.local.xcconfig

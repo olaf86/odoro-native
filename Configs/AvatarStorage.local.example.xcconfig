@@ -1,0 +1,2 @@
+// Copy this file to AvatarStorage.local.xcconfig and set your local bucket URL.
+ODORO_AVATAR_STORAGE_BASE_URL = https://storage.googleapis.com/YOUR_BUCKET_NAME

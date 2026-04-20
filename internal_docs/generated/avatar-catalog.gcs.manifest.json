@@ -1,0 +1,86 @@
+{
+  "avatars": [
+    {
+      "authorName": "Odoro",
+      "availableVariants": [
+        {
+          "avatarID": "avatar-sample-a",
+          "id": "avatar-sample-a-glb-v1",
+          "installState": "notInstalled",
+          "minimumAppVersion": null,
+          "minimumOSVersion": "26.4",
+          "packageManifestRelativePath": "avatars/avatar-sample-a/1.0.0/package_manifest.json",
+          "packageManifestRemoteURL": "https://storage.googleapis.com/YOUR_BUCKET_NAME/avatars/avatar-sample-a/1.0.0/package_manifest.json",
+          "rigProfileID": "avatar-sample-a.v1",
+          "rigProfileRelativePath": "avatars/avatar-sample-a/1.0.0/rig_profile.json",
+          "rigProfileRemoteURL": "https://storage.googleapis.com/YOUR_BUCKET_NAME/avatars/avatar-sample-a/1.0.0/rig_profile.json",
+          "runtimeAssetChecksum": null,
+          "runtimeAssetRelativePath": "avatars/avatar-sample-a/1.0.0/model.glb",
+          "runtimeAssetRemoteURL": "https://storage.googleapis.com/YOUR_BUCKET_NAME/avatars/avatar-sample-a/1.0.0/model.glb",
+          "runtimeAssetSizeBytes": 26781812,
+          "runtimeFormat": "glb",
+          "version": "1.0.0"
+        }
+      ],
+      "defaultRigProfileID": "avatar-sample-a.v1",
+      "defaultVariantID": "avatar-sample-a-glb-v1",
+      "displayName": "Avatar Sample A",
+      "id": "avatar-sample-a",
+      "isBundled": false,
+      "previewVideoURL": null,
+      "slug": "avatar-sample-a",
+      "source": "downloadable",
+      "subtitle": "Download-on-demand GLB avatar package served from GCS.",
+      "systemImageName": "person.crop.square",
+      "tags": [
+        "download",
+        "vroid",
+        "glb",
+        "gcs"
+      ],
+      "thumbnailURL": null
+    },
+    {
+      "authorName": "Odoro",
+      "availableVariants": [
+        {
+          "avatarID": "avatar-sample-b",
+          "id": "avatar-sample-b-glb-v1",
+          "installState": "notInstalled",
+          "minimumAppVersion": null,
+          "minimumOSVersion": "26.4",
+          "packageManifestRelativePath": "avatars/avatar-sample-b/1.0.0/package_manifest.json",
+          "packageManifestRemoteURL": "https://storage.googleapis.com/YOUR_BUCKET_NAME/avatars/avatar-sample-b/1.0.0/package_manifest.json",
+          "rigProfileID": "avatar-sample-b.v1",
+          "rigProfileRelativePath": "avatars/avatar-sample-b/1.0.0/rig_profile.json",
+          "rigProfileRemoteURL": "https://storage.googleapis.com/YOUR_BUCKET_NAME/avatars/avatar-sample-b/1.0.0/rig_profile.json",
+          "runtimeAssetChecksum": null,
+          "runtimeAssetRelativePath": "avatars/avatar-sample-b/1.0.0/model.glb",
+          "runtimeAssetRemoteURL": "https://storage.googleapis.com/YOUR_BUCKET_NAME/avatars/avatar-sample-b/1.0.0/model.glb",
+          "runtimeAssetSizeBytes": 28333772,
+          "runtimeFormat": "glb",
+          "version": "1.0.0"
+        }
+      ],
+      "defaultRigProfileID": "avatar-sample-b.v1",
+      "defaultVariantID": "avatar-sample-b-glb-v1",
+      "displayName": "Avatar Sample B",
+      "id": "avatar-sample-b",
+      "isBundled": false,
+      "previewVideoURL": null,
+      "slug": "avatar-sample-b",
+      "source": "downloadable",
+      "subtitle": "Second download-on-demand GLB avatar package served from GCS.",
+      "systemImageName": "sparkles",
+      "tags": [
+        "download",
+        "vroid",
+        "glb",
+        "gcs"
+      ],
+      "thumbnailURL": null
+    }
+  ],
+  "generatedAt": "2026-04-19T00:00:00Z",
+  "schemaVersion": 1
+}

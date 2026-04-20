@@ -329,6 +329,28 @@ Each installed variant should also write a local `install.json` with:
 
 This makes repair and cleanup straightforward.
 
+## GCS Draft Layout
+
+Recommended object layout in GCS:
+
+- `catalogs/avatar-catalog.production.json`
+- `avatars/avatar-sample-a/1.0.0/model.glb`
+- `avatars/avatar-sample-a/1.0.0/rig_profile.json`
+- `avatars/avatar-sample-a/1.0.0/package_manifest.json`
+- `avatars/avatar-sample-b/1.0.0/model.glb`
+- `avatars/avatar-sample-b/1.0.0/rig_profile.json`
+- `avatars/avatar-sample-b/1.0.0/package_manifest.json`
+
+Recommended rule:
+
+- the catalog manifest is the only file the app needs to know up front
+- each avatar variant then points to direct GCS object URLs for `model.glb`, `rig_profile.json`, and `package_manifest.json`
+- bundled assets such as `robot.usdz` stay local and do not need to appear in the remote GCS catalog
+- the bucket root should come from app configuration such as an Info.plist-backed `AppConfiguration`, not from hardcoded avatar IDs in code
+- the real bucket URL should be injected from a gitignored local config such as `Configs/AvatarStorage.local.xcconfig`
+
+This keeps GCS hosting simple while leaving room to switch to signed URLs later.
+
 ## How This Fits the Current Codebase
 
 Current code already has a strong seam here:

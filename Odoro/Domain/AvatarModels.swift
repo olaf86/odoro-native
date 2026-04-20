@@ -117,8 +117,11 @@ struct AvatarAssetVariant: Codable, Hashable, Identifiable, Sendable {
     var runtimeAssetRemoteURL: String?
     var runtimeAssetChecksum: String?
     var runtimeAssetSizeBytes: Int
+    var packageManifestRelativePath: String?
+    var packageManifestRemoteURL: String?
     var rigProfileID: String
     var rigProfileRelativePath: String?
+    var rigProfileRemoteURL: String?
     var minimumAppVersion: String?
     var minimumOSVersion: String?
     var installState: AvatarInstallState
@@ -209,10 +212,12 @@ enum AvatarCatalog {
     private static let robotAvatarID = "robot-performer"
     private static let robotVariantID = "robot-performer-bundled-v1"
     private static let robotRigProfileID = "robot.performer.v1"
-    private static let vroidMuseAvatarID = "vroid-muse"
-    private static let vroidMuseVariantID = "vroid-muse-glb-v1"
-    private static let vroidPulseAvatarID = "vroid-pulse"
-    private static let vroidPulseVariantID = "vroid-pulse-glb-v1"
+    private static let avatarSampleAAvatarID = "avatar-sample-a"
+    private static let avatarSampleAVariantID = "avatar-sample-a-glb-v1"
+    private static let avatarSampleARigProfileID = "avatar-sample-a.v1"
+    private static let avatarSampleBAvatarID = "avatar-sample-b"
+    private static let avatarSampleBVariantID = "avatar-sample-b-glb-v1"
+    private static let avatarSampleBRigProfileID = "avatar-sample-b.v1"
 
     static let defaultSelection = StageAvatarSelection.avatar(
         avatarID: robotAvatarID,
@@ -223,6 +228,39 @@ enum AvatarCatalog {
         builtInStageOptions.first {
             $0.selection == defaultSelection
         } ?? builtInStageOptions[0]
+    }
+
+    private static func gcsURL(path: String) -> String {
+        AppConfiguration.current.remoteAvatarAssetURLString(path: path)
+    }
+
+    private static func downloadableGLBVariant(
+        avatarID: String,
+        variantID: String,
+        rigProfileID: String,
+        sizeBytes: Int
+    ) -> AvatarAssetVariant {
+        let version = "1.0.0"
+        let assetDirectory = "avatars/\(avatarID)/\(version)"
+
+        return AvatarAssetVariant(
+            id: variantID,
+            avatarID: avatarID,
+            version: version,
+            runtimeFormat: .glb,
+            runtimeAssetRelativePath: "\(assetDirectory)/model.glb",
+            runtimeAssetRemoteURL: gcsURL(path: "\(assetDirectory)/model.glb"),
+            runtimeAssetChecksum: nil,
+            runtimeAssetSizeBytes: sizeBytes,
+            packageManifestRelativePath: "\(assetDirectory)/package_manifest.json",
+            packageManifestRemoteURL: gcsURL(path: "\(assetDirectory)/package_manifest.json"),
+            rigProfileID: rigProfileID,
+            rigProfileRelativePath: "\(assetDirectory)/rig_profile.json",
+            rigProfileRemoteURL: gcsURL(path: "\(assetDirectory)/rig_profile.json"),
+            minimumAppVersion: nil,
+            minimumOSVersion: "26.4",
+            installState: .notInstalled
+        )
     }
 
     static let robotRigProfile = AvatarRigProfile(
@@ -384,8 +422,11 @@ enum AvatarCatalog {
                         runtimeAssetRemoteURL: nil,
                         runtimeAssetChecksum: nil,
                         runtimeAssetSizeBytes: 0,
+                        packageManifestRelativePath: nil,
+                        packageManifestRemoteURL: nil,
                         rigProfileID: robotRigProfileID,
                         rigProfileRelativePath: "rigs/robot.performer.v1.json",
+                        rigProfileRemoteURL: nil,
                         minimumAppVersion: nil,
                         minimumOSVersion: "26.4",
                         installState: .bundled
@@ -396,66 +437,48 @@ enum AvatarCatalog {
                 isBundled: true
             ),
             AvatarCatalogItem(
-                id: vroidMuseAvatarID,
-                slug: vroidMuseAvatarID,
-                displayName: "VRoid Muse",
-                subtitle: "Download-on-demand VRoid avatar package placeholder.",
+                id: avatarSampleAAvatarID,
+                slug: avatarSampleAAvatarID,
+                displayName: "Avatar Sample A",
+                subtitle: "Download-on-demand GLB avatar package served from GCS.",
                 authorName: "Odoro",
                 systemImageName: "person.crop.square",
                 thumbnailURL: nil,
                 previewVideoURL: nil,
-                defaultRigProfileID: "vroid.muse.v1",
-                defaultVariantID: vroidMuseVariantID,
+                defaultRigProfileID: avatarSampleARigProfileID,
+                defaultVariantID: avatarSampleAVariantID,
                 availableVariants: [
-                    AvatarAssetVariant(
-                        id: vroidMuseVariantID,
-                        avatarID: vroidMuseAvatarID,
-                        version: "1.0.0",
-                        runtimeFormat: .glb,
-                        runtimeAssetRelativePath: "avatars/vroid-muse/model.glb",
-                        runtimeAssetRemoteURL: "https://example.invalid/avatars/vroid-muse-glb-v1.zip",
-                        runtimeAssetChecksum: nil,
-                        runtimeAssetSizeBytes: 24_000_000,
-                        rigProfileID: "vroid.muse.v1",
-                        rigProfileRelativePath: "rigs/vroid.muse.v1.json",
-                        minimumAppVersion: nil,
-                        minimumOSVersion: "26.4",
-                        installState: .notInstalled
+                    downloadableGLBVariant(
+                        avatarID: avatarSampleAAvatarID,
+                        variantID: avatarSampleAVariantID,
+                        rigProfileID: avatarSampleARigProfileID,
+                        sizeBytes: 26_781_812
                     )
                 ],
-                tags: ["download", "vroid", "glb"],
+                tags: ["download", "vroid", "glb", "gcs"],
                 source: .downloadable,
                 isBundled: false
             ),
             AvatarCatalogItem(
-                id: vroidPulseAvatarID,
-                slug: vroidPulseAvatarID,
-                displayName: "VRoid Pulse",
-                subtitle: "Second on-demand VRoid avatar slot for catalog testing.",
+                id: avatarSampleBAvatarID,
+                slug: avatarSampleBAvatarID,
+                displayName: "Avatar Sample B",
+                subtitle: "Second download-on-demand GLB avatar package served from GCS.",
                 authorName: "Odoro",
                 systemImageName: "sparkles",
                 thumbnailURL: nil,
                 previewVideoURL: nil,
-                defaultRigProfileID: "vroid.pulse.v1",
-                defaultVariantID: vroidPulseVariantID,
+                defaultRigProfileID: avatarSampleBRigProfileID,
+                defaultVariantID: avatarSampleBVariantID,
                 availableVariants: [
-                    AvatarAssetVariant(
-                        id: vroidPulseVariantID,
-                        avatarID: vroidPulseAvatarID,
-                        version: "1.0.0",
-                        runtimeFormat: .glb,
-                        runtimeAssetRelativePath: "avatars/vroid-pulse/model.glb",
-                        runtimeAssetRemoteURL: "https://example.invalid/avatars/vroid-pulse-glb-v1.zip",
-                        runtimeAssetChecksum: nil,
-                        runtimeAssetSizeBytes: 27_000_000,
-                        rigProfileID: "vroid.pulse.v1",
-                        rigProfileRelativePath: "rigs/vroid.pulse.v1.json",
-                        minimumAppVersion: nil,
-                        minimumOSVersion: "26.4",
-                        installState: .notInstalled
+                    downloadableGLBVariant(
+                        avatarID: avatarSampleBAvatarID,
+                        variantID: avatarSampleBVariantID,
+                        rigProfileID: avatarSampleBRigProfileID,
+                        sizeBytes: 28_333_772
                     )
                 ],
-                tags: ["download", "vroid", "glb"],
+                tags: ["download", "vroid", "glb", "gcs"],
                 source: .downloadable,
                 isBundled: false
             ),

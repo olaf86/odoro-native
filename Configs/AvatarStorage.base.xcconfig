@@ -1,0 +1,4 @@
+ODORO_AVATAR_STORAGE_BASE_URL =
+#include? "AvatarStorage.local.xcconfig"
+
+INFOPLIST_KEY_OdoroAvatarStorageBaseURL = $(ODORO_AVATAR_STORAGE_BASE_URL)
