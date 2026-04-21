@@ -6,6 +6,11 @@
 import Foundation
 
 extension StudioViewModel {
+    var activeAudioSource: AudioSourceOption {
+        StudioSelectionOptions.audioSources.first(where: { $0.matches(recordingContext) })
+            ?? StudioSelectionOptions.audioSources[0]
+    }
+
     func updateRecordingContext(_ update: (inout MotionRecordingContext) -> Void) {
         var nextContext = recordingContext
         update(&nextContext)

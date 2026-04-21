@@ -6,7 +6,13 @@
 import SwiftUI
 
 struct CaptureExperienceView: View {
-    @ObservedObject var studio: StudioViewModel
+    private let studio: StudioViewModel
+    @StateObject private var viewModel: CaptureViewModel
+
+    init(studio: StudioViewModel) {
+        self.studio = studio
+        _viewModel = StateObject(wrappedValue: CaptureViewModel(studio: studio))
+    }
 
     var body: some View {
         ZStack {
@@ -15,37 +21,37 @@ struct CaptureExperienceView: View {
             Color.clear
                 .contentShape(Rectangle())
                 .onTapGesture {
-                    studio.revealSwipeHints()
+                    viewModel.revealSwipeHints()
                 }
 
-            CaptureSwipeHintCluster(isVisible: studio.swipeHintsVisible)
+            CaptureSwipeHintCluster(isVisible: viewModel.swipeHintsVisible)
                 .padding(.horizontal, 28)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
         }
         .ignoresSafeArea()
         .safeAreaInset(edge: .top, spacing: 0) {
-            CaptureHeader(studio: studio)
+            CaptureHeader(viewModel: viewModel)
                 .padding(.horizontal, 16)
                 .padding(.top, 12)
                 .padding(.bottom, 8)
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            CaptureRecordBar(studio: studio)
+            CaptureRecordBar(viewModel: viewModel)
                 .padding(.horizontal, 28)
                 .padding(.top, 12)
                 .padding(.bottom, 20)
         }
         .onAppear {
-            studio.prepareCapturePreviewIfNeeded()
+            viewModel.prepareCapturePreviewIfNeeded()
         }
         .simultaneousGesture(captureSwipeGesture)
     }
 
     @ViewBuilder
     private var capturePreview: some View {
-        if studio.usesMockSource {
+        if viewModel.usesMockSource {
             MockCapturePreviewView()
-        } else if studio.usesFrontCameraSource {
+        } else if viewModel.usesFrontCameraSource {
             FrontCameraCaptureView(studio: studio)
         } else {
             MotionCaptureARView(studio: studio)
@@ -55,34 +61,34 @@ struct CaptureExperienceView: View {
     private var captureSwipeGesture: some Gesture {
         DragGesture(minimumDistance: 36, coordinateSpace: .local)
             .onEnded { value in
-                guard !studio.isRecording else { return }
+                guard !viewModel.isRecording else { return }
 
                 let horizontal = value.translation.width
                 let vertical = value.translation.height
 
                 if abs(horizontal) > abs(vertical), horizontal < -60 {
-                    studio.openClipLibrary()
+                    viewModel.openClipLibrary()
                 } else if abs(horizontal) > abs(vertical), horizontal > 60 {
-                    studio.openMusicSelection()
+                    viewModel.openMusicSelection()
                 } else if vertical > 70 {
-                    studio.openSessionSettings()
+                    viewModel.openSessionSettings()
                 }
             }
     }
 }
 
 private struct CaptureHeader: View {
-    @ObservedObject var studio: StudioViewModel
+    @ObservedObject var viewModel: CaptureViewModel
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .top, spacing: 12) {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text(studio.captureBeatProgressText)
+                    Text(viewModel.captureBeatProgressText)
                         .font(.headline.weight(.semibold))
                         .foregroundStyle(.white)
 
-                    Text(studio.captureBeatSummaryText)
+                    Text(viewModel.captureBeatSummaryText)
                         .font(.footnote)
                         .foregroundStyle(Color.white.opacity(0.72))
                 }
@@ -90,21 +96,21 @@ private struct CaptureHeader: View {
                 Spacer(minLength: 0)
 
                 VStack(alignment: .trailing, spacing: 8) {
-                    CapturePill(text: studio.captureMode.title, systemImage: "camera.metering.center.weighted")
-                    CapturePill(text: studio.statusText, systemImage: "waveform.path.ecg")
+                    CapturePill(text: viewModel.captureModeTitle, systemImage: "camera.metering.center.weighted")
+                    CapturePill(text: viewModel.statusText, systemImage: "waveform.path.ecg")
                 }
             }
 
-            ProgressView(value: studio.captureBeatProgress)
+            ProgressView(value: viewModel.captureBeatProgress)
                 .progressViewStyle(.linear)
-                .tint(studio.isRecording ? Color.red : Color.white)
+                .tint(viewModel.isRecording ? Color.red : Color.white)
 
             VStack(alignment: .leading, spacing: 4) {
-                Text(studio.audioSourceTitle)
+                Text(viewModel.audioSourceTitle)
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.white)
 
-                Text(studio.recordingSessionSummaryText)
+                Text(viewModel.recordingSessionSummaryText)
                     .font(.caption)
                     .foregroundStyle(Color.white.opacity(0.72))
             }
@@ -115,15 +121,15 @@ private struct CaptureHeader: View {
 }
 
 private struct CaptureRecordBar: View {
-    @ObservedObject var studio: StudioViewModel
+    @ObservedObject var viewModel: CaptureViewModel
 
     var body: some View {
         VStack(spacing: 12) {
-            if studio.hasClip {
+            if viewModel.hasClip {
                 Button {
-                    studio.enterStageMode()
+                    viewModel.enterStageMode()
                 } label: {
-                    Label(studio.currentClipTitle, systemImage: "play.rectangle.fill")
+                    Label(viewModel.currentClipTitle, systemImage: "play.rectangle.fill")
                         .font(.footnote.weight(.semibold))
                         .padding(.horizontal, 14)
                         .padding(.vertical, 10)
@@ -134,13 +140,13 @@ private struct CaptureRecordBar: View {
             }
 
             Button {
-                if studio.isRecording {
-                    studio.stopRecording()
+                if viewModel.isRecording {
+                    viewModel.stopRecording()
                 } else {
-                    studio.beginRecording()
+                    viewModel.beginRecording()
                 }
             } label: {
-                TikTokRecordButton(isRecording: studio.isRecording)
+                TikTokRecordButton(isRecording: viewModel.isRecording)
             }
             .buttonStyle(.plain)
         }
