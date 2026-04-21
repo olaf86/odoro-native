@@ -21,7 +21,8 @@ final class SessionSettingsViewModel: ObservableObject {
     }
 
     var recordingSessionSummaryText: String {
-        studio.recordingSessionSummaryText
+        let bpm = Int(studio.recordingContext.bpm.rounded())
+        return "\(activeAudioSource.title) • \(bpm) BPM • \(selectedTimeSignature.title) • \(studio.recordingContext.targetBarCount) bars"
     }
 
     var captureMode: CaptureMode {
@@ -41,15 +42,18 @@ final class SessionSettingsViewModel: ObservableObject {
     }
 
     var selectedTimeSignature: TimeSignatureOption {
-        studio.selectedTimeSignature
+        TimeSignatureOption(
+            numerator: studio.recordingContext.timeSignatureNumerator,
+            denominator: studio.recordingContext.timeSignatureDenominator
+        )
     }
 
     var availableTimeSignatures: [TimeSignatureOption] {
-        studio.availableTimeSignatures
+        StudioSelectionOptions.timeSignatures
     }
 
     var fixedRecordingBarCountText: String {
-        studio.fixedRecordingBarCountText
+        "\(MotionRecordingContext.fixedCaptureBarCount) bars"
     }
 
     var countInBarCount: Int {
@@ -65,14 +69,26 @@ final class SessionSettingsViewModel: ObservableObject {
     }
 
     func updateBPM(_ bpm: Int) {
-        studio.updateBPM(Double(bpm))
+        studio.updateRecordingContext {
+            $0.bpm = Double(bpm)
+        }
     }
 
     func selectTimeSignature(_ option: TimeSignatureOption) {
-        studio.selectTimeSignature(option)
+        studio.updateRecordingContext {
+            $0.timeSignatureNumerator = option.numerator
+            $0.timeSignatureDenominator = option.denominator
+        }
     }
 
     func updateCountInBarCount(_ value: Int) {
-        studio.updateCountInBarCount(value)
+        studio.updateRecordingContext {
+            $0.countInBarCount = value
+        }
+    }
+
+    private var activeAudioSource: AudioSourceOption {
+        StudioSelectionOptions.audioSources.first(where: { $0.matches(studio.recordingContext) })
+            ?? StudioSelectionOptions.audioSources[0]
     }
 }

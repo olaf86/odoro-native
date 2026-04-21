@@ -21,11 +21,12 @@ final class MusicSelectionViewModel: ObservableObject {
     }
 
     var availableAudioSources: [AudioSourceOption] {
-        studio.availableAudioSources
+        StudioSelectionOptions.audioSources
     }
 
     var activeAudioSource: AudioSourceOption {
-        studio.activeAudioSource
+        StudioSelectionOptions.audioSources.first(where: { $0.matches(studio.recordingContext) })
+            ?? StudioSelectionOptions.audioSources[0]
     }
 
     func goBack() {
@@ -33,18 +34,39 @@ final class MusicSelectionViewModel: ObservableObject {
     }
 
     func canPreviewAudioSource(_ option: AudioSourceOption) -> Bool {
-        studio.canPreviewAudioSource(option)
+        option.supportsPreview
     }
 
     func isPreviewingAudioSource(_ option: AudioSourceOption) -> Bool {
-        studio.isPreviewingAudioSource(option)
+        studio.previewingAudioSourceID == option.id
     }
 
     func selectAudioSource(_ option: AudioSourceOption) {
-        studio.selectAudioSource(option)
+        if studio.previewingAudioSourceID != option.id {
+            studio.stopAudioPreview()
+        }
+
+        studio.updateRecordingContext {
+            $0.tempoSourceType = option.tempoSourceType
+            $0.audioAssetReference = option.audioAssetReference
+            if let preferredBPM = option.preferredBPM {
+                $0.bpm = preferredBPM
+            }
+        }
     }
 
     func toggleAudioPreview(for option: AudioSourceOption) {
-        studio.toggleAudioPreview(for: option)
+        guard option.supportsPreview else {
+            studio.showFeatureNotice("Preview audio for reference tracks is coming next.")
+            return
+        }
+
+        selectAudioSource(option)
+
+        if studio.previewingAudioSourceID == option.id {
+            studio.stopAudioPreview()
+        } else {
+            studio.startAudioPreview(for: option)
+        }
     }
 }

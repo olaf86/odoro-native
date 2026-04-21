@@ -13,8 +13,6 @@ extension StudioViewModel {
     var recordedFrameCount: Int { state.recordedFrameCount }
     var hasClip: Bool { state.hasClip }
     var availableCaptureModes: [CaptureMode] { supportedCaptureModes }
-    var availableTimeSignatures: [TimeSignatureOption] { StudioSelectionOptions.timeSignatures }
-    var availableAudioSources: [AudioSourceOption] { StudioSelectionOptions.audioSources }
     var hasSavedTakes: Bool { !currentSessionTakes.isEmpty }
     var hasCurrentTake: Bool { currentTake != nil }
     var hasLibraryClips: Bool { !libraryClips.isEmpty }
@@ -44,10 +42,6 @@ extension StudioViewModel {
             numerator: recordingContext.timeSignatureNumerator,
             denominator: recordingContext.timeSignatureDenominator
         )
-    }
-
-    var fixedRecordingBarCountText: String {
-        "\(MotionRecordingContext.fixedCaptureBarCount) bars"
     }
 
     var recordingSessionSummaryText: String {
