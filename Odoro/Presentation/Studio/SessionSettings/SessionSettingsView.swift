@@ -6,20 +6,24 @@
 import SwiftUI
 
 struct SessionSettingsView: View {
-    @ObservedObject var studio: StudioViewModel
+    @StateObject private var viewModel: SessionSettingsViewModel
 
     private let bpmRange = Array(stride(from: 60, through: 180, by: 2)).map { Int($0) }
+
+    init(studio: StudioViewModel) {
+        _viewModel = StateObject(wrappedValue: SessionSettingsViewModel(studio: studio))
+    }
 
     var body: some View {
         NavigationShell(
             title: "Recording Session",
             subtitle: "Move the setup controls out of capture so the camera stays clean.",
-            onBack: studio.goBack
+            onBack: viewModel.goBack
         ) {
             ScrollView(showsIndicators: false) {
                 VStack(spacing: 18) {
                     SettingsCard(title: "Session Overview", icon: "music.note.list") {
-                        Text(studio.recordingSessionSummaryText)
+                        Text(viewModel.recordingSessionSummaryText)
                             .font(.subheadline.weight(.medium))
                             .foregroundStyle(.white)
                     }
@@ -28,24 +32,24 @@ struct SessionSettingsView: View {
                         Picker(
                             "Capture Mode",
                             selection: Binding(
-                                get: { studio.captureMode },
-                                set: { studio.selectCaptureMode($0) }
+                                get: { viewModel.captureMode },
+                                set: { viewModel.selectCaptureMode($0) }
                             )
                         ) {
-                            ForEach(studio.availableCaptureModes) { mode in
+                            ForEach(viewModel.availableCaptureModes) { mode in
                                 Text(mode.title).tag(mode)
                             }
                         }
                         .pickerStyle(.segmented)
-                        .disabled(studio.isRecording)
+                        .disabled(viewModel.isRecording)
                     }
 
                     SettingsCard(title: "Tempo", icon: "metronome") {
                         Picker(
                             "BPM",
                             selection: Binding(
-                                get: { Int(studio.recordingContext.bpm.rounded()) },
-                                set: { studio.updateBPM(Double($0)) }
+                                get: { viewModel.bpm },
+                                set: { viewModel.updateBPM($0) }
                             )
                         ) {
                             ForEach(bpmRange, id: \.self) { bpm in
@@ -61,11 +65,11 @@ struct SessionSettingsView: View {
                         Picker(
                             "Meter",
                             selection: Binding(
-                                get: { studio.selectedTimeSignature },
-                                set: { studio.selectTimeSignature($0) }
+                                get: { viewModel.selectedTimeSignature },
+                                set: { viewModel.selectTimeSignature($0) }
                             )
                         ) {
-                            ForEach(studio.availableTimeSignatures) { option in
+                            ForEach(viewModel.availableTimeSignatures) { option in
                                 Text(option.title).tag(option)
                             }
                         }
@@ -74,7 +78,7 @@ struct SessionSettingsView: View {
 
                     SettingsCard(title: "Bars", icon: "rectangle.split.3x1") {
                         HStack {
-                            Text(studio.fixedRecordingBarCountText)
+                            Text(viewModel.fixedRecordingBarCountText)
                                 .font(.subheadline.weight(.semibold))
                                 .foregroundStyle(.white)
 
@@ -90,8 +94,8 @@ struct SessionSettingsView: View {
                         Picker(
                             "Count-In",
                             selection: Binding(
-                                get: { studio.recordingContext.countInBarCount },
-                                set: { studio.updateCountInBarCount($0) }
+                                get: { viewModel.countInBarCount },
+                                set: { viewModel.updateCountInBarCount($0) }
                             )
                         ) {
                             ForEach(0..<4, id: \.self) { bars in
@@ -108,7 +112,7 @@ struct SessionSettingsView: View {
         }
         .overlay(alignment: .bottom) {
             SwipeBackEdgeZone(direction: .up) {
-                studio.goBack()
+                viewModel.goBack()
             }
         }
     }

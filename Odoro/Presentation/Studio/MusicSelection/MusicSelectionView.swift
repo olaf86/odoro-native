@@ -6,26 +6,30 @@
 import SwiftUI
 
 struct MusicSelectionView: View {
-    @ObservedObject var studio: StudioViewModel
+    @StateObject private var viewModel: MusicSelectionViewModel
+
+    init(studio: StudioViewModel) {
+        _viewModel = StateObject(wrappedValue: MusicSelectionViewModel(studio: studio))
+    }
 
     var body: some View {
         NavigationShell(
             title: "Music Source",
             subtitle: "Choose the reference audio shown during capture.",
-            onBack: studio.goBack
+            onBack: viewModel.goBack
         ) {
             ScrollView(showsIndicators: false) {
                 VStack(spacing: 16) {
-                    ForEach(studio.availableAudioSources) { option in
+                    ForEach(viewModel.availableAudioSources) { option in
                         AudioSourceCard(
                             option: option,
-                            isSelected: studio.activeAudioSource.id == option.id,
-                            isPreviewAvailable: studio.canPreviewAudioSource(option),
-                            isPreviewing: studio.isPreviewingAudioSource(option)
+                            isSelected: viewModel.activeAudioSource.id == option.id,
+                            isPreviewAvailable: viewModel.canPreviewAudioSource(option),
+                            isPreviewing: viewModel.isPreviewingAudioSource(option)
                         ) {
-                            studio.selectAudioSource(option)
+                            viewModel.selectAudioSource(option)
                         } onPreview: {
-                            studio.toggleAudioPreview(for: option)
+                            viewModel.toggleAudioPreview(for: option)
                         }
                     }
                 }
@@ -36,7 +40,7 @@ struct MusicSelectionView: View {
         }
         .overlay(alignment: .trailing) {
             SwipeBackEdgeZone(direction: .left) {
-                studio.goBack()
+                viewModel.goBack()
             }
         }
     }
