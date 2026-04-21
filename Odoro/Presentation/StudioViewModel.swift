@@ -2,11 +2,8 @@
 //  StudioViewModel.swift
 //
 
-import ARKit
 import Combine
 import Foundation
-import RealityKit
-import UIKit
 
 struct TimeSignatureOption: Identifiable, Hashable {
     var numerator: Int
@@ -217,8 +214,8 @@ final class StudioViewModel: ObservableObject {
     private var source: MotionSource
     private var interactor: MotionStudioInteractor
     private let stageRenderer = StagePlaybackRenderer()
-    private weak var attachedCaptureARView: ARView?
-    private weak var attachedFrontPreviewView: UIView?
+    private var captureSourceAttachment: ((MotionSource) -> Void)?
+    private var frontCaptureSourceAttachment: ((MotionSource) -> Void)?
     private var currentSessionID: UUID?
     private var swipeHintDismissTask: Task<Void, Never>?
     private var transientMessageDismissTask: Task<Void, Never>?
@@ -230,9 +227,9 @@ final class StudioViewModel: ObservableObject {
         avatarAssetStore: AvatarAssetStore? = nil,
         motionSourceFactory: ((CaptureMode) -> MotionSource)? = nil
     ) {
-        let modes = Self.makeSupportedCaptureModes()
+        let modes = StudioMotionSourceFactory.makeSupportedCaptureModes()
         let initialMode = Self.defaultCaptureMode(from: modes)
-        let resolvedMotionSourceFactory = motionSourceFactory ?? Self.makeMotionSource
+        let resolvedMotionSourceFactory = motionSourceFactory ?? StudioMotionSourceFactory.makeMotionSource
         let source = resolvedMotionSourceFactory(initialMode)
         let normalizedRecordingContext = Self.normalizedRecordingContext(recordingContext ?? .defaultMetronomeLoop)
 
@@ -389,22 +386,22 @@ final class StudioViewModel: ObservableObject {
         navigate(to: .capture, transition: .fromTrailing)
     }
 
-    func attachCaptureView(_ view: ARView) {
-        attachedCaptureARView = view
-        (source as? ARKitMotionSource)?.attach(to: view)
+    func attachCaptureSource(using attachment: @escaping (MotionSource) -> Void) {
+        captureSourceAttachment = attachment
+        attachment(source)
     }
 
-    func attachFrontCaptureView(_ view: UIView) {
-        attachedFrontPreviewView = view
-        (source as? VisionFrontCameraMotionSource)?.attachPreview(to: view)
+    func attachFrontCaptureSource(using attachment: @escaping (MotionSource) -> Void) {
+        frontCaptureSourceAttachment = attachment
+        attachment(source)
     }
 
-    func updateFrontCapturePreview(in view: UIView) {
-        (source as? VisionFrontCameraMotionSource)?.updatePreviewFrame(to: view.bounds)
+    func updateFrontCaptureSource(using update: (MotionSource) -> Void) {
+        update(source)
     }
 
-    func attachStageView(_ view: ARView) {
-        stageRenderer.attach(to: view)
+    func attachStageRenderer(using attachment: (StagePlaybackRenderer) -> Void) {
+        attachment(stageRenderer)
         stageRenderer.setAvatarOption(selectedAvatarOption)
         stageRenderer.setClip(interactor.currentClip)
     }
@@ -711,13 +708,8 @@ final class StudioViewModel: ObservableObject {
     }
 
     private func attachCurrentSourceIfPossible() {
-        if let arView = attachedCaptureARView {
-            (source as? ARKitMotionSource)?.attach(to: arView)
-        }
-
-        if let previewView = attachedFrontPreviewView {
-            (source as? VisionFrontCameraMotionSource)?.attachPreview(to: previewView)
-        }
+        captureSourceAttachment?(source)
+        frontCaptureSourceAttachment?(source)
     }
 
     private func navigate(to screen: StudioScreen, transition: StudioScreenTransition) {
@@ -733,41 +725,8 @@ final class StudioViewModel: ObservableObject {
         self.screenTransition = transition
     }
 
-    private static func makeSupportedCaptureModes() -> [CaptureMode] {
-        var modes: [CaptureMode] = []
-
-        #if targetEnvironment(simulator)
-        modes = [.mock]
-        #else
-        if ARBodyTrackingConfiguration.isSupported {
-            modes.append(.rearBody3D)
-        }
-
-        if VisionFrontCameraMotionSource().isSupported {
-            modes.append(.frontUpperBody)
-        }
-
-        modes.append(.mock)
-        #endif
-
-        return modes
-    }
-
     private static func defaultCaptureMode(from modes: [CaptureMode]) -> CaptureMode {
         modes.first ?? .mock
-    }
-
-    private static func makeMotionSource(for mode: CaptureMode) -> MotionSource {
-        switch mode {
-        case .rearBody3D:
-            ARKitMotionSource()
-        case .frontUpperBody:
-            VisionFrontCameraMotionSource()
-        case .importedVideo:
-            MockMotionSource()
-        case .mock:
-            MockMotionSource()
-        }
     }
 
     private static func normalizedRecordingContext(_ context: MotionRecordingContext) -> MotionRecordingContext {

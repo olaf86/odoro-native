@@ -24,7 +24,9 @@ struct MotionCaptureARView: UIViewRepresentable {
 
     func makeUIView(context: Context) -> ARView {
         let view = ARView(frame: .zero, cameraMode: .ar, automaticallyConfigureSession: false)
-        studio.attachCaptureView(view)
+        studio.attachCaptureSource { source in
+            (source as? ARKitMotionSource)?.attach(to: view)
+        }
         return view
     }
 
@@ -37,12 +39,16 @@ struct FrontCameraCaptureView: UIViewRepresentable {
     func makeUIView(context: Context) -> UIView {
         let view = UIView(frame: .zero)
         view.backgroundColor = .black
-        studio.attachFrontCaptureView(view)
+        studio.attachFrontCaptureSource { source in
+            (source as? VisionFrontCameraMotionSource)?.attachPreview(to: view)
+        }
         return view
     }
 
     func updateUIView(_ uiView: UIView, context: Context) {
-        studio.updateFrontCapturePreview(in: uiView)
+        studio.updateFrontCaptureSource { source in
+            (source as? VisionFrontCameraMotionSource)?.updatePreviewFrame(to: uiView.bounds)
+        }
     }
 }
 
@@ -51,7 +57,9 @@ struct StagePlaybackView: UIViewRepresentable {
 
     func makeUIView(context: Context) -> ARView {
         let view = ARView(frame: .zero, cameraMode: .nonAR, automaticallyConfigureSession: false)
-        studio.attachStageView(view)
+        studio.attachStageRenderer { renderer in
+            renderer.attach(to: view)
+        }
         return view
     }
 
