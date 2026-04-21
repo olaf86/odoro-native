@@ -1,0 +1,125 @@
+//
+//  ModelSelectionView.swift
+//  Odoro
+//
+
+import SwiftUI
+import UniformTypeIdentifiers
+
+struct ModelSelectionView: View {
+    @ObservedObject var studio: StudioViewModel
+    @State private var isAvatarImportPickerPresented = false
+
+    var body: some View {
+        NavigationShell(
+            title: "Model Selection",
+            subtitle: "Swipe down from playback to switch how the motion is visualized.",
+            trailing: {
+                Button {
+                    isAvatarImportPickerPresented = true
+                } label: {
+                    Label("Import GLB", systemImage: "square.and.arrow.down.on.square")
+                        .font(.footnote.weight(.semibold))
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 10)
+                        .background(Color.white.opacity(0.12), in: Capsule())
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.white)
+                .disabled(studio.isImportingAvatar)
+            },
+            onBack: studio.goBack
+        ) {
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 16) {
+                    ForEach(studio.availableAvatarOptions) { option in
+                        AvatarStyleCard(
+                            option: option,
+                            isSelected: studio.selectedAvatarOption.selection == option.selection
+                        ) {
+                            studio.selectAvatarOption(option)
+                        }
+                    }
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 4)
+                .padding(.bottom, 52)
+            }
+        }
+        .overlay(alignment: .bottom) {
+            SwipeBackEdgeZone(direction: .up) {
+                studio.goBack()
+            }
+        }
+        .fileImporter(
+            isPresented: $isAvatarImportPickerPresented,
+            allowedContentTypes: [UTType(filenameExtension: "glb") ?? .data],
+            allowsMultipleSelection: false
+        ) { result in
+            switch result {
+            case let .success(urls):
+                guard let url = urls.first else { return }
+                studio.importAvatar(from: url)
+            case let .failure(error):
+                studio.showFeatureNotice("Avatar import failed: \(error.localizedDescription)")
+            }
+        }
+    }
+}
+
+private struct AvatarStyleCard: View {
+    let option: StageAvatarOption
+    let isSelected: Bool
+    let onSelect: () -> Void
+
+    var body: some View {
+        Button(action: onSelect) {
+            HStack(alignment: .top, spacing: 14) {
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .fill(LinearGradient(
+                        colors: isSelected
+                            ? [Color.red.opacity(0.9), Color.orange.opacity(0.9)]
+                            : [Color.white.opacity(0.12), Color.white.opacity(0.06)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ))
+                    .frame(width: 92, height: 92)
+                    .overlay {
+                        Image(systemName: option.systemImageName)
+                            .font(.largeTitle)
+                            .foregroundStyle(.white)
+                    }
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(option.titleText)
+                        .font(.headline.weight(.semibold))
+                        .foregroundStyle(.white)
+
+                    Text(option.subtitle)
+                        .font(.footnote)
+                        .foregroundStyle(Color.white.opacity(0.72))
+
+                    HStack(spacing: 8) {
+                        Text(isSelected ? "Selected" : "Tap to use this view")
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(isSelected ? Color.orange.opacity(0.9) : Color.white.opacity(0.54))
+
+                        if let badgeText = option.badgeText {
+                            Text(badgeText)
+                                .font(.caption2.weight(.semibold))
+                                .foregroundStyle(Color.white.opacity(0.82))
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(Color.white.opacity(0.12), in: Capsule())
+                        }
+                    }
+                }
+
+                Spacer(minLength: 0)
+            }
+            .padding(18)
+            .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+        }
+        .buttonStyle(.plain)
+    }
+}
