@@ -6,17 +6,21 @@
 import SwiftUI
 
 struct ArchiveExperienceView: View {
-    @ObservedObject var studio: StudioViewModel
+    @StateObject private var viewModel: ArchiveViewModel
+
+    init(studio: StudioViewModel) {
+        _viewModel = StateObject(wrappedValue: ArchiveViewModel(studio: studio))
+    }
 
     var body: some View {
         NavigationShell(
             title: "Archive",
             subtitle: "This will grow into the sharing and multi-motion composition workspace.",
-            onBack: studio.goBack
+            onBack: viewModel.goBack
         ) {
             ScrollView(showsIndicators: false) {
                 VStack(spacing: 18) {
-                    ArchiveHeroCard(studio: studio)
+                    ArchiveHeroCard(viewModel: viewModel)
 
                     PlaceholderPanel(
                         title: "Share-ready layout",
@@ -35,30 +39,30 @@ struct ArchiveExperienceView: View {
         }
         .overlay(alignment: .trailing) {
             SwipeBackEdgeZone(direction: .left) {
-                studio.goBack()
+                viewModel.goBack()
             }
         }
     }
 }
 
 private struct ArchiveHeroCard: View {
-    @ObservedObject var studio: StudioViewModel
+    @ObservedObject var viewModel: ArchiveViewModel
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text(studio.currentClipTitle)
+            Text(viewModel.currentClipTitle)
                 .font(.title3.weight(.bold))
                 .foregroundStyle(.white)
 
-            Text(studio.currentClipSubtitle)
+            Text(viewModel.currentClipSubtitle)
                 .font(.footnote)
                 .foregroundStyle(Color.white.opacity(0.72))
 
             HStack(spacing: 10) {
-                InfoChip(text: studio.selectedAvatarOption.titleText, systemImage: "cube.transparent")
-                InfoChip(text: studio.clipDurationText, systemImage: "timer")
+                InfoChip(text: viewModel.selectedAvatarTitle, systemImage: "cube.transparent")
+                InfoChip(text: viewModel.clipDurationText, systemImage: "timer")
 
-                if studio.isCurrentTakeAccepted {
+                if viewModel.isCurrentTakeAccepted {
                     InfoChip(text: "Approved Take", systemImage: "checkmark.seal.fill")
                 }
             }

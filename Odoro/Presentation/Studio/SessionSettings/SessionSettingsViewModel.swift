@@ -30,11 +30,11 @@ final class SessionSettingsViewModel: ObservableObject {
     }
 
     var availableCaptureModes: [CaptureMode] {
-        studio.availableCaptureModes
+        studio.supportedCaptureModes
     }
 
     var isRecording: Bool {
-        studio.isRecording
+        studio.state.isRecording
     }
 
     var bpm: Int {

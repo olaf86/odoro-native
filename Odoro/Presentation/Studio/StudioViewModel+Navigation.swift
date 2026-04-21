@@ -45,7 +45,7 @@ extension StudioViewModel {
     }
 
     func openModelSelection() {
-        guard hasClip else { return }
+        guard state.hasClip else { return }
         navigate(to: .modelSelection, transition: .fromTop)
     }
 

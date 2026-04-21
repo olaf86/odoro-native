@@ -7,7 +7,7 @@ import Foundation
 
 extension StudioViewModel {
     func saveCurrentClipToArchive() {
-        guard hasClip else { return }
+        guard state.hasClip else { return }
         confirmCurrentTake()
         refreshLibrary()
         navigate(to: .archive, transition: .fromLeading)
@@ -210,6 +210,14 @@ extension StudioViewModel {
             print("Failed to fetch clip library: \(error)")
             libraryClips = []
         }
+    }
+
+    var currentTake: MotionTakeSummary? {
+        guard let currentTakeID else {
+            return currentSessionTakes.first
+        }
+
+        return currentSessionTakes.first { $0.id == currentTakeID } ?? currentSessionTakes.first
     }
 }
 

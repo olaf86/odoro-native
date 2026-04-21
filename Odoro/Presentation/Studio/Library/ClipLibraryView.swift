@@ -7,8 +7,12 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 struct ClipLibraryView: View {
-    @ObservedObject var studio: StudioViewModel
+    @StateObject private var viewModel: ClipLibraryViewModel
     @State private var isImportPickerPresented = false
+
+    init(studio: StudioViewModel) {
+        _viewModel = StateObject(wrappedValue: ClipLibraryViewModel(studio: studio))
+    }
 
     var body: some View {
         NavigationShell(
@@ -26,18 +30,18 @@ struct ClipLibraryView: View {
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(.white)
-                .disabled(!studio.canImportVideo)
+                .disabled(!viewModel.canImportVideo)
             },
-            onBack: studio.goBack
+            onBack: viewModel.goBack
         ) {
             ScrollView(showsIndicators: false) {
                 VStack(spacing: 16) {
-                    if studio.hasLibraryClips {
-                        ForEach(studio.libraryClips) { clip in
+                    if viewModel.hasLibraryClips {
+                        ForEach(viewModel.libraryClips) { clip in
                             ClipLibraryCard(
                                 clip: clip,
-                                onRename: { studio.renameClip(clip, to: $0) },
-                                onOpen: { studio.openTakeFromLibrary(clip) }
+                                onRename: { viewModel.renameClip(clip, to: $0) },
+                                onOpen: { viewModel.openTakeFromLibrary(clip) }
                             )
                         }
                     } else {
@@ -54,7 +58,7 @@ struct ClipLibraryView: View {
         }
         .overlay(alignment: .leading) {
             SwipeBackEdgeZone(direction: .right) {
-                studio.goBack()
+                viewModel.goBack()
             }
         }
         .fileImporter(
@@ -66,10 +70,10 @@ struct ClipLibraryView: View {
             case let .success(urls):
                 guard let url = urls.first else { return }
                 Task {
-                    await studio.importVideo(from: url)
+                    await viewModel.importVideo(from: url)
                 }
             case let .failure(error):
-                studio.reportVideoImportFailure(error)
+                viewModel.reportVideoImportFailure(error)
             }
         }
     }

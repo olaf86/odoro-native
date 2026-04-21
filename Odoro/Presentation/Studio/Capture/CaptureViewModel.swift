@@ -41,7 +41,7 @@ final class CaptureViewModel: ObservableObject {
     }
 
     var currentClipTitle: String {
-        studio.currentTake?.clipName ?? "Current Clip"
+        currentTake?.clipName ?? "Current Clip"
     }
 
     var captureModeTitle: String {
@@ -116,6 +116,14 @@ final class CaptureViewModel: ObservableObject {
     private var activeAudioSource: AudioSourceOption {
         StudioSelectionOptions.audioSources.first(where: { $0.matches(studio.recordingContext) })
             ?? StudioSelectionOptions.audioSources[0]
+    }
+
+    private var currentTake: MotionTakeSummary? {
+        guard let currentTakeID = studio.currentTakeID else {
+            return studio.currentSessionTakes.first
+        }
+
+        return studio.currentSessionTakes.first { $0.id == currentTakeID } ?? studio.currentSessionTakes.first
     }
 
     private var selectedTimeSignature: TimeSignatureOption {

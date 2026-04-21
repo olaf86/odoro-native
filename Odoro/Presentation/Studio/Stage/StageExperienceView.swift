@@ -6,7 +6,13 @@
 import SwiftUI
 
 struct StageExperienceView: View {
-    @ObservedObject var studio: StudioViewModel
+    private let studio: StudioViewModel
+    @StateObject private var viewModel: StageViewModel
+
+    init(studio: StudioViewModel) {
+        self.studio = studio
+        _viewModel = StateObject(wrappedValue: StageViewModel(studio: studio))
+    }
 
     var body: some View {
         ZStack {
@@ -18,22 +24,22 @@ struct StageExperienceView: View {
             }
         }
         .safeAreaInset(edge: .top, spacing: 0) {
-            StageHeader(studio: studio)
+            StageHeader(viewModel: viewModel)
                 .padding(.horizontal, 16)
                 .padding(.top, 14)
                 .padding(.bottom, 10)
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            StageBottomBar(studio: studio)
+            StageBottomBar(viewModel: viewModel)
                 .padding(.horizontal, 20)
                 .padding(.top, 12)
                 .padding(.bottom, 18)
         }
         .onAppear {
-            studio.prepareStagePlayback()
+            viewModel.prepareStagePlayback()
         }
         .onDisappear {
-            studio.pausePlayback()
+            viewModel.pausePlayback()
         }
         .simultaneousGesture(stageSwipeGesture)
     }
@@ -42,18 +48,18 @@ struct StageExperienceView: View {
         DragGesture(minimumDistance: 36, coordinateSpace: .local)
             .onEnded { value in
                 if value.translation.height > 70 {
-                    studio.openModelSelection()
+                    viewModel.openModelSelection()
                 }
             }
     }
 }
 
 private struct StageHeader: View {
-    @ObservedObject var studio: StudioViewModel
+    @ObservedObject var viewModel: StageViewModel
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            Button(action: studio.goBack) {
+            Button(action: viewModel.goBack) {
                 Image(systemName: "chevron.left")
                     .font(.headline.weight(.semibold))
                     .frame(width: 42, height: 42)
@@ -63,18 +69,18 @@ private struct StageHeader: View {
             .foregroundStyle(.white)
 
             VStack(alignment: .leading, spacing: 5) {
-                Text(studio.currentClipTitle)
+                Text(viewModel.currentClipTitle)
                     .font(.headline.weight(.semibold))
                     .foregroundStyle(.white)
 
-                Text(studio.currentClipSubtitle)
+                Text(viewModel.currentClipSubtitle)
                     .font(.footnote)
                     .foregroundStyle(Color.white.opacity(0.72))
             }
 
             Spacer(minLength: 0)
 
-            CapturePill(text: studio.selectedAvatarOption.titleText, systemImage: "cube.transparent")
+            CapturePill(text: viewModel.selectedAvatarTitle, systemImage: "cube.transparent")
         }
         .padding(16)
         .background(Color.black.opacity(0.24), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
@@ -82,7 +88,7 @@ private struct StageHeader: View {
 }
 
 private struct StageBottomBar: View {
-    @ObservedObject var studio: StudioViewModel
+    @ObservedObject var viewModel: StageViewModel
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -92,26 +98,26 @@ private struct StageBottomBar: View {
 
             HStack(spacing: 12) {
                 Button {
-                    studio.togglePlayback()
+                    viewModel.togglePlayback()
                 } label: {
-                    Label(studio.isPlaying ? "Pause" : "Play", systemImage: studio.isPlaying ? "pause.fill" : "play.fill")
+                    Label(viewModel.isPlaying ? "Pause" : "Play", systemImage: viewModel.isPlaying ? "pause.fill" : "play.fill")
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(StageActionButtonStyle(fill: Color.white.opacity(0.16)))
-                .disabled(!studio.hasClip)
+                .disabled(!viewModel.hasClip)
 
                 Button {
-                    studio.saveCurrentClipToArchive()
+                    viewModel.saveCurrentClipToArchive()
                 } label: {
                     Label("Save", systemImage: "arrow.right")
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(StageActionButtonStyle(fill: Color.red.opacity(0.88)))
-                .disabled(!studio.hasClip)
+                .disabled(!viewModel.hasClip)
             }
 
             Button {
-                studio.returnToCapture()
+                viewModel.returnToCapture()
             } label: {
                 Text("Record Again")
                     .font(.footnote.weight(.semibold))
