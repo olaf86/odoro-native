@@ -58,17 +58,15 @@ extension StudioViewModel {
     }
 
     func attachCaptureView(_ view: ARView) {
-        attachedCaptureARView = view
-        (source as? ARKitMotionSource)?.attach(to: view)
+        capturePreviewAttachments.attachCaptureView(view, to: source)
     }
 
     func attachFrontCaptureView(_ view: UIView) {
-        attachedFrontPreviewView = view
-        (source as? VisionFrontCameraMotionSource)?.attachPreview(to: view)
+        capturePreviewAttachments.attachFrontPreviewView(view, to: source)
     }
 
     func updateFrontCapturePreview(in view: UIView) {
-        (source as? VisionFrontCameraMotionSource)?.updatePreviewFrame(to: view.bounds)
+        capturePreviewAttachments.updateFrontPreviewFrame(in: view, source: source)
     }
 
     func prepareCapturePreviewIfNeeded() {
@@ -88,13 +86,7 @@ extension StudioViewModel {
     }
 
     func attachCurrentSourceIfPossible() {
-        if let arView = attachedCaptureARView {
-            (source as? ARKitMotionSource)?.attach(to: arView)
-        }
-
-        if let previewView = attachedFrontPreviewView {
-            (source as? VisionFrontCameraMotionSource)?.attachPreview(to: previewView)
-        }
+        capturePreviewAttachments.attachCurrentSourceIfPossible(source)
     }
 
     static func makeSupportedCaptureModes() -> [CaptureMode] {

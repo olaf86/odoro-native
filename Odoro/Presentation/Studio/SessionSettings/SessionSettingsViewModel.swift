@@ -21,8 +21,7 @@ final class SessionSettingsViewModel: ObservableObject {
     }
 
     var recordingSessionSummaryText: String {
-        let bpm = Int(studio.recordingContext.bpm.rounded())
-        return "\(activeAudioSource.title) • \(bpm) BPM • \(selectedTimeSignature.title) • \(studio.recordingContext.targetBarCount) bars"
+        StudioSelectionOptions.sessionSummaryText(for: studio.recordingContext)
     }
 
     var captureMode: CaptureMode {
@@ -42,10 +41,7 @@ final class SessionSettingsViewModel: ObservableObject {
     }
 
     var selectedTimeSignature: TimeSignatureOption {
-        TimeSignatureOption(
-            numerator: studio.recordingContext.timeSignatureNumerator,
-            denominator: studio.recordingContext.timeSignatureDenominator
-        )
+        StudioSelectionOptions.timeSignature(for: studio.recordingContext)
     }
 
     var availableTimeSignatures: [TimeSignatureOption] {
@@ -87,8 +83,4 @@ final class SessionSettingsViewModel: ObservableObject {
         }
     }
 
-    private var activeAudioSource: AudioSourceOption {
-        StudioSelectionOptions.audioSources.first(where: { $0.matches(studio.recordingContext) })
-            ?? StudioSelectionOptions.audioSources[0]
-    }
 }

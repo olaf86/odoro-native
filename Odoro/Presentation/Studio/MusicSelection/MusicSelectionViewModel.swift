@@ -25,8 +25,7 @@ final class MusicSelectionViewModel: ObservableObject {
     }
 
     var activeAudioSource: AudioSourceOption {
-        StudioSelectionOptions.audioSources.first(where: { $0.matches(studio.recordingContext) })
-            ?? StudioSelectionOptions.audioSources[0]
+        StudioSelectionOptions.audioSource(matching: studio.recordingContext)
     }
 
     func goBack() {

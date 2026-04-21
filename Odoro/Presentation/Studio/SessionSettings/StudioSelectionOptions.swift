@@ -74,4 +74,22 @@ enum StudioSelectionOptions {
             preferredBPM: 132
         ),
     ]
+
+    static func audioSource(matching context: MotionRecordingContext) -> AudioSourceOption {
+        audioSources.first(where: { $0.matches(context) }) ?? audioSources[0]
+    }
+
+    static func timeSignature(for context: MotionRecordingContext) -> TimeSignatureOption {
+        TimeSignatureOption(
+            numerator: context.timeSignatureNumerator,
+            denominator: context.timeSignatureDenominator
+        )
+    }
+
+    static func sessionSummaryText(for context: MotionRecordingContext) -> String {
+        let audioSource = audioSource(matching: context)
+        let bpm = Int(context.bpm.rounded())
+        let timeSignature = timeSignature(for: context)
+        return "\(audioSource.title) • \(bpm) BPM • \(timeSignature.title) • \(context.targetBarCount) bars"
+    }
 }

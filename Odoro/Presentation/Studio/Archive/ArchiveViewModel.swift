@@ -58,14 +58,6 @@ final class ArchiveViewModel: ObservableObject {
     }
 
     private var recordingSessionSummaryText: String {
-        let bpm = Int(studio.recordingContext.bpm.rounded())
-        return "\(studio.activeAudioSource.title) • \(bpm) BPM • \(selectedTimeSignature.title) • \(studio.recordingContext.targetBarCount) bars"
-    }
-
-    private var selectedTimeSignature: TimeSignatureOption {
-        TimeSignatureOption(
-            numerator: studio.recordingContext.timeSignatureNumerator,
-            denominator: studio.recordingContext.timeSignatureDenominator
-        )
+        StudioSelectionOptions.sessionSummaryText(for: studio.recordingContext)
     }
 }

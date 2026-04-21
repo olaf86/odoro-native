@@ -2,29 +2,39 @@
 //  StudioViewModel.swift
 //
 
-import ARKit
 import Combine
 import Foundation
-import RealityKit
-import UIKit
 
 @MainActor
 final class StudioViewModel: ObservableObject {
+    // MARK: - Published State
+
     @Published var state = MotionStudioState()
     @Published var captureMode: CaptureMode
     @Published var recordingContext: MotionRecordingContext
     @Published var currentSessionTakes: [MotionTakeSummary] = []
     @Published var libraryClips: [MotionTakeSummary] = []
     @Published var currentTakeID: UUID?
+
+    // MARK: - Navigation
+
     @Published var screen: StudioScreen = .capture
     @Published var screenTransition: StudioScreenTransition = .fromTrailing
     @Published var swipeHintsVisible = false
+
+    // MARK: - Stage Assets
+
     @Published var availableAvatarOptions: [StageAvatarOption] = AvatarCatalog.builtInStageOptions
     @Published var selectedAvatarOption: StageAvatarOption = AvatarCatalog.defaultOption
+
+    // MARK: - Transient UI
+
     @Published var transientMessage: String?
     @Published var isImportingVideo = false
     @Published var isImportingAvatar = false
     @Published var previewingAudioSourceID: String?
+
+    // MARK: - Dependencies
 
     let supportedCaptureModes: [CaptureMode]
     let videoImporter = VideoMotionImporter()
@@ -33,14 +43,18 @@ final class StudioViewModel: ObservableObject {
     let archiveStore: MotionArchiveStore?
     let avatarAssetStore: AvatarAssetStore
     let motionSourceFactory: (CaptureMode) -> MotionSource
+
+    // MARK: - Runtime Collaborators
+
     var source: MotionSource
     var interactor: MotionStudioInteractor
     let stageRenderer = StagePlaybackRenderer()
-    weak var attachedCaptureARView: ARView?
-    weak var attachedFrontPreviewView: UIView?
+    var capturePreviewAttachments = CapturePreviewAttachments()
     var currentSessionID: UUID?
     var swipeHintDismissTask: Task<Void, Never>?
     var transientMessageDismissTask: Task<Void, Never>?
+
+    // MARK: - Initialization
 
     init(
         archiveStore: MotionArchiveStore? = nil,
@@ -73,6 +87,8 @@ final class StudioViewModel: ObservableObject {
         refreshAvatarLibrary()
     }
 
+    // MARK: - Interactor Binding
+
     func configureForCurrentSource() {
         stageRenderer.setUsesProceduralMockPlayback(source is MockMotionSource)
         stageRenderer.setAvatarOption(selectedAvatarOption)
@@ -104,6 +120,8 @@ final class StudioViewModel: ObservableObject {
             navigate(to: .stage, transition: .fromLeading)
         }
     }
+
+    // MARK: - Defaults
 
     static func defaultCaptureMode(from modes: [CaptureMode]) -> CaptureMode {
         modes.first ?? .mock

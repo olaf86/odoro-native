@@ -114,8 +114,7 @@ final class CaptureViewModel: ObservableObject {
     }
 
     private var activeAudioSource: AudioSourceOption {
-        StudioSelectionOptions.audioSources.first(where: { $0.matches(studio.recordingContext) })
-            ?? StudioSelectionOptions.audioSources[0]
+        StudioSelectionOptions.audioSource(matching: studio.recordingContext)
     }
 
     private var currentTake: MotionTakeSummary? {
@@ -127,10 +126,7 @@ final class CaptureViewModel: ObservableObject {
     }
 
     private var selectedTimeSignature: TimeSignatureOption {
-        TimeSignatureOption(
-            numerator: studio.recordingContext.timeSignatureNumerator,
-            denominator: studio.recordingContext.timeSignatureDenominator
-        )
+        StudioSelectionOptions.timeSignature(for: studio.recordingContext)
     }
 
     private var targetBeatCount: Int {
