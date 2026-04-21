@@ -1,0 +1,219 @@
+//
+//  StudioViewModel+Library.swift
+//  Odoro
+//
+
+import Foundation
+
+extension StudioViewModel {
+    func saveCurrentClipToArchive() {
+        guard hasClip else { return }
+        confirmCurrentTake()
+        refreshLibrary()
+        navigate(to: .archive, transition: .fromLeading)
+    }
+
+    func loadTake(_ take: MotionTakeSummary) {
+        guard let archiveStore else { return }
+
+        do {
+            if let sessionSummary = try archiveStore.fetchSessionSummary(withID: take.sessionID) {
+                recordingContext = Self.normalizedRecordingContext(sessionSummary.recordingContext)
+                interactor.updateMaximumCaptureDuration(recordingContext.fixedCaptureDuration)
+            }
+
+            let clip = try archiveStore.loadClip(fromLocalFilePath: take.localFilePath)
+            currentSessionID = take.sessionID
+            currentTakeID = take.id
+            stageRenderer.setUsesProceduralMockPlayback(take.captureMode == .mock)
+            interactor.replaceCurrentClip(clip)
+            try refreshCurrentSessionTakes()
+            interactor.enterStageMode()
+        } catch {
+            print("Failed to load motion take: \(error)")
+        }
+    }
+
+    func openTakeFromLibrary(_ take: MotionTakeSummary) {
+        loadTake(take)
+        navigate(to: .stage, transition: .fromLeading)
+    }
+
+    func renameClip(_ take: MotionTakeSummary, to clipName: String) {
+        guard let archiveStore else { return }
+
+        do {
+            try archiveStore.renameTake(withID: take.id, clipName: clipName)
+            try refreshCurrentSessionTakes()
+            refreshLibrary()
+        } catch {
+            print("Failed to rename clip: \(error)")
+        }
+    }
+
+    func reportVideoImportFailure(_ error: Error) {
+        let message = L10n.statusVideoImportFailed(error.localizedDescription)
+        interactor.setStatusText(message)
+        showFeatureNotice(message)
+    }
+
+    func importVideo(from url: URL) async {
+        guard
+            let archiveStore,
+            !state.isRecording,
+            !isImportingVideo
+        else {
+            return
+        }
+
+        isImportingVideo = true
+        stageRenderer.pause()
+        interactor.setPlaybackActive(false)
+        interactor.setStatusText(L10n.statusVideoImportAnalyzing)
+        showFeatureNotice(L10n.statusVideoImportAnalyzing)
+
+        let hasSecurityScopedAccess = url.startAccessingSecurityScopedResource()
+
+        defer {
+            if hasSecurityScopedAccess {
+                url.stopAccessingSecurityScopedResource()
+            }
+            isImportingVideo = false
+        }
+
+        do {
+            let clip = try await videoImporter.importClip(
+                from: url,
+                maximumDuration: maximumImportedVideoDuration
+            )
+
+            guard clip.frameCount > 1 else {
+                let message = L10n.statusVideoImportNoMotion
+                interactor.setStatusText(message)
+                showFeatureNotice(message)
+                return
+            }
+
+            let normalizedClip = clip.normalizedForStage()
+            let saveResult = try archiveStore.saveTake(
+                clip: normalizedClip,
+                captureMode: .importedVideo,
+                recordingContext: recordingContext,
+                existingSessionID: currentSessionID
+            )
+
+            currentSessionID = saveResult.sessionID
+            currentTakeID = saveResult.takeID
+            let savedClip = try archiveStore.loadClip(fromLocalFilePath: saveResult.localFilePath)
+            stageRenderer.setUsesProceduralMockPlayback(false)
+            interactor.replaceCurrentClip(savedClip)
+            try refreshCurrentSessionTakes()
+            refreshLibrary()
+            interactor.setStatusText(L10n.statusVideoImportComplete)
+            interactor.enterStageMode()
+        } catch {
+            reportVideoImportFailure(error)
+        }
+    }
+
+    func confirmCurrentTake() {
+        do {
+            let takeToConfirm = try ensureCurrentTakeForConfirmation()
+            try archiveStore?.acceptTake(withID: takeToConfirm.id, inSessionID: takeToConfirm.sessionID)
+            try refreshCurrentSessionTakes()
+            refreshLibrary()
+        } catch {
+            print("Failed to confirm motion take: \(error)")
+        }
+    }
+
+    func persistCurrentClipIfPossible() {
+        guard
+            let currentClip = interactor.currentClip
+        else {
+            return
+        }
+
+        do {
+            try persistClip(currentClip, captureMode: captureMode)
+        } catch {
+            print("Failed to persist motion take: \(error)")
+        }
+    }
+
+    func persistClip(_ clip: MotionClip, captureMode: CaptureMode) throws {
+        guard let archiveStore else {
+            return
+        }
+
+        let saveResult = try archiveStore.saveTake(
+            clip: clip,
+            captureMode: captureMode,
+            recordingContext: recordingContext,
+            existingSessionID: currentSessionID
+        )
+        currentSessionID = saveResult.sessionID
+        currentTakeID = saveResult.takeID
+        let savedClip = try archiveStore.loadClip(fromLocalFilePath: saveResult.localFilePath)
+        stageRenderer.setUsesProceduralMockPlayback(captureMode == .mock)
+        interactor.replaceCurrentClip(savedClip)
+        try refreshCurrentSessionTakes()
+    }
+
+    func ensureCurrentTakeForConfirmation() throws -> MotionTakeSummary {
+        if let currentTake {
+            return currentTake
+        }
+
+        guard
+            let archiveStore,
+            let currentClip = interactor.currentClip
+        else {
+            throw ConfirmationError.missingClip
+        }
+
+        let saveResult = try archiveStore.saveTake(
+            clip: currentClip,
+            captureMode: captureMode,
+            recordingContext: recordingContext,
+            existingSessionID: currentSessionID
+        )
+        currentSessionID = saveResult.sessionID
+        currentTakeID = saveResult.takeID
+        try refreshCurrentSessionTakes()
+
+        guard let persistedTake = currentTake else {
+            throw ConfirmationError.missingTakeAfterSave
+        }
+
+        return persistedTake
+    }
+
+    func refreshCurrentSessionTakes() throws {
+        guard let archiveStore, let currentSessionID else {
+            currentSessionTakes = []
+            return
+        }
+
+        currentSessionTakes = try archiveStore.fetchTakeSummaries(inSessionID: currentSessionID)
+    }
+
+    func refreshLibrary() {
+        guard let archiveStore else {
+            libraryClips = []
+            return
+        }
+
+        do {
+            libraryClips = try archiveStore.fetchAllTakeSummaries()
+        } catch {
+            print("Failed to fetch clip library: \(error)")
+            libraryClips = []
+        }
+    }
+}
+
+private enum ConfirmationError: Error {
+    case missingClip
+    case missingTakeAfterSave
+}
