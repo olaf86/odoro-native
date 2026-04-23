@@ -135,11 +135,12 @@ final class StagePlaybackRenderer: NSObject {
             }
 
             characterEntity = entity
-            skeletalModelEntity = findModelEntity(entity)
+            skeletalModelEntity = findSkeletalModelEntity(entity)
             activeRigProfile = currentAvatarOption.rigProfile
             let animCount = entity.availableAnimations.count
             let bindingCount = activeRigProfile?.bindings.count ?? 0
-            Self.logger.info("avatar loaded — asset: \(assetName), skeletal model: \(self.skeletalModelEntity != nil), bindings: \(bindingCount), animations: \(animCount)")
+            let jointCount = skeletalModelEntity?.jointNames.count ?? 0
+            Self.logger.info("avatar loaded — asset: \(assetName), skeletal model: \(self.skeletalModelEntity != nil), joints: \(jointCount), bindings: \(bindingCount), animations: \(animCount)")
         } catch {
             Self.logger.error("Failed to load avatar asset: \(error)")
         }
@@ -156,11 +157,29 @@ final class StagePlaybackRenderer: NSObject {
         }
     }
 
-    private func findModelEntity(_ entity: Entity) -> ModelEntity? {
-        if let me = entity as? ModelEntity { return me }
-        for child in entity.children {
-            if let found = findModelEntity(child) { return found }
+    private func findSkeletalModelEntity(_ entity: Entity) -> ModelEntity? {
+        if let modelEntity = entity as? ModelEntity, !modelEntity.jointNames.isEmpty {
+            return modelEntity
         }
+
+        for child in entity.children {
+            if let found = findSkeletalModelEntity(child) { return found }
+        }
+
+        return findModelEntity(entity)
+    }
+
+    private func findModelEntity(_ entity: Entity) -> ModelEntity? {
+        if let modelEntity = entity as? ModelEntity {
+            return modelEntity
+        }
+
+        for child in entity.children {
+            if let found = findModelEntity(child) {
+                return found
+            }
+        }
+
         return nil
     }
 
@@ -239,8 +258,7 @@ final class StagePlaybackRenderer: NSObject {
             logEntityTransforms(character, depth: 0)
 
             // Play any built-in animation embedded in the USDZ (idle loop, etc.).
-            // This serves as a rendering path for Simulator where ARKit joint indices
-            // are unavailable and SkeletalPosesComponent cannot be driven from motion data.
+            // This serves as a rendering path before live joint transforms are available.
             if let animation = character.availableAnimations.first {
                 character.playAnimation(animation.repeat(duration: .infinity))
                 Self.logger.debug("Playing built-in character animation")
@@ -544,15 +562,24 @@ final class StagePlaybackRenderer: NSObject {
         }
     }
 
-    /// Drives the skeleton via SkeletalPosesComponent using the active rig profile.
+    /// Drives the skeleton joint transforms using the active rig profile.
     private func renderCharacter(frame: MotionFrame, rigProfile: AvatarRigProfile) -> Bool {
         guard let modelEntity = skeletalModelEntity else { return false }
+        var jointTransforms = modelEntity.jointTransforms
+        guard !jointTransforms.isEmpty else {
+            Self.logger.debug("Skipping skeletal avatar pose because the model exposes no joint transforms")
+            return false
+        }
 
-        var joints: [(String, Transform)] = []
-        joints.reserveCapacity(rigProfile.bindings.count)
+        let modelJointIndices = Dictionary(
+            uniqueKeysWithValues: modelEntity.jointNames.enumerated().map { ($0.element, $0.offset) }
+        )
+        var resolvedJointCount = 0
 
         for binding in rigProfile.bindings {
             guard
+                let targetIndex = modelJointIndices[binding.boneName],
+                jointTransforms.indices.contains(targetIndex),
                 let worldRot = rotation(for: binding.sourceJoint, in: frame)?.simdValue,
                 let worldPos = position(for: binding.sourceJoint, in: frame)
             else {
@@ -575,28 +602,23 @@ final class StagePlaybackRenderer: NSObject {
                 localTransform = Transform(rotation: resolvedRotation, translation: localPos)
             }
 
-            joints.append((binding.boneName, localTransform))
+            jointTransforms[targetIndex] = localTransform
+            resolvedJointCount += 1
         }
 
-        guard !joints.isEmpty else {
+        guard resolvedJointCount > 0 else {
             Self.logger.debug("Skipping skeletal avatar pose because no rig bindings resolved for this frame")
             return false
         }
 
         // Stop the built-in animation the first time ARKit data drives the joints
-        // so it doesn't interfere with SkeletalPosesComponent.
+        // so it doesn't overwrite the live joint transforms.
         if !hasStoppedBuiltInAnimation {
             characterEntity?.stopAllAnimations()
             hasStoppedBuiltInAnimation = true
         }
 
-        if #available(iOS 18.0, *) {
-            let pose = SkeletalPose(id: "live", joints: joints)
-            var posesComp = modelEntity.components[SkeletalPosesComponent.self] ?? SkeletalPosesComponent(poses: [])
-            posesComp.poses.set(pose)
-            modelEntity.components[SkeletalPosesComponent.self] = posesComp
-        }
-
+        modelEntity.jointTransforms = jointTransforms
         return true
     }
 
