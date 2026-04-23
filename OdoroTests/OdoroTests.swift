@@ -93,6 +93,13 @@ struct OdoroTests {
         #expect(mapped.positions.allSatisfy { $0.simdValue == .zero })
     }
 
+    @Test func stageRendererTreatsAllNilRotationsAsUnusableForAvatarRigging() {
+        #expect(StagePlaybackRenderer.hasUsableJointRotations(nil) == false)
+        #expect(StagePlaybackRenderer.hasUsableJointRotations([]) == false)
+        #expect(StagePlaybackRenderer.hasUsableJointRotations([nil, nil]) == false)
+        #expect(StagePlaybackRenderer.hasUsableJointRotations([nil, MotionJointRotation(ix: 0, iy: 0, iz: 0, r: 1)]) == true)
+    }
+
     @Test func motionPayloadRoundTripPreservesMappedRotations() {
         let skeletonJointNames = arkitFixtureJointNames
         var positions = Array(

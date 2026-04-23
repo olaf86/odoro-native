@@ -297,9 +297,13 @@ final class StagePlaybackRenderer: NSObject {
 
     private func render(frame: MotionFrame) {
         if currentAvatarOption.selection.kind == .avatar, characterEntity != nil {
-            if let rigProfile = activeRigProfile, let rotations = frame.jointRotations, !rotations.isEmpty {
-                renderCharacter(frame: frame, rigProfile: rigProfile)
-            } else if frame.jointPositions.contains(where: { $0.y > -5 }) {
+            if let rigProfile = activeRigProfile,
+               Self.hasUsableJointRotations(frame.jointRotations),
+               renderCharacter(frame: frame, rigProfile: rigProfile) {
+                return
+            }
+
+            if frame.jointPositions.contains(where: Self.isValidMotionPosition) {
                 // Front-camera or other source: real positions available but no rotations.
                 renderCharacterAtRoot(frame: frame)
             } else {
@@ -524,13 +528,12 @@ final class StagePlaybackRenderer: NSObject {
         // In Simulator, ARSkeletonDefinition indices are unavailable (all NSNotFound)
         // and MockMotionSource initializes unset joints to y=-10. Guard against that.
         let hipIndex = skeletonDefinition.index(for: .root)
-        let validPosition: ((SIMD3<Float>) -> Bool) = { $0.y > -5 }
         let hip: SIMD3<Float>?
         if hipIndex != NSNotFound,
            frame.jointPositions.indices.contains(hipIndex),
-           validPosition(frame.jointPositions[hipIndex]) {
+           Self.isValidMotionPosition(frame.jointPositions[hipIndex]) {
             hip = frame.jointPositions[hipIndex]
-        } else if let first = frame.jointPositions.first(where: validPosition) {
+        } else if let first = frame.jointPositions.first(where: Self.isValidMotionPosition) {
             hip = first
         } else {
             hip = nil  // No valid position — leave character at its current position.
@@ -542,15 +545,8 @@ final class StagePlaybackRenderer: NSObject {
     }
 
     /// Drives the skeleton via SkeletalPosesComponent using the active rig profile.
-    private func renderCharacter(frame: MotionFrame, rigProfile: AvatarRigProfile) {
-        guard let modelEntity = skeletalModelEntity else { return }
-
-        // Stop the built-in animation the first time ARKit data drives the joints
-        // so it doesn't interfere with SkeletalPosesComponent.
-        if !hasStoppedBuiltInAnimation {
-            characterEntity?.stopAllAnimations()
-            hasStoppedBuiltInAnimation = true
-        }
+    private func renderCharacter(frame: MotionFrame, rigProfile: AvatarRigProfile) -> Bool {
+        guard let modelEntity = skeletalModelEntity else { return false }
 
         var joints: [(String, Transform)] = []
         joints.reserveCapacity(rigProfile.bindings.count)
@@ -582,12 +578,26 @@ final class StagePlaybackRenderer: NSObject {
             joints.append((binding.boneName, localTransform))
         }
 
+        guard !joints.isEmpty else {
+            Self.logger.debug("Skipping skeletal avatar pose because no rig bindings resolved for this frame")
+            return false
+        }
+
+        // Stop the built-in animation the first time ARKit data drives the joints
+        // so it doesn't interfere with SkeletalPosesComponent.
+        if !hasStoppedBuiltInAnimation {
+            characterEntity?.stopAllAnimations()
+            hasStoppedBuiltInAnimation = true
+        }
+
         if #available(iOS 18.0, *) {
             let pose = SkeletalPose(id: "live", joints: joints)
             var posesComp = modelEntity.components[SkeletalPosesComponent.self] ?? SkeletalPosesComponent(poses: [])
             posesComp.poses.set(pose)
             modelEntity.components[SkeletalPosesComponent.self] = posesComp
         }
+
+        return true
     }
 
     /// Moves the character entity using the procedural hip position.
@@ -642,5 +652,13 @@ final class StagePlaybackRenderer: NSObject {
             leftFoot,
             rightFoot,
         ]
+    }
+
+    nonisolated static func hasUsableJointRotations(_ rotations: [MotionJointRotation?]?) -> Bool {
+        rotations?.contains(where: { $0 != nil }) ?? false
+    }
+
+    nonisolated private static func isValidMotionPosition(_ position: SIMD3<Float>) -> Bool {
+        position.x.isFinite && position.y.isFinite && position.z.isFinite && position.y > -5
     }
 }

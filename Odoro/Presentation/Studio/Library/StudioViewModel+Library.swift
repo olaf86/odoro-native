@@ -156,8 +156,21 @@ extension StudioViewModel {
         currentTakeID = saveResult.takeID
         let savedClip = try archiveStore.loadClip(fromLocalFilePath: saveResult.localFilePath)
         stageRenderer.setUsesProceduralMockPlayback(captureMode == .mock)
-        interactor.replaceCurrentClip(savedClip)
+        interactor.replaceCurrentClip(playbackClip(for: clip, savedClip: savedClip, captureMode: captureMode))
         try refreshCurrentSessionTakes()
+    }
+
+    private func playbackClip(
+        for sourceClip: MotionClip,
+        savedClip: MotionClip,
+        captureMode: CaptureMode
+    ) -> MotionClip {
+        switch captureMode {
+        case .rearBody3D:
+            sourceClip
+        case .frontUpperBody, .mock, .importedVideo:
+            savedClip
+        }
     }
 
     func ensureCurrentTakeForConfirmation() throws -> MotionTakeSummary {
