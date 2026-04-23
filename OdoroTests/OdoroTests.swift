@@ -100,6 +100,16 @@ struct OdoroTests {
         #expect(StagePlaybackRenderer.hasUsableJointRotations([nil, MotionJointRotation(ix: 0, iy: 0, iz: 0, r: 1)]) == true)
     }
 
+    @Test func robotRigProfileUsesUsdSkeletonJointPaths() {
+        let profile = AvatarCatalog.robotRigProfile
+
+        #expect(profile.rootBoneName == "root/hips_joint")
+        #expect(profile.bindings.allSatisfy { $0.boneName.contains("/") })
+        #expect(profile.bindings.contains { $0.boneName == "root/hips_joint/spine_1_joint/spine_2_joint" })
+        #expect(profile.bindings.contains { $0.boneName == "root/hips_joint/left_upLeg_joint/left_leg_joint/left_foot_joint" })
+        #expect(profile.bindings.contains { $0.boneName == "root/hips_joint/spine_1_joint/spine_2_joint/spine_3_joint/spine_4_joint/spine_5_joint/spine_6_joint/spine_7_joint/right_shoulder_1_joint/right_arm_joint/right_forearm_joint/right_hand_joint" })
+    }
+
     @Test func motionPayloadRoundTripPreservesMappedRotations() {
         let skeletonJointNames = arkitFixtureJointNames
         var positions = Array(

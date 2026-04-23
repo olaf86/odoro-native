@@ -219,6 +219,14 @@ enum AvatarCatalog {
     private static let avatarSampleBVariantID = "avatar-sample-b-glb-v1"
     private static let avatarSampleBRigProfileID = "avatar-sample-b.v1"
 
+    private static func robotJointPath(_ components: String...) -> String {
+        (["root", "hips_joint"] + components).joined(separator: "/")
+    }
+
+    private static func robotSpineJointPath(_ components: String...) -> String {
+        (["root", "hips_joint", "spine_1_joint", "spine_2_joint"] + components).joined(separator: "/")
+    }
+
     static let defaultSelection = StageAvatarSelection.avatar(
         avatarID: robotAvatarID,
         variantID: robotVariantID
@@ -270,124 +278,124 @@ enum AvatarCatalog {
         sourceFormat: .usdz,
         runtimeFormat: .usdz,
         runtimeAssetRelativePath: "robot.usdz",
-        rootBoneName: "hips_joint",
+        rootBoneName: robotJointPath(),
         bindings: [
             AvatarBoneBinding(
-                boneName: "spine_2_joint",
+                boneName: robotSpineJointPath(),
                 sourceJoint: .init(canonicalJoint: .root, rawJointName: "spine_2_joint"),
                 parentSourceJoint: .init(canonicalJoint: .root, rawJointName: "spine_1_joint")
             ),
             AvatarBoneBinding(
-                boneName: "spine_5_joint",
+                boneName: robotSpineJointPath("spine_3_joint", "spine_4_joint", "spine_5_joint"),
                 sourceJoint: .init(canonicalJoint: .root, rawJointName: "spine_5_joint"),
                 parentSourceJoint: .init(canonicalJoint: .root, rawJointName: "spine_4_joint")
             ),
             AvatarBoneBinding(
-                boneName: "hips_joint",
+                boneName: robotJointPath(),
                 sourceJoint: .init(canonicalJoint: .root, rawJointName: "hips_joint")
             ),
             AvatarBoneBinding(
-                boneName: "spine_6_joint",
+                boneName: robotSpineJointPath("spine_3_joint", "spine_4_joint", "spine_5_joint", "spine_6_joint"),
                 sourceJoint: .init(canonicalJoint: .root, rawJointName: "spine_6_joint"),
                 parentSourceJoint: .init(canonicalJoint: .root, rawJointName: "spine_5_joint")
             ),
             AvatarBoneBinding(
-                boneName: "head_joint",
+                boneName: robotSpineJointPath("spine_3_joint", "spine_4_joint", "spine_5_joint", "spine_6_joint", "spine_7_joint", "neck_1_joint", "neck_2_joint", "neck_3_joint", "neck_4_joint", "head_joint"),
                 sourceJoint: .init(canonicalJoint: .head, rawJointName: "head_joint"),
                 parentSourceJoint: .init(canonicalJoint: .head, rawJointName: "neck_4_joint")
             ),
             AvatarBoneBinding(
-                boneName: "spine_1_joint",
+                boneName: robotJointPath("spine_1_joint"),
                 sourceJoint: .init(canonicalJoint: .root, rawJointName: "spine_1_joint"),
                 parentSourceJoint: .init(canonicalJoint: .root, rawJointName: "hips_joint")
             ),
             AvatarBoneBinding(
-                boneName: "spine_4_joint",
+                boneName: robotSpineJointPath("spine_3_joint", "spine_4_joint"),
                 sourceJoint: .init(canonicalJoint: .root, rawJointName: "spine_4_joint"),
                 parentSourceJoint: .init(canonicalJoint: .root, rawJointName: "spine_3_joint")
             ),
             AvatarBoneBinding(
-                boneName: "neck_2_joint",
+                boneName: robotSpineJointPath("spine_3_joint", "spine_4_joint", "spine_5_joint", "spine_6_joint", "spine_7_joint", "neck_1_joint", "neck_2_joint"),
                 sourceJoint: .init(canonicalJoint: .head, rawJointName: "neck_2_joint"),
                 parentSourceJoint: .init(canonicalJoint: .head, rawJointName: "neck_1_joint")
             ),
             AvatarBoneBinding(
-                boneName: "left_leg_joint",
+                boneName: robotJointPath("left_upLeg_joint", "left_leg_joint"),
                 sourceJoint: .init(canonicalJoint: .leftKnee, rawJointName: "left_leg_joint"),
                 parentSourceJoint: .init(canonicalJoint: .leftHip, rawJointName: "left_upLeg_joint")
             ),
             AvatarBoneBinding(
-                boneName: "left_foot_joint",
+                boneName: robotJointPath("left_upLeg_joint", "left_leg_joint", "left_foot_joint"),
                 sourceJoint: .init(canonicalJoint: .leftFoot, rawJointName: "left_foot_joint"),
                 parentSourceJoint: .init(canonicalJoint: .leftKnee, rawJointName: "left_leg_joint")
             ),
             AvatarBoneBinding(
-                boneName: "left_arm_joint",
+                boneName: robotSpineJointPath("spine_3_joint", "spine_4_joint", "spine_5_joint", "spine_6_joint", "spine_7_joint", "left_shoulder_1_joint", "left_arm_joint"),
                 sourceJoint: .init(canonicalJoint: .leftElbow, rawJointName: "left_arm_joint"),
                 parentSourceJoint: .init(canonicalJoint: .leftShoulder, rawJointName: "left_shoulder_1_joint")
             ),
             AvatarBoneBinding(
-                boneName: "left_forearm_joint",
+                boneName: robotSpineJointPath("spine_3_joint", "spine_4_joint", "spine_5_joint", "spine_6_joint", "spine_7_joint", "left_shoulder_1_joint", "left_arm_joint", "left_forearm_joint"),
                 sourceJoint: .init(canonicalJoint: .leftWrist, rawJointName: "left_forearm_joint"),
                 parentSourceJoint: .init(canonicalJoint: .leftElbow, rawJointName: "left_arm_joint")
             ),
             AvatarBoneBinding(
-                boneName: "left_upLeg_joint",
+                boneName: robotJointPath("left_upLeg_joint"),
                 sourceJoint: .init(canonicalJoint: .leftHip, rawJointName: "left_upLeg_joint"),
                 parentSourceJoint: .init(canonicalJoint: .root, rawJointName: "hips_joint")
             ),
             AvatarBoneBinding(
-                boneName: "left_hand_joint",
+                boneName: robotSpineJointPath("spine_3_joint", "spine_4_joint", "spine_5_joint", "spine_6_joint", "spine_7_joint", "left_shoulder_1_joint", "left_arm_joint", "left_forearm_joint", "left_hand_joint"),
                 sourceJoint: .init(canonicalJoint: .leftWrist, rawJointName: "left_hand_joint"),
                 parentSourceJoint: .init(canonicalJoint: .leftWrist, rawJointName: "left_forearm_joint")
             ),
             AvatarBoneBinding(
-                boneName: "left_shoulder_1_joint",
+                boneName: robotSpineJointPath("spine_3_joint", "spine_4_joint", "spine_5_joint", "spine_6_joint", "spine_7_joint", "left_shoulder_1_joint"),
                 sourceJoint: .init(canonicalJoint: .leftShoulder, rawJointName: "left_shoulder_1_joint"),
                 parentSourceJoint: .init(canonicalJoint: .root, rawJointName: "spine_7_joint")
             ),
             AvatarBoneBinding(
-                boneName: "neck_3_joint",
+                boneName: robotSpineJointPath("spine_3_joint", "spine_4_joint", "spine_5_joint", "spine_6_joint", "spine_7_joint", "neck_1_joint", "neck_2_joint", "neck_3_joint"),
                 sourceJoint: .init(canonicalJoint: .head, rawJointName: "neck_3_joint"),
                 parentSourceJoint: .init(canonicalJoint: .head, rawJointName: "neck_2_joint")
             ),
             AvatarBoneBinding(
-                boneName: "neck_4_joint",
+                boneName: robotSpineJointPath("spine_3_joint", "spine_4_joint", "spine_5_joint", "spine_6_joint", "spine_7_joint", "neck_1_joint", "neck_2_joint", "neck_3_joint", "neck_4_joint"),
                 sourceJoint: .init(canonicalJoint: .head, rawJointName: "neck_4_joint"),
                 parentSourceJoint: .init(canonicalJoint: .head, rawJointName: "neck_3_joint")
             ),
             AvatarBoneBinding(
-                boneName: "right_leg_joint",
+                boneName: robotJointPath("right_upLeg_joint", "right_leg_joint"),
                 sourceJoint: .init(canonicalJoint: .rightKnee, rawJointName: "right_leg_joint"),
                 parentSourceJoint: .init(canonicalJoint: .rightHip, rawJointName: "right_upLeg_joint")
             ),
             AvatarBoneBinding(
-                boneName: "right_foot_joint",
+                boneName: robotJointPath("right_upLeg_joint", "right_leg_joint", "right_foot_joint"),
                 sourceJoint: .init(canonicalJoint: .rightFoot, rawJointName: "right_foot_joint"),
                 parentSourceJoint: .init(canonicalJoint: .rightKnee, rawJointName: "right_leg_joint")
             ),
             AvatarBoneBinding(
-                boneName: "right_arm_joint",
+                boneName: robotSpineJointPath("spine_3_joint", "spine_4_joint", "spine_5_joint", "spine_6_joint", "spine_7_joint", "right_shoulder_1_joint", "right_arm_joint"),
                 sourceJoint: .init(canonicalJoint: .rightElbow, rawJointName: "right_arm_joint"),
                 parentSourceJoint: .init(canonicalJoint: .rightShoulder, rawJointName: "right_shoulder_1_joint")
             ),
             AvatarBoneBinding(
-                boneName: "right_forearm_joint",
+                boneName: robotSpineJointPath("spine_3_joint", "spine_4_joint", "spine_5_joint", "spine_6_joint", "spine_7_joint", "right_shoulder_1_joint", "right_arm_joint", "right_forearm_joint"),
                 sourceJoint: .init(canonicalJoint: .rightWrist, rawJointName: "right_forearm_joint"),
                 parentSourceJoint: .init(canonicalJoint: .rightElbow, rawJointName: "right_arm_joint")
             ),
             AvatarBoneBinding(
-                boneName: "right_upLeg_joint",
+                boneName: robotJointPath("right_upLeg_joint"),
                 sourceJoint: .init(canonicalJoint: .rightHip, rawJointName: "right_upLeg_joint"),
                 parentSourceJoint: .init(canonicalJoint: .root, rawJointName: "hips_joint")
             ),
             AvatarBoneBinding(
-                boneName: "right_hand_joint",
+                boneName: robotSpineJointPath("spine_3_joint", "spine_4_joint", "spine_5_joint", "spine_6_joint", "spine_7_joint", "right_shoulder_1_joint", "right_arm_joint", "right_forearm_joint", "right_hand_joint"),
                 sourceJoint: .init(canonicalJoint: .rightWrist, rawJointName: "right_hand_joint"),
                 parentSourceJoint: .init(canonicalJoint: .rightWrist, rawJointName: "right_forearm_joint")
             ),
             AvatarBoneBinding(
-                boneName: "right_shoulder_1_joint",
+                boneName: robotSpineJointPath("spine_3_joint", "spine_4_joint", "spine_5_joint", "spine_6_joint", "spine_7_joint", "right_shoulder_1_joint"),
                 sourceJoint: .init(canonicalJoint: .rightShoulder, rawJointName: "right_shoulder_1_joint"),
                 parentSourceJoint: .init(canonicalJoint: .root, rawJointName: "spine_7_joint")
             ),
