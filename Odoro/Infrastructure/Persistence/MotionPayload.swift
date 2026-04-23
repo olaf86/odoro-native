@@ -11,13 +11,13 @@ struct MotionPayloadVector3: Codable, Sendable {
     var y: Float
     var z: Float
 
-    init(x: Float, y: Float, z: Float) {
+    nonisolated init(x: Float, y: Float, z: Float) {
         self.x = x
         self.y = y
         self.z = z
     }
 
-    init(_ vector: SIMD3<Float>) {
+    nonisolated init(_ vector: SIMD3<Float>) {
         self.init(x: vector.x, y: vector.y, z: vector.z)
     }
 
@@ -70,7 +70,8 @@ struct MotionPayload: Codable, Sendable {
         captureMode: CaptureMode,
         recordingContext: MotionRecordingContext,
         sourcePlatform: String,
-        sourceBackend: String
+        sourceBackend: String,
+        canonicalPoseMapper: (MotionFrame) -> OdoroCanonicalPoseMapper.MappedFrame = OdoroCanonicalPoseMapper.map
     ) {
         self.schemaVersion = Self.currentSchemaVersion
         self.skeletonId = OdoroSkeletonDefinition.id
@@ -80,7 +81,7 @@ struct MotionPayload: Codable, Sendable {
         self.sourcePlatform = sourcePlatform
         self.sourceBackend = sourceBackend
         self.frames = clip.frames.map { frame in
-            let canonicalFrame = OdoroCanonicalPoseMapper.map(frame: frame)
+            let canonicalFrame = canonicalPoseMapper(frame)
             return MotionPayloadFrame(
                 timeSeconds: frame.time,
                 timeBeats: frame.time * recordingContext.bpm / 60,

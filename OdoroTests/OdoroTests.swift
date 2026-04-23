@@ -94,18 +94,24 @@ struct OdoroTests {
     }
 
     @Test func motionPayloadRoundTripPreservesMappedRotations() {
-        let skeletonDefinition = ARSkeletonDefinition.defaultBody3D
+        let skeletonJointNames = arkitFixtureJointNames
         var positions = Array(
             repeating: SIMD3<Float>(0, -10, 0),
-            count: skeletonDefinition.jointNames.count
+            count: skeletonJointNames.count
         )
         var rotations = Array<MotionJointRotation?>(
             repeating: nil,
-            count: skeletonDefinition.jointNames.count
+            count: skeletonJointNames.count
         )
 
+        func jointIndex(_ name: ARSkeleton.JointName) -> Int {
+            skeletonJointNames.firstIndex(where: {
+                $0 == name.rawValue
+            }) ?? NSNotFound
+        }
+
         func setJoint(_ name: ARSkeleton.JointName, position: SIMD3<Float>, rotation: simd_quatf) {
-            let index = skeletonDefinition.index(for: name)
+            let index = jointIndex(name)
             guard index != NSNotFound else { return }
             positions[index] = position
             rotations[index] = MotionJointRotation(rotation)
@@ -144,7 +150,10 @@ struct OdoroTests {
             captureMode: .rearBody3D,
             recordingContext: .defaultMetronomeLoop,
             sourcePlatform: "iOS",
-            sourceBackend: "arkit.bodyTracking"
+            sourceBackend: "arkit.bodyTracking",
+            canonicalPoseMapper: { frame in
+                OdoroCanonicalPoseMapper.map(frame: frame, jointIndex: jointIndex)
+            }
         )
 
         let reloadedFrame = payload.makeMotionClip().frames[0]
@@ -156,6 +165,28 @@ struct OdoroTests {
         #expect(reloadedFrame.jointRotations?[OdoroSkeletonDefinition.index(of: .rightShoulder)] == MotionJointRotation(rightShoulderRotation))
         #expect(reloadedFrame.jointRotations?[OdoroSkeletonDefinition.index(of: .leftAnkle)] == MotionJointRotation(leftFootRotation))
         #expect(reloadedFrame.jointRotations?[OdoroSkeletonDefinition.index(of: .rightFoot)] == MotionJointRotation(rightFootRotation))
+    }
+
+    private var arkitFixtureJointNames: [String] {
+        [
+            ARSkeleton.JointName.root.rawValue,
+            ARSkeleton.JointName.head.rawValue,
+            ARSkeleton.JointName(rawValue: "nose_joint").rawValue,
+            ARSkeleton.JointName.leftShoulder.rawValue,
+            ARSkeleton.JointName.rightShoulder.rawValue,
+            ARSkeleton.JointName(rawValue: "left_arm_joint").rawValue,
+            ARSkeleton.JointName(rawValue: "right_arm_joint").rawValue,
+            ARSkeleton.JointName.leftHand.rawValue,
+            ARSkeleton.JointName.rightHand.rawValue,
+            ARSkeleton.JointName(rawValue: "left_upLeg_joint").rawValue,
+            ARSkeleton.JointName(rawValue: "right_upLeg_joint").rawValue,
+            ARSkeleton.JointName(rawValue: "left_leg_joint").rawValue,
+            ARSkeleton.JointName(rawValue: "right_leg_joint").rawValue,
+            ARSkeleton.JointName.leftFoot.rawValue,
+            ARSkeleton.JointName(rawValue: "left_foot_joint").rawValue,
+            ARSkeleton.JointName.rightFoot.rawValue,
+            ARSkeleton.JointName(rawValue: "right_foot_joint").rawValue,
+        ]
     }
 
     @MainActor

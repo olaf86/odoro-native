@@ -8,76 +8,86 @@ import Foundation
 import simd
 
 enum OdoroCanonicalPoseMapper {
-    private static let skeletonDefinition = ARSkeletonDefinition.defaultBody3D
-    private enum JointNames {
-        static let head = ARSkeleton.JointName(rawValue: "head_joint")
-        static let nose = ARSkeleton.JointName(rawValue: "nose_joint")
-        static let leftArm = ARSkeleton.JointName(rawValue: "left_arm_joint")
-        static let rightArm = ARSkeleton.JointName(rawValue: "right_arm_joint")
-        static let leftHand = ARSkeleton.JointName(rawValue: "left_hand_joint")
-        static let rightHand = ARSkeleton.JointName(rawValue: "right_hand_joint")
-        static let leftUpLeg = ARSkeleton.JointName(rawValue: "left_upLeg_joint")
-        static let rightUpLeg = ARSkeleton.JointName(rawValue: "right_upLeg_joint")
-        static let leftLeg = ARSkeleton.JointName(rawValue: "left_leg_joint")
-        static let rightLeg = ARSkeleton.JointName(rawValue: "right_leg_joint")
-        static let leftFoot = ARSkeleton.JointName(rawValue: "left_foot_joint")
-        static let rightFoot = ARSkeleton.JointName(rawValue: "right_foot_joint")
-    }
-
-    static func map(frame: MotionFrame) -> (
+    typealias JointIndexResolver = (ARSkeleton.JointName) -> Int
+    typealias MappedFrame = (
         positions: [MotionPayloadVector3],
         rotations: [MotionJointRotation?]?,
         statuses: [OdoroJointStatus]
-    ) {
-        let leftShoulder = resolvedPosition(for: .leftShoulder, in: frame)
-        let rightShoulder = resolvedPosition(for: .rightShoulder, in: frame)
-        let leftHip = resolvedPosition(for: JointNames.leftUpLeg, in: frame)
-        let rightHip = resolvedPosition(for: JointNames.rightUpLeg, in: frame)
+    )
+
+    private enum JointNames {
+        nonisolated static var head: ARSkeleton.JointName { ARSkeleton.JointName(rawValue: "head_joint") }
+        nonisolated static var nose: ARSkeleton.JointName { ARSkeleton.JointName(rawValue: "nose_joint") }
+        nonisolated static var leftArm: ARSkeleton.JointName { ARSkeleton.JointName(rawValue: "left_arm_joint") }
+        nonisolated static var rightArm: ARSkeleton.JointName { ARSkeleton.JointName(rawValue: "right_arm_joint") }
+        nonisolated static var leftHand: ARSkeleton.JointName { ARSkeleton.JointName(rawValue: "left_hand_joint") }
+        nonisolated static var rightHand: ARSkeleton.JointName { ARSkeleton.JointName(rawValue: "right_hand_joint") }
+        nonisolated static var leftUpLeg: ARSkeleton.JointName { ARSkeleton.JointName(rawValue: "left_upLeg_joint") }
+        nonisolated static var rightUpLeg: ARSkeleton.JointName { ARSkeleton.JointName(rawValue: "right_upLeg_joint") }
+        nonisolated static var leftLeg: ARSkeleton.JointName { ARSkeleton.JointName(rawValue: "left_leg_joint") }
+        nonisolated static var rightLeg: ARSkeleton.JointName { ARSkeleton.JointName(rawValue: "right_leg_joint") }
+        nonisolated static var leftFoot: ARSkeleton.JointName { ARSkeleton.JointName(rawValue: "left_foot_joint") }
+        nonisolated static var rightFoot: ARSkeleton.JointName { ARSkeleton.JointName(rawValue: "right_foot_joint") }
+    }
+
+    nonisolated private static var skeletonDefinition: ARSkeletonDefinition {
+        ARSkeletonDefinition.defaultBody3D
+    }
+
+    nonisolated static func map(frame: MotionFrame) -> MappedFrame {
+        map(frame: frame) { skeletonDefinition.index(for: $0) }
+    }
+
+    nonisolated static func map(frame: MotionFrame, jointIndex: JointIndexResolver) -> MappedFrame {
+        let leftShoulder = resolvedPosition(for: .leftShoulder, in: frame, jointIndex: jointIndex)
+        let rightShoulder = resolvedPosition(for: .rightShoulder, in: frame, jointIndex: jointIndex)
+        let leftHip = resolvedPosition(for: JointNames.leftUpLeg, in: frame, jointIndex: jointIndex)
+        let rightHip = resolvedPosition(for: JointNames.rightUpLeg, in: frame, jointIndex: jointIndex)
         let shoulderCenter = midpoint(leftShoulder, rightShoulder)
 
-        let root = resolvedPosition(for: .root, in: frame) ?? midpoint(leftHip, rightHip)
-        let head = resolvedPosition(for: .head, fallbackJointName: JointNames.head, in: frame)
-        let nose = resolvedPosition(for: JointNames.nose, in: frame)
+        let root = resolvedPosition(for: .root, in: frame, jointIndex: jointIndex) ?? midpoint(leftHip, rightHip)
+        let head = resolvedPosition(for: .head, fallbackJointName: JointNames.head, in: frame, jointIndex: jointIndex)
+        let nose = resolvedPosition(for: JointNames.nose, in: frame, jointIndex: jointIndex)
 
-        let headRotation = resolvedRotation(for: .head, fallbackJointName: JointNames.head, in: frame)
-        let leftHandRotation = resolvedRotation(for: .leftHand, fallbackJointName: JointNames.leftHand, in: frame)
-        let rightHandRotation = resolvedRotation(for: .rightHand, fallbackJointName: JointNames.rightHand, in: frame)
-        let leftFootRotation = resolvedRotation(for: .leftFoot, fallbackJointName: JointNames.leftFoot, in: frame)
-        let rightFootRotation = resolvedRotation(for: .rightFoot, fallbackJointName: JointNames.rightFoot, in: frame)
+        let headRotation = resolvedRotation(for: .head, fallbackJointName: JointNames.head, in: frame, jointIndex: jointIndex)
+        let leftHandRotation = resolvedRotation(for: .leftHand, fallbackJointName: JointNames.leftHand, in: frame, jointIndex: jointIndex)
+        let rightHandRotation = resolvedRotation(for: .rightHand, fallbackJointName: JointNames.rightHand, in: frame, jointIndex: jointIndex)
+        let leftFootRotation = resolvedRotation(for: .leftFoot, fallbackJointName: JointNames.leftFoot, in: frame, jointIndex: jointIndex)
+        let rightFootRotation = resolvedRotation(for: .rightFoot, fallbackJointName: JointNames.rightFoot, in: frame, jointIndex: jointIndex)
         let mappedJoints: [(SIMD3<Float>, OdoroJointStatus)] = [
             required(root, fallback: .zero, status: root == nil ? .missing : .observed),
             required(head, fallback: shoulderCenter ?? .zero, status: head == nil ? .missing : .observed),
             required(nose, fallback: head ?? shoulderCenter ?? .zero, status: nose == nil ? .missing : .observed),
             required(leftShoulder, fallback: .zero, status: leftShoulder == nil ? .missing : .observed),
             required(rightShoulder, fallback: .zero, status: rightShoulder == nil ? .missing : .observed),
-            required(resolvedPosition(for: JointNames.leftArm, in: frame), fallback: leftShoulder ?? .zero, status: .mapped),
-            required(resolvedPosition(for: JointNames.rightArm, in: frame), fallback: rightShoulder ?? .zero, status: .mapped),
-            required(resolvedPosition(for: .leftHand, fallbackJointName: JointNames.leftHand, in: frame), fallback: resolvedPosition(for: JointNames.leftArm, in: frame) ?? leftShoulder ?? .zero, status: .mapped),
-            required(resolvedPosition(for: .rightHand, fallbackJointName: JointNames.rightHand, in: frame), fallback: resolvedPosition(for: JointNames.rightArm, in: frame) ?? rightShoulder ?? .zero, status: .mapped),
+            required(resolvedPosition(for: JointNames.leftArm, in: frame, jointIndex: jointIndex), fallback: leftShoulder ?? .zero, status: .mapped),
+            required(resolvedPosition(for: JointNames.rightArm, in: frame, jointIndex: jointIndex), fallback: rightShoulder ?? .zero, status: .mapped),
+            required(resolvedPosition(for: .leftHand, fallbackJointName: JointNames.leftHand, in: frame, jointIndex: jointIndex), fallback: resolvedPosition(for: JointNames.leftArm, in: frame, jointIndex: jointIndex) ?? leftShoulder ?? .zero, status: .mapped),
+            required(resolvedPosition(for: .rightHand, fallbackJointName: JointNames.rightHand, in: frame, jointIndex: jointIndex), fallback: resolvedPosition(for: JointNames.rightArm, in: frame, jointIndex: jointIndex) ?? rightShoulder ?? .zero, status: .mapped),
             required(leftHip, fallback: root ?? .zero, status: leftHip == nil ? .missing : .mapped),
             required(rightHip, fallback: root ?? .zero, status: rightHip == nil ? .missing : .mapped),
-            required(resolvedPosition(for: JointNames.leftLeg, in: frame), fallback: leftHip ?? .zero, status: .mapped),
-            required(resolvedPosition(for: JointNames.rightLeg, in: frame), fallback: rightHip ?? .zero, status: .mapped),
-            derivedAnkle(knee: resolvedPosition(for: JointNames.leftLeg, in: frame), foot: resolvedPosition(for: .leftFoot, fallbackJointName: JointNames.leftFoot, in: frame)),
-            derivedAnkle(knee: resolvedPosition(for: JointNames.rightLeg, in: frame), foot: resolvedPosition(for: .rightFoot, fallbackJointName: JointNames.rightFoot, in: frame)),
-            required(resolvedPosition(for: .leftFoot, fallbackJointName: JointNames.leftFoot, in: frame), fallback: resolvedPosition(for: JointNames.leftLeg, in: frame) ?? leftHip ?? .zero, status: .mapped),
-            required(resolvedPosition(for: .rightFoot, fallbackJointName: JointNames.rightFoot, in: frame), fallback: resolvedPosition(for: JointNames.rightLeg, in: frame) ?? rightHip ?? .zero, status: .mapped),
+            required(resolvedPosition(for: JointNames.leftLeg, in: frame, jointIndex: jointIndex), fallback: leftHip ?? .zero, status: .mapped),
+            required(resolvedPosition(for: JointNames.rightLeg, in: frame, jointIndex: jointIndex), fallback: rightHip ?? .zero, status: .mapped),
+            derivedAnkle(knee: resolvedPosition(for: JointNames.leftLeg, in: frame, jointIndex: jointIndex), foot: resolvedPosition(for: .leftFoot, fallbackJointName: JointNames.leftFoot, in: frame, jointIndex: jointIndex)),
+            derivedAnkle(knee: resolvedPosition(for: JointNames.rightLeg, in: frame, jointIndex: jointIndex), foot: resolvedPosition(for: .rightFoot, fallbackJointName: JointNames.rightFoot, in: frame, jointIndex: jointIndex)),
+            required(resolvedPosition(for: .leftFoot, fallbackJointName: JointNames.leftFoot, in: frame, jointIndex: jointIndex), fallback: resolvedPosition(for: JointNames.leftLeg, in: frame, jointIndex: jointIndex) ?? leftHip ?? .zero, status: .mapped),
+            required(resolvedPosition(for: .rightFoot, fallbackJointName: JointNames.rightFoot, in: frame, jointIndex: jointIndex), fallback: resolvedPosition(for: JointNames.rightLeg, in: frame, jointIndex: jointIndex) ?? rightHip ?? .zero, status: .mapped),
         ]
         let mappedRotations = frame.jointRotations.map { _ in
             [
-                resolvedRotation(for: .root, in: frame),
+                resolvedRotation(for: .root, in: frame, jointIndex: jointIndex),
                 headRotation,
-                resolvedRotation(for: JointNames.nose, in: frame) ?? headRotation,
-                resolvedRotation(for: .leftShoulder, in: frame),
-                resolvedRotation(for: .rightShoulder, in: frame),
-                resolvedRotation(for: JointNames.leftArm, in: frame),
-                resolvedRotation(for: JointNames.rightArm, in: frame),
+                resolvedRotation(for: JointNames.nose, in: frame, jointIndex: jointIndex) ?? headRotation,
+                resolvedRotation(for: .leftShoulder, in: frame, jointIndex: jointIndex),
+                resolvedRotation(for: .rightShoulder, in: frame, jointIndex: jointIndex),
+                resolvedRotation(for: JointNames.leftArm, in: frame, jointIndex: jointIndex),
+                resolvedRotation(for: JointNames.rightArm, in: frame, jointIndex: jointIndex),
                 leftHandRotation,
                 rightHandRotation,
-                resolvedRotation(for: JointNames.leftUpLeg, in: frame),
-                resolvedRotation(for: JointNames.rightUpLeg, in: frame),
-                resolvedRotation(for: JointNames.leftLeg, in: frame),
-                resolvedRotation(for: JointNames.rightLeg, in: frame),
+                resolvedRotation(for: JointNames.leftUpLeg, in: frame, jointIndex: jointIndex),
+                resolvedRotation(for: JointNames.rightUpLeg, in: frame, jointIndex: jointIndex),
+                resolvedRotation(for: JointNames.leftLeg, in: frame, jointIndex: jointIndex),
+                resolvedRotation(for: JointNames.rightLeg, in: frame, jointIndex: jointIndex),
                 leftFootRotation,
                 rightFootRotation,
                 leftFootRotation,
@@ -92,7 +102,7 @@ enum OdoroCanonicalPoseMapper {
         )
     }
 
-    private static func required(
+    nonisolated private static func required(
         _ position: SIMD3<Float>?,
         fallback: SIMD3<Float>,
         status: OdoroJointStatus
@@ -104,7 +114,7 @@ enum OdoroCanonicalPoseMapper {
         return (position, status)
     }
 
-    private static func derivedAnkle(knee: SIMD3<Float>?, foot: SIMD3<Float>?) -> (SIMD3<Float>, OdoroJointStatus) {
+    nonisolated private static func derivedAnkle(knee: SIMD3<Float>?, foot: SIMD3<Float>?) -> (SIMD3<Float>, OdoroJointStatus) {
         guard let knee, let foot else {
             return (foot ?? knee ?? .zero, .missing)
         }
@@ -112,7 +122,7 @@ enum OdoroCanonicalPoseMapper {
         return ((knee + foot) * 0.5, .derived)
     }
 
-    private static func midpoint(_ lhs: SIMD3<Float>?, _ rhs: SIMD3<Float>?) -> SIMD3<Float>? {
+    nonisolated private static func midpoint(_ lhs: SIMD3<Float>?, _ rhs: SIMD3<Float>?) -> SIMD3<Float>? {
         guard let lhs, let rhs else {
             return nil
         }
@@ -120,12 +130,13 @@ enum OdoroCanonicalPoseMapper {
         return (lhs + rhs) * 0.5
     }
 
-    private static func resolvedPosition(
+    nonisolated private static func resolvedPosition(
         for jointName: ARSkeleton.JointName,
         fallbackJointName: ARSkeleton.JointName? = nil,
-        in frame: MotionFrame
+        in frame: MotionFrame,
+        jointIndex: JointIndexResolver
     ) -> SIMD3<Float>? {
-        if let position = position(for: jointName, in: frame) {
+        if let position = position(for: jointName, in: frame, jointIndex: jointIndex) {
             return position
         }
 
@@ -133,15 +144,16 @@ enum OdoroCanonicalPoseMapper {
             return nil
         }
 
-        return position(for: fallbackJointName, in: frame)
+        return position(for: fallbackJointName, in: frame, jointIndex: jointIndex)
     }
 
-    private static func resolvedRotation(
+    nonisolated private static func resolvedRotation(
         for jointName: ARSkeleton.JointName,
         fallbackJointName: ARSkeleton.JointName? = nil,
-        in frame: MotionFrame
+        in frame: MotionFrame,
+        jointIndex: JointIndexResolver
     ) -> MotionJointRotation? {
-        if let rotation = rotation(for: jointName, in: frame) {
+        if let rotation = rotation(for: jointName, in: frame, jointIndex: jointIndex) {
             return rotation
         }
 
@@ -149,11 +161,15 @@ enum OdoroCanonicalPoseMapper {
             return nil
         }
 
-        return rotation(for: fallbackJointName, in: frame)
+        return rotation(for: fallbackJointName, in: frame, jointIndex: jointIndex)
     }
 
-    private static func position(for jointName: ARSkeleton.JointName, in frame: MotionFrame) -> SIMD3<Float>? {
-        let index = skeletonDefinition.index(for: jointName)
+    nonisolated private static func position(
+        for jointName: ARSkeleton.JointName,
+        in frame: MotionFrame,
+        jointIndex: JointIndexResolver
+    ) -> SIMD3<Float>? {
+        let index = jointIndex(jointName)
         guard index != NSNotFound, frame.jointPositions.indices.contains(index) else {
             return nil
         }
@@ -166,12 +182,16 @@ enum OdoroCanonicalPoseMapper {
         return position
     }
 
-    private static func rotation(for jointName: ARSkeleton.JointName, in frame: MotionFrame) -> MotionJointRotation? {
+    nonisolated private static func rotation(
+        for jointName: ARSkeleton.JointName,
+        in frame: MotionFrame,
+        jointIndex: JointIndexResolver
+    ) -> MotionJointRotation? {
         guard let jointRotations = frame.jointRotations else {
             return nil
         }
 
-        let index = skeletonDefinition.index(for: jointName)
+        let index = jointIndex(jointName)
         guard index != NSNotFound, jointRotations.indices.contains(index) else {
             return nil
         }
