@@ -27,12 +27,21 @@ final class MotionStudioInteractor {
 
     private let source: MotionSource
     private var maximumCaptureDuration: TimeInterval
+    private let currentTime: () -> TimeInterval
     private var capturedFrames: [MotionFrame] = []
-    private var recordingStartTimestamp: TimeInterval?
+    private var firstFrameTimestamp: TimeInterval?
+    private var recordingClockStartedAt: TimeInterval?
+    private var recordingClockTimer: Timer?
+    private let recordingClockInterval: TimeInterval = 1.0 / 30.0
 
-    init(source: MotionSource, maximumCaptureDuration: TimeInterval = 10) {
+    init(
+        source: MotionSource,
+        maximumCaptureDuration: TimeInterval = 10,
+        currentTime: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }
+    ) {
         self.source = source
         self.maximumCaptureDuration = maximumCaptureDuration
+        self.currentTime = currentTime
 
         source.onFrame = { [weak self] frame in
             Task { @MainActor in
@@ -45,6 +54,10 @@ final class MotionStudioInteractor {
                 self?.updateStatusTextIfNeeded(statusText)
             }
         }
+    }
+
+    deinit {
+        recordingClockTimer?.invalidate()
     }
 
     func activateSource() {
@@ -60,6 +73,7 @@ final class MotionStudioInteractor {
     }
 
     func suspendForAppInactivity() {
+        stopRecordingClock()
         source.deactivate()
 
         guard state.presentation == .capture else {
@@ -68,7 +82,7 @@ final class MotionStudioInteractor {
 
         if state.isRecording {
             capturedFrames.removeAll()
-            recordingStartTimestamp = nil
+            firstFrameTimestamp = nil
             state.isRecording = false
             state.recordedFrameCount = 0
             state.recordingDuration = 0
@@ -82,17 +96,20 @@ final class MotionStudioInteractor {
             returnToCapture()
         }
 
+        stopRecordingClock()
         capturedFrames.removeAll()
-        recordingStartTimestamp = nil
+        firstFrameTimestamp = nil
         state.isRecording = true
         state.recordedFrameCount = 0
         state.recordingDuration = 0
         updateStatusTextIfNeeded(L10n.statusRecordingMoveFullBody)
+        startRecordingClock()
     }
 
     func stopRecording() {
         guard state.isRecording else { return }
         state.isRecording = false
+        stopRecordingClock()
 
         guard capturedFrames.count > 1 else {
             updateStatusTextIfNeeded(L10n.statusInsufficientMotion)
@@ -116,8 +133,9 @@ final class MotionStudioInteractor {
     }
 
     func resetClip() {
+        stopRecordingClock()
         capturedFrames.removeAll()
-        recordingStartTimestamp = nil
+        firstFrameTimestamp = nil
         currentClip = nil
         state.presentation = .capture
         state.isRecording = false
@@ -139,6 +157,19 @@ final class MotionStudioInteractor {
         currentClip = clip
     }
 
+    func updateRecordingClock(now: TimeInterval) {
+        guard state.isRecording, let recordingClockStartedAt else {
+            return
+        }
+
+        let elapsed = max(0, now - recordingClockStartedAt)
+        state.recordingDuration = min(maximumCaptureDuration, elapsed)
+
+        if elapsed >= maximumCaptureDuration {
+            stopRecording()
+        }
+    }
+
     private func consume(frame: MotionFrame) {
         guard state.isRecording else {
             return
@@ -146,11 +177,11 @@ final class MotionStudioInteractor {
 
         updateStatusTextIfNeeded(L10n.statusRecordingSaving)
 
-        if recordingStartTimestamp == nil {
-            recordingStartTimestamp = frame.time
+        if firstFrameTimestamp == nil {
+            firstFrameTimestamp = frame.time
         }
 
-        let relativeTime = frame.time - (recordingStartTimestamp ?? frame.time)
+        let relativeTime = max(0, frame.time - (firstFrameTimestamp ?? frame.time))
         let capturedFrame = MotionFrame(
             time: relativeTime,
             jointPositions: frame.jointPositions,
@@ -158,11 +189,6 @@ final class MotionStudioInteractor {
         )
         capturedFrames.append(capturedFrame)
         state.recordedFrameCount = capturedFrames.count
-        state.recordingDuration = relativeTime
-
-        if relativeTime >= maximumCaptureDuration {
-            stopRecording()
-        }
     }
 
     private func updateStatusTextIfNeeded(_ statusText: String) {
@@ -171,5 +197,30 @@ final class MotionStudioInteractor {
         }
 
         state.statusText = statusText
+    }
+
+    private func startRecordingClock() {
+        recordingClockStartedAt = currentTime()
+        updateRecordingClock(now: currentTime())
+
+        guard state.isRecording else {
+            return
+        }
+
+        recordingClockTimer = Timer.scheduledTimer(
+            withTimeInterval: recordingClockInterval,
+            repeats: true
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.updateRecordingClock(now: self.currentTime())
+            }
+        }
+    }
+
+    private func stopRecordingClock() {
+        recordingClockTimer?.invalidate()
+        recordingClockTimer = nil
+        recordingClockStartedAt = nil
     }
 }

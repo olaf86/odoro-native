@@ -315,19 +315,20 @@ struct OdoroTests {
     @Test func studioViewModelTogglesMetronomePreviewFromMusicSelection() {
         let audioPlaybackController = TestAudioPlaybackController()
         let studio = StudioViewModel(audioPlaybackController: audioPlaybackController)
-        let metronome = studio.availableAudioSources[0]
+        let musicSelection = MusicSelectionViewModel(studio: studio)
+        let metronome = musicSelection.availableAudioSources[0]
 
         studio.openMusicSelection()
-        studio.toggleAudioPreview(for: metronome)
+        musicSelection.toggleAudioPreview(for: metronome)
 
         #expect(audioPlaybackController.playRequests.count == 1)
         #expect(audioPlaybackController.playRequests.first?.tempoSourceType == .metronome)
-        #expect(studio.isPreviewingAudioSource(metronome))
+        #expect(musicSelection.isPreviewingAudioSource(metronome))
 
-        studio.toggleAudioPreview(for: metronome)
+        musicSelection.toggleAudioPreview(for: metronome)
 
         #expect(audioPlaybackController.stopCallCount == 1)
-        #expect(!studio.isPreviewingAudioSource(metronome))
+        #expect(!musicSelection.isPreviewingAudioSource(metronome))
     }
 
     @MainActor
@@ -362,7 +363,12 @@ struct OdoroTests {
     @MainActor
     @Test func motionStudioInteractorStopsRecordingAtConfiguredDuration() async {
         let source = TestMotionSource()
-        let interactor = MotionStudioInteractor(source: source, maximumCaptureDuration: 1)
+        var clock: TimeInterval = 0
+        let interactor = MotionStudioInteractor(
+            source: source,
+            maximumCaptureDuration: 1,
+            currentTime: { clock }
+        )
 
         source.activate()
         interactor.beginRecording()
@@ -372,12 +378,40 @@ struct OdoroTests {
 
         #expect(interactor.state.isRecording)
 
-        source.emitFrame(at: 1.05, joints: 2)
-        await Task.yield()
+        clock = 1.05
+        interactor.updateRecordingClock(now: clock)
 
         #expect(!interactor.state.isRecording)
-        #expect(interactor.currentClip?.frameCount == 3)
+        #expect(interactor.currentClip?.frameCount == 2)
         #expect(interactor.state.presentation == .stage)
+    }
+
+    @MainActor
+    @Test func motionStudioInteractorAdvancesRecordingDurationWithoutFrames() {
+        let source = TestMotionSource()
+        var clock: TimeInterval = 10
+        let interactor = MotionStudioInteractor(
+            source: source,
+            maximumCaptureDuration: 1,
+            currentTime: { clock }
+        )
+
+        interactor.beginRecording()
+
+        clock = 10.4
+        interactor.updateRecordingClock(now: clock)
+
+        #expect(interactor.state.isRecording)
+        #expect(abs(interactor.state.recordingDuration - 0.4) < 0.001)
+        #expect(interactor.state.recordedFrameCount == 0)
+
+        clock = 11.2
+        interactor.updateRecordingClock(now: clock)
+
+        #expect(!interactor.state.isRecording)
+        #expect(interactor.state.recordingDuration == 1)
+        #expect(interactor.currentClip == nil)
+        #expect(interactor.state.statusText == L10n.statusInsufficientMotion)
     }
 }
 
