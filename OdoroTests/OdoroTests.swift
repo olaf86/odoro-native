@@ -119,6 +119,31 @@ struct OdoroTests {
         #expect(normalized.frames[0].jointPositions[2].y == -10.0)
     }
 
+    @Test func motionClipRebasingMovesOriginWithoutChangingRotations() {
+        let rotations: [MotionJointRotation?] = [
+            MotionJointRotation(simd_quatf(angle: 0.15, axis: SIMD3<Float>(0, 1, 0))),
+            MotionJointRotation(simd_quatf(angle: 0.35, axis: SIMD3<Float>(1, 0, 0))),
+        ]
+        let clip = MotionClip(
+            frames: [
+                MotionFrame(
+                    time: 0,
+                    jointPositions: [
+                        SIMD3<Float>(1, 2, 3),
+                        SIMD3<Float>(3, 4, 5),
+                    ],
+                    jointRotations: rotations
+                )
+            ]
+        )
+
+        let rebased = clip.rebasedForStage()
+
+        #expect(rebased.frames[0].jointPositions[0] == SIMD3<Float>(-1, 0, -1))
+        #expect(rebased.frames[0].jointPositions[1] == SIMD3<Float>(1, 2, 1))
+        #expect(rebased.frames[0].jointRotations == rotations)
+    }
+
     @Test func motionFrameQualityEvaluatorScoresSparseInvalidFrameAsLowQuality() {
         let evaluator = MotionFrameQualityEvaluator()
         let frame = MotionFrame(
@@ -285,6 +310,66 @@ struct OdoroTests {
 
         #expect(canonicalClip.frameCount == 1)
         #expect(canonicalClip.frames[0].jointPositions.count == OdoroSkeletonDefinition.jointCount)
+    }
+
+    @Test func canonicalPoseMapperMapsElbowsFromForearmJoints() {
+        let jointNames: [ARSkeleton.JointName] = [
+            .root,
+            .head,
+            ARSkeleton.JointName(rawValue: "nose_joint"),
+            .leftShoulder,
+            .rightShoulder,
+            ARSkeleton.JointName(rawValue: "left_arm_joint"),
+            ARSkeleton.JointName(rawValue: "right_arm_joint"),
+            ARSkeleton.JointName(rawValue: "left_forearm_joint"),
+            ARSkeleton.JointName(rawValue: "right_forearm_joint"),
+            .leftHand,
+            .rightHand,
+            ARSkeleton.JointName(rawValue: "left_upLeg_joint"),
+            ARSkeleton.JointName(rawValue: "right_upLeg_joint"),
+            ARSkeleton.JointName(rawValue: "left_leg_joint"),
+            ARSkeleton.JointName(rawValue: "right_leg_joint"),
+            .leftFoot,
+            .rightFoot,
+        ]
+        let jointIndex: (ARSkeleton.JointName) -> Int = { name in
+            jointNames.firstIndex(of: name) ?? NSNotFound
+        }
+        let leftArm = SIMD3<Float>(-0.28, 1.38, 0)
+        let leftForearm = SIMD3<Float>(-0.48, 1.18, 0.02)
+        let leftHand = SIMD3<Float>(-0.66, 0.98, 0.03)
+        let rightArm = SIMD3<Float>(0.28, 1.38, 0)
+        let rightForearm = SIMD3<Float>(0.48, 1.18, 0.02)
+        let rightHand = SIMD3<Float>(0.66, 0.98, 0.03)
+        let frame = MotionFrame(
+            time: 0,
+            jointPositions: [
+                SIMD3<Float>(0, 1, 0),
+                SIMD3<Float>(0, 1.6, 0),
+                SIMD3<Float>(0, 1.68, 0.04),
+                SIMD3<Float>(-0.2, 1.4, 0),
+                SIMD3<Float>(0.2, 1.4, 0),
+                leftArm,
+                rightArm,
+                leftForearm,
+                rightForearm,
+                leftHand,
+                rightHand,
+                SIMD3<Float>(-0.1, 0.9, 0),
+                SIMD3<Float>(0.1, 0.9, 0),
+                SIMD3<Float>(-0.1, 0.5, 0.05),
+                SIMD3<Float>(0.1, 0.5, -0.05),
+                SIMD3<Float>(-0.1, 0.1, 0.12),
+                SIMD3<Float>(0.1, 0.1, 0.12),
+            ]
+        )
+
+        let mapped = OdoroCanonicalPoseMapper.map(frame: frame, jointIndex: jointIndex)
+
+        #expect(mapped.positions[OdoroSkeletonDefinition.index(of: .leftElbow)].simdValue == leftForearm)
+        #expect(mapped.positions[OdoroSkeletonDefinition.index(of: .rightElbow)].simdValue == rightForearm)
+        #expect(mapped.positions[OdoroSkeletonDefinition.index(of: .leftWrist)].simdValue == leftHand)
+        #expect(mapped.positions[OdoroSkeletonDefinition.index(of: .rightWrist)].simdValue == rightHand)
     }
 
     @Test func motionPayloadRoundTripPreservesCanonicalClipWithoutRemapping() {
@@ -894,6 +979,8 @@ struct OdoroTests {
         #expect(interactor.currentClip?.frameCount == canonicalClip.frameCount)
         #expect(interactor.currentClip?.frames[0].jointPositions.count == OdoroSkeletonDefinition.jointCount)
         #expect(interactor.currentClip?.frames[1].jointPositions[OdoroSkeletonDefinition.index(of: .root)] == canonicalClip.frames[1].jointPositions[OdoroSkeletonDefinition.index(of: .root)])
+        #expect(interactor.sourceClip?.frameCount == 2)
+        #expect(interactor.sourceClip?.frames[0].jointPositions.count == 2)
     }
 
     private static func rotationAngle(_ rotation: simd_quatf) -> Float {

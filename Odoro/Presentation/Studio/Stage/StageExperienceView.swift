@@ -92,6 +92,19 @@ private struct StageBottomBar: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
+            Picker(
+                "Skeleton Debug",
+                selection: Binding(
+                    get: { viewModel.stageDebugMotionViewMode },
+                    set: viewModel.setStageDebugMotionViewMode
+                )
+            ) {
+                ForEach(viewModel.availableStageDebugMotionViewModes) { mode in
+                    Text(mode.title).tag(mode)
+                }
+            }
+            .pickerStyle(.segmented)
+
             Text("Swipe down to pick another model view.")
                 .font(.footnote)
                 .foregroundStyle(Color.white.opacity(0.72))

@@ -93,6 +93,10 @@ struct MotionClip: Sendable {
     nonisolated func normalizedForStage() -> MotionClip {
         MotionClipStageNormalizer().normalized(clip: self)
     }
+
+    nonisolated func rebasedForStage() -> MotionClip {
+        MotionClipStageRebaser().rebased(clip: self)
+    }
 }
 
 struct MotionStudioState {

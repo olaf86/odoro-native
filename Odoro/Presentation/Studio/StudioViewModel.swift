@@ -26,6 +26,7 @@ final class StudioViewModel: ObservableObject {
 
     @Published var availableAvatarOptions: [StageAvatarOption] = AvatarCatalog.builtInStageOptions
     @Published var selectedAvatarOption: StageAvatarOption = AvatarCatalog.defaultOption
+    @Published var stageDebugMotionViewMode: StageDebugMotionViewMode = .stabilized
 
     // MARK: - Transient UI
 
@@ -99,7 +100,11 @@ final class StudioViewModel: ObservableObject {
         }
 
         interactor.onClipChange = { [weak self] clip in
-            self?.stageRenderer.setClip(clip)
+            self?.applyStageDebugPresentation()
+        }
+
+        interactor.onSourceClipChange = { [weak self] _ in
+            self?.applyStageDebugPresentation()
         }
     }
 

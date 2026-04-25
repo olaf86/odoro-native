@@ -9,6 +9,7 @@ import Foundation
 final class MotionStudioInteractor {
     var onStateChange: ((MotionStudioState) -> Void)?
     var onClipChange: ((MotionClip?) -> Void)?
+    var onSourceClipChange: ((MotionClip?) -> Void)?
 
     private(set) var state = MotionStudioState() {
         didSet {
@@ -22,6 +23,12 @@ final class MotionStudioInteractor {
             state.clipDuration = currentClip?.duration ?? 0
             state.recordedFrameCount = currentClip?.frameCount ?? 0
             onClipChange?(currentClip)
+        }
+    }
+
+    private(set) var sourceClip: MotionClip? {
+        didSet {
+            onSourceClipChange?(sourceClip)
         }
     }
 
@@ -119,7 +126,9 @@ final class MotionStudioInteractor {
             return
         }
 
-        currentClip = capturedClipPreparer.prepareCapturedClip(MotionClip(frames: capturedFrames))
+        let rawClip = MotionClip(frames: capturedFrames)
+        sourceClip = rawClip
+        currentClip = capturedClipPreparer.prepareCapturedClip(rawClip)
         updateStatusTextIfNeeded(L10n.statusCaptureComplete)
         state.presentation = .stage
     }
@@ -139,6 +148,7 @@ final class MotionStudioInteractor {
         stopRecordingClock()
         capturedFrames.removeAll()
         firstFrameTimestamp = nil
+        sourceClip = nil
         currentClip = nil
         state.presentation = .capture
         state.isRecording = false
@@ -156,7 +166,8 @@ final class MotionStudioInteractor {
         updateStatusTextIfNeeded(statusText)
     }
 
-    func replaceCurrentClip(_ clip: MotionClip) {
+    func replaceCurrentClip(_ clip: MotionClip, sourceClip: MotionClip? = nil) {
+        self.sourceClip = sourceClip
         currentClip = clip
     }
 

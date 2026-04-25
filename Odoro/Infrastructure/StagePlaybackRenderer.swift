@@ -12,13 +12,23 @@ import UIKit
 @MainActor
 final class StagePlaybackRenderer: NSObject {
     private static let logger = Logger(subsystem: Bundle.main.bundleIdentifier!, category: "StagePlaybackRenderer")
+    enum SkeletonDebugLayout: Equatable {
+        case rawARKit
+        case canonical
+    }
+
+    private struct RawRenderJoint {
+        let jointName: ARSkeleton.JointName
+        let fallbackRawName: String?
+    }
+
     private struct RenderLimb {
         let startIndex: Int
         let endIndex: Int
     }
 
     private let skeletonDefinition = ARSkeletonDefinition.defaultBody3D
-    private let renderJointNames: [OdoroJointName] = [
+    private let canonicalRenderJointNames: [OdoroJointName] = [
         .root,
         .head,
         .nose,
@@ -37,7 +47,7 @@ final class StagePlaybackRenderer: NSObject {
         .leftFoot,
         .rightFoot,
     ]
-    private let renderLimbs: [RenderLimb] = [
+    private let canonicalRenderLimbs: [RenderLimb] = [
         .init(startIndex: 0, endIndex: 1),
         .init(startIndex: 1, endIndex: 2),
         .init(startIndex: 3, endIndex: 4),
@@ -56,6 +66,41 @@ final class StagePlaybackRenderer: NSObject {
         .init(startIndex: 13, endIndex: 15),
         .init(startIndex: 14, endIndex: 16),
     ]
+    private let rawRenderJoints: [RawRenderJoint] = [
+        .init(jointName: .root, fallbackRawName: "hips_joint"),
+        .init(jointName: .head, fallbackRawName: "head_joint"),
+        .init(jointName: .leftShoulder, fallbackRawName: "left_shoulder_1_joint"),
+        .init(jointName: .rightShoulder, fallbackRawName: "right_shoulder_1_joint"),
+        .init(jointName: ARSkeleton.JointName(rawValue: "left_arm_joint"), fallbackRawName: nil),
+        .init(jointName: ARSkeleton.JointName(rawValue: "right_arm_joint"), fallbackRawName: nil),
+        .init(jointName: ARSkeleton.JointName(rawValue: "left_forearm_joint"), fallbackRawName: nil),
+        .init(jointName: ARSkeleton.JointName(rawValue: "right_forearm_joint"), fallbackRawName: nil),
+        .init(jointName: .leftHand, fallbackRawName: "left_hand_joint"),
+        .init(jointName: .rightHand, fallbackRawName: "right_hand_joint"),
+        .init(jointName: ARSkeleton.JointName(rawValue: "left_upLeg_joint"), fallbackRawName: nil),
+        .init(jointName: ARSkeleton.JointName(rawValue: "right_upLeg_joint"), fallbackRawName: nil),
+        .init(jointName: ARSkeleton.JointName(rawValue: "left_leg_joint"), fallbackRawName: nil),
+        .init(jointName: ARSkeleton.JointName(rawValue: "right_leg_joint"), fallbackRawName: nil),
+        .init(jointName: .leftFoot, fallbackRawName: "left_foot_joint"),
+        .init(jointName: .rightFoot, fallbackRawName: "right_foot_joint"),
+    ]
+    private let rawRenderLimbs: [RenderLimb] = [
+        .init(startIndex: 0, endIndex: 1),
+        .init(startIndex: 0, endIndex: 2),
+        .init(startIndex: 0, endIndex: 3),
+        .init(startIndex: 2, endIndex: 4),
+        .init(startIndex: 4, endIndex: 6),
+        .init(startIndex: 6, endIndex: 8),
+        .init(startIndex: 3, endIndex: 5),
+        .init(startIndex: 5, endIndex: 7),
+        .init(startIndex: 7, endIndex: 9),
+        .init(startIndex: 0, endIndex: 10),
+        .init(startIndex: 0, endIndex: 11),
+        .init(startIndex: 10, endIndex: 12),
+        .init(startIndex: 12, endIndex: 14),
+        .init(startIndex: 11, endIndex: 13),
+        .init(startIndex: 13, endIndex: 15),
+    ]
 
     private weak var view: ARView?
     private var clip: MotionClip?
@@ -73,6 +118,7 @@ final class StagePlaybackRenderer: NSObject {
     private var skeletalModelEntity: ModelEntity?
     private var activeRigProfile: AvatarRigProfile?
     private var hasStoppedBuiltInAnimation = false
+    private var skeletonDebugLayout: SkeletonDebugLayout = .canonical
 
     override init() {
         super.init()
@@ -97,6 +143,25 @@ final class StagePlaybackRenderer: NSObject {
 
     func setUsesProceduralMockPlayback(_ usesProceduralMockPlayback: Bool) {
         self.usesProceduralMockPlayback = usesProceduralMockPlayback
+    }
+
+    func setSkeletonDebugLayout(_ layout: SkeletonDebugLayout) {
+        guard skeletonDebugLayout != layout else {
+            return
+        }
+
+        let wasPlaying = playbackTimer != nil
+        skeletonDebugLayout = layout
+
+        if let view {
+            configureScene(in: view)
+            if let firstFrame = clip?.frames.first {
+                render(frame: firstFrame)
+            }
+            if wasPlaying {
+                play()
+            }
+        }
     }
 
     func setAvatarOption(_ avatarOption: StageAvatarOption) {
@@ -251,6 +316,24 @@ final class StagePlaybackRenderer: NSObject {
         view.scene.addAnchor(stageAnchor)
     }
 
+    private var activeRenderLimbs: [RenderLimb] {
+        switch skeletonDebugLayout {
+        case .rawARKit:
+            rawRenderLimbs
+        case .canonical:
+            canonicalRenderLimbs
+        }
+    }
+
+    private var activeRenderJointCount: Int {
+        switch skeletonDebugLayout {
+        case .rawARKit:
+            rawRenderJoints.count
+        case .canonical:
+            canonicalRenderJointNames.count
+        }
+    }
+
     private func buildDancerHierarchy() {
         hasStoppedBuiltInAnimation = false
 
@@ -282,7 +365,7 @@ final class StagePlaybackRenderer: NSObject {
             }
         }
 
-        for _ in renderJointNames {
+        for _ in 0..<activeRenderJointCount {
             let joint = ModelEntity(
                 mesh: .generateSphere(radius: 0.045),
                 materials: [UnlitMaterial(color: UIColor(red: 1, green: 0.33, blue: 0.48, alpha: 1))]
@@ -292,7 +375,7 @@ final class StagePlaybackRenderer: NSObject {
             dancerRoot.addChild(joint)
         }
 
-        for _ in renderLimbs {
+        for _ in activeRenderLimbs {
             let limbMesh: MeshResource
             if #available(iOS 18.0, *) {
                 limbMesh = .generateCylinder(height: 1.0, radius: 0.025)
@@ -343,6 +426,7 @@ final class StagePlaybackRenderer: NSObject {
         }
 
         var jointPositions = resolvedJointPositions(from: frame)
+        let renderLimbs = activeRenderLimbs
         guard jointEntities.count == jointPositions.count, limbEntities.count == renderLimbs.count else {
             return
         }
@@ -388,20 +472,31 @@ final class StagePlaybackRenderer: NSObject {
     }
 
     private func resolvedJointPositions(from frame: MotionFrame) -> [SIMD3<Float>?] {
-        let canonicalPositions = canonicalJointPositions(from: frame)
-
-        return renderJointNames.map { jointName in
-            let index = OdoroSkeletonDefinition.index(of: jointName)
-            guard canonicalPositions.indices.contains(index) else {
-                return nil
+        switch skeletonDebugLayout {
+        case .rawARKit:
+            return rawRenderJoints.map { renderJoint in
+                resolvedPosition(
+                    for: renderJoint.jointName,
+                    fallbackRawName: renderJoint.fallbackRawName,
+                    in: frame
+                )
             }
+        case .canonical:
+            let canonicalPositions = canonicalJointPositions(from: frame)
 
-            let position = canonicalPositions[index]
-            guard Self.isValidMotionPosition(position) else {
-                return nil
+            return canonicalRenderJointNames.map { jointName in
+                let index = OdoroSkeletonDefinition.index(of: jointName)
+                guard canonicalPositions.indices.contains(index) else {
+                    return nil
+                }
+
+                let position = canonicalPositions[index]
+                guard Self.isValidMotionPosition(position) else {
+                    return nil
+                }
+
+                return position
             }
-
-            return position
         }
     }
 

@@ -7,6 +7,12 @@ import Foundation
 import RealityKit
 
 extension StudioViewModel {
+    func setStageDebugMotionViewMode(_ mode: StageDebugMotionViewMode) {
+        guard stageDebugMotionViewMode != mode else { return }
+        stageDebugMotionViewMode = mode
+        applyStageDebugPresentation()
+    }
+
     func returnToCapture() {
         stageRenderer.pause()
         interactor.setPlaybackActive(false)
@@ -26,7 +32,7 @@ extension StudioViewModel {
         stopAudioPlayback()
         interactor.deactivateSource()
         stageRenderer.setAvatarOption(selectedAvatarOption)
-        stageRenderer.setClip(interactor.currentClip)
+        applyStageDebugPresentation()
         stageRenderer.play()
         interactor.setPlaybackActive(true)
     }
@@ -47,7 +53,7 @@ extension StudioViewModel {
     func attachStageView(_ view: ARView) {
         stageRenderer.attach(to: view)
         stageRenderer.setAvatarOption(selectedAvatarOption)
-        stageRenderer.setClip(interactor.currentClip)
+        applyStageDebugPresentation()
     }
 
     func selectAvatarOption(_ option: StageAvatarOption) {
@@ -64,8 +70,12 @@ extension StudioViewModel {
         if state.isPlaying {
             prepareStagePlayback()
         } else {
-            stageRenderer.setClip(interactor.currentClip)
+            applyStageDebugPresentation()
         }
+    }
+
+    var availableStageDebugMotionViewModes: [StageDebugMotionViewMode] {
+        interactor.sourceClip == nil ? [.stabilized] : StageDebugMotionViewMode.allCases
     }
 
     func importAvatar(from url: URL) {
@@ -104,6 +114,44 @@ extension StudioViewModel {
             selectedAvatarOption = matchingSelection
         } else {
             selectedAvatarOption = AvatarCatalog.defaultOption
+        }
+    }
+
+    func applyStageDebugPresentation() {
+        let resolvedMode = availableStageDebugMotionViewModes.contains(stageDebugMotionViewMode)
+            ? stageDebugMotionViewMode
+            : .stabilized
+        if stageDebugMotionViewMode != resolvedMode {
+            stageDebugMotionViewMode = resolvedMode
+        }
+
+        stageRenderer.setSkeletonDebugLayout(stageDebugSkeletonLayout)
+        stageRenderer.setClip(stageDebugClip)
+    }
+
+    var stageDebugSkeletonLayout: StagePlaybackRenderer.SkeletonDebugLayout {
+        switch stageDebugMotionViewMode {
+        case .raw:
+            .rawARKit
+        case .canonical, .stabilized:
+            .canonical
+        }
+    }
+
+    var stageDebugClip: MotionClip? {
+        switch stageDebugMotionViewMode {
+        case .raw:
+            return (interactor.sourceClip ?? interactor.currentClip)?.rebasedForStage()
+        case .canonical:
+            let sourceClip = interactor.sourceClip ?? interactor.currentClip
+            guard let sourceClip else {
+                return nil
+            }
+            return OdoroCanonicalPoseMapper
+                .canonicalizedClip(from: sourceClip)
+                .rebasedForStage()
+        case .stabilized:
+            return interactor.currentClip
         }
     }
 }

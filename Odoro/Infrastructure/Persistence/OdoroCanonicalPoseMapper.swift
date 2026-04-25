@@ -20,6 +20,8 @@ enum OdoroCanonicalPoseMapper {
         nonisolated static var nose: ARSkeleton.JointName { ARSkeleton.JointName(rawValue: "nose_joint") }
         nonisolated static var leftArm: ARSkeleton.JointName { ARSkeleton.JointName(rawValue: "left_arm_joint") }
         nonisolated static var rightArm: ARSkeleton.JointName { ARSkeleton.JointName(rawValue: "right_arm_joint") }
+        nonisolated static var leftForearm: ARSkeleton.JointName { ARSkeleton.JointName(rawValue: "left_forearm_joint") }
+        nonisolated static var rightForearm: ARSkeleton.JointName { ARSkeleton.JointName(rawValue: "right_forearm_joint") }
         nonisolated static var leftHand: ARSkeleton.JointName { ARSkeleton.JointName(rawValue: "left_hand_joint") }
         nonisolated static var rightHand: ARSkeleton.JointName { ARSkeleton.JointName(rawValue: "right_hand_joint") }
         nonisolated static var leftUpLeg: ARSkeleton.JointName { ARSkeleton.JointName(rawValue: "left_upLeg_joint") }
@@ -69,6 +71,24 @@ enum OdoroCanonicalPoseMapper {
         let root = resolvedPosition(for: .root, in: frame, jointIndex: jointIndex) ?? midpoint(leftHip, rightHip)
         let head = resolvedPosition(for: .head, fallbackJointName: JointNames.head, in: frame, jointIndex: jointIndex)
         let nose = resolvedPosition(for: JointNames.nose, in: frame, jointIndex: jointIndex)
+        let leftElbow = resolvedPosition(
+            for: JointNames.leftForearm,
+            fallbackJointName: JointNames.leftArm,
+            in: frame,
+            jointIndex: jointIndex
+        )
+        let rightElbow = resolvedPosition(
+            for: JointNames.rightForearm,
+            fallbackJointName: JointNames.rightArm,
+            in: frame,
+            jointIndex: jointIndex
+        )
+        let leftWrist =
+            resolvedPosition(for: .leftHand, fallbackJointName: JointNames.leftHand, in: frame, jointIndex: jointIndex)
+            ?? leftElbow
+        let rightWrist =
+            resolvedPosition(for: .rightHand, fallbackJointName: JointNames.rightHand, in: frame, jointIndex: jointIndex)
+            ?? rightElbow
 
         let headRotation = resolvedRotation(for: .head, fallbackJointName: JointNames.head, in: frame, jointIndex: jointIndex)
         let leftHandRotation = resolvedRotation(for: .leftHand, fallbackJointName: JointNames.leftHand, in: frame, jointIndex: jointIndex)
@@ -81,10 +101,10 @@ enum OdoroCanonicalPoseMapper {
             required(nose, fallback: head ?? shoulderCenter ?? .zero, status: nose == nil ? .missing : .observed),
             required(leftShoulder, fallback: .zero, status: leftShoulder == nil ? .missing : .observed),
             required(rightShoulder, fallback: .zero, status: rightShoulder == nil ? .missing : .observed),
-            required(resolvedPosition(for: JointNames.leftArm, in: frame, jointIndex: jointIndex), fallback: leftShoulder ?? .zero, status: .mapped),
-            required(resolvedPosition(for: JointNames.rightArm, in: frame, jointIndex: jointIndex), fallback: rightShoulder ?? .zero, status: .mapped),
-            required(resolvedPosition(for: .leftHand, fallbackJointName: JointNames.leftHand, in: frame, jointIndex: jointIndex), fallback: resolvedPosition(for: JointNames.leftArm, in: frame, jointIndex: jointIndex) ?? leftShoulder ?? .zero, status: .mapped),
-            required(resolvedPosition(for: .rightHand, fallbackJointName: JointNames.rightHand, in: frame, jointIndex: jointIndex), fallback: resolvedPosition(for: JointNames.rightArm, in: frame, jointIndex: jointIndex) ?? rightShoulder ?? .zero, status: .mapped),
+            required(leftElbow, fallback: leftShoulder ?? .zero, status: .mapped),
+            required(rightElbow, fallback: rightShoulder ?? .zero, status: .mapped),
+            required(leftWrist, fallback: leftElbow ?? leftShoulder ?? .zero, status: .mapped),
+            required(rightWrist, fallback: rightElbow ?? rightShoulder ?? .zero, status: .mapped),
             required(leftHip, fallback: root ?? .zero, status: leftHip == nil ? .missing : .mapped),
             required(rightHip, fallback: root ?? .zero, status: rightHip == nil ? .missing : .mapped),
             required(resolvedPosition(for: JointNames.leftLeg, in: frame, jointIndex: jointIndex), fallback: leftHip ?? .zero, status: .mapped),
