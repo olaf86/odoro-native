@@ -5,9 +5,12 @@
 
 import ARKit
 import Foundation
+import os
 import RealityKit
 
 final class ARKitMotionSource: NSObject, MotionSource {
+    private static let logger = Logger(subsystem: Bundle.main.bundleIdentifier!, category: "ARKitMotionSource")
+
     var captureMode: CaptureMode { .rearBody3D }
     var onFrame: ((MotionFrame) -> Void)?
     var onStatusTextChange: ((String) -> Void)?
@@ -18,6 +21,7 @@ final class ARKitMotionSource: NSObject, MotionSource {
 
     private let session = ARSession()
     private let overlayRenderer = ARKitCaptureOverlayRenderer()
+    private let liveFrameValidator = ARKitLiveCaptureFrameValidator()
     private weak var attachedView: ARView?
     private var shouldStartWhenAttached = false
     private var hasDetectedBody = false
@@ -53,7 +57,7 @@ final class ARKitMotionSource: NSObject, MotionSource {
 
         let configuration = ARBodyTrackingConfiguration()
         configuration.isAutoFocusEnabled = true
-        configuration.automaticSkeletonScaleEstimationEnabled = true
+        configuration.automaticSkeletonScaleEstimationEnabled = false
         hasDetectedBody = false
         isSessionActive = true
         session.run(configuration, options: [.resetTracking, .removeExistingAnchors])
@@ -96,6 +100,12 @@ extension ARKitMotionSource: ARSessionDelegate {
         let timestamp = session.currentFrame?.timestamp ?? ProcessInfo.processInfo.systemUptime
         let frame = Self.makeFrame(from: bodyAnchor, timestamp: timestamp)
         Task { @MainActor in
+            let validation = self.liveFrameValidator.validate(frame)
+            guard validation.isValid else {
+                Self.logger.debug("Skipping implausible ARKit body frame: \(validation.rejectionReason ?? "unknown reason", privacy: .public)")
+                return
+            }
+
             if !self.hasDetectedBody {
                 self.hasDetectedBody = true
                 self.onStatusTextChange?(L10n.statusBodyDetected)

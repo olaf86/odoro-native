@@ -201,6 +201,27 @@ struct OdoroTests {
         #expect(floorHeight == 0.02)
     }
 
+    @Test func arKitLiveCaptureFrameValidatorRejectsImplausiblyScaledBody() {
+        let validator = ARKitLiveCaptureFrameValidator()
+        let frame = Self.arKitFrame(
+            time: 0,
+            overrides: [
+                .head: SIMD3<Float>(0, 3.2, 0),
+                .leftShoulder: SIMD3<Float>(-1.0, 2.6, 0),
+                .rightShoulder: SIMD3<Float>(1.0, 2.6, 0),
+                .leftHand: SIMD3<Float>(-1.8, 2.0, 0.1),
+                .rightHand: SIMD3<Float>(1.8, 2.0, 0.1),
+                .leftFoot: SIMD3<Float>(-0.35, 0.0, 0.45),
+                .rightFoot: SIMD3<Float>(0.35, 0.0, 0.45),
+            ]
+        )
+
+        let validation = validator.validate(frame)
+
+        #expect(!validation.isValid)
+        #expect(validation.rejectionReason != nil)
+    }
+
     @Test func motionClipStageStabilizerConstrainsCanonicalBoneLengthSpikes() {
         let stabilizer = MotionClipStageStabilizer()
         let baselineFrame = Self.canonicalFrame(
@@ -1036,6 +1057,46 @@ struct OdoroTests {
         }
 
         return MotionFrame(time: time, jointPositions: orderedPositions)
+    }
+
+    private static func arKitFrame(
+        time: TimeInterval,
+        overrides: [ARSkeleton.JointName: SIMD3<Float>] = [:]
+    ) -> MotionFrame {
+        let skeletonDefinition = ARSkeletonDefinition.defaultBody3D
+        var positions = Array(
+            repeating: SIMD3<Float>(0, -10, 0),
+            count: skeletonDefinition.jointNames.count
+        )
+
+        func setJoint(_ name: ARSkeleton.JointName, position: SIMD3<Float>) {
+            let index = skeletonDefinition.index(for: name)
+            guard index != NSNotFound else { return }
+            positions[index] = position
+        }
+
+        setJoint(.root, position: SIMD3<Float>(0, 1.0, 0))
+        setJoint(.head, position: SIMD3<Float>(0, 1.82, 0))
+        setJoint(.leftShoulder, position: SIMD3<Float>(-0.23, 1.46, 0))
+        setJoint(.rightShoulder, position: SIMD3<Float>(0.23, 1.46, 0))
+        setJoint(ARSkeleton.JointName(rawValue: "left_arm_joint"), position: SIMD3<Float>(-0.38, 1.34, 0.02))
+        setJoint(ARSkeleton.JointName(rawValue: "right_arm_joint"), position: SIMD3<Float>(0.38, 1.34, 0.02))
+        setJoint(ARSkeleton.JointName(rawValue: "left_forearm_joint"), position: SIMD3<Float>(-0.56, 1.14, 0.03))
+        setJoint(ARSkeleton.JointName(rawValue: "right_forearm_joint"), position: SIMD3<Float>(0.56, 1.14, 0.03))
+        setJoint(.leftHand, position: SIMD3<Float>(-0.72, 0.94, 0.04))
+        setJoint(.rightHand, position: SIMD3<Float>(0.72, 0.94, 0.04))
+        setJoint(ARSkeleton.JointName(rawValue: "left_upLeg_joint"), position: SIMD3<Float>(-0.12, 0.88, 0))
+        setJoint(ARSkeleton.JointName(rawValue: "right_upLeg_joint"), position: SIMD3<Float>(0.12, 0.88, 0))
+        setJoint(ARSkeleton.JointName(rawValue: "left_leg_joint"), position: SIMD3<Float>(-0.12, 0.47, 0.04))
+        setJoint(ARSkeleton.JointName(rawValue: "right_leg_joint"), position: SIMD3<Float>(0.12, 0.47, 0.04))
+        setJoint(.leftFoot, position: SIMD3<Float>(-0.12, 0.08, 0.12))
+        setJoint(.rightFoot, position: SIMD3<Float>(0.12, 0.08, 0.12))
+
+        for (jointName, position) in overrides {
+            setJoint(jointName, position: position)
+        }
+
+        return MotionFrame(time: time, jointPositions: positions)
     }
 }
 
