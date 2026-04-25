@@ -34,11 +34,11 @@ enum OdoroJointStatus: String, Codable, Sendable {
 }
 
 enum OdoroSkeletonDefinition {
-    static let id = "odoro.body.v1"
-    static let jointNames = OdoroJointName.allCases
-    static let jointCount = jointNames.count
+    nonisolated static let id = "odoro.body.v1"
+    nonisolated static let jointNames = OdoroJointName.allCases
+    nonisolated static let jointCount = jointNames.count
 
-    static func index(of jointName: OdoroJointName) -> Int {
+    nonisolated static func index(of jointName: OdoroJointName) -> Int {
         jointNames.firstIndex(of: jointName)!
     }
 }

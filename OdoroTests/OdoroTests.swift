@@ -134,6 +134,10 @@ struct OdoroTests {
         #expect(assessment.score > 0)
         #expect(assessment.score < 0.2)
         #expect(assessment.validPositionMask == [true, false, false])
+        #expect(assessment.jointScores.count == 3)
+        #expect(assessment.jointScores[0] == assessment.score)
+        #expect(assessment.jointScores[1] == 0)
+        #expect(assessment.jointScores[2] == 0)
         #expect(assessment.robustCenter == SIMD3<Float>(0, 1, 0))
     }
 
@@ -169,6 +173,88 @@ struct OdoroTests {
         let floorHeight = stabilizer.estimatedFloorHeight(in: frames)
 
         #expect(floorHeight == 0.02)
+    }
+
+    @Test func motionClipStageStabilizerConstrainsCanonicalBoneLengthSpikes() {
+        let stabilizer = MotionClipStageStabilizer()
+        let baselineFrame = Self.canonicalFrame(
+            time: 0,
+            overrides: [
+                .leftFoot: SIMD3<Float>(-0.12, 0.0, 0.18),
+                .rightFoot: SIMD3<Float>(0.12, 0.0, 0.18),
+            ]
+        )
+        let spikedFrame = Self.canonicalFrame(
+            time: 1.0 / 30.0,
+            overrides: [
+                .leftFoot: SIMD3<Float>(0.62, 0.0, 1.18),
+                .rightFoot: SIMD3<Float>(0.12, 0.0, 0.18),
+            ]
+        )
+        let recoveredFrame = Self.canonicalFrame(
+            time: 2.0 / 30.0,
+            overrides: [
+                .leftFoot: SIMD3<Float>(-0.12, 0.0, 0.18),
+                .rightFoot: SIMD3<Float>(0.12, 0.0, 0.18),
+            ]
+        )
+
+        let stabilized = stabilizer.stabilize(
+            MotionClip(frames: [baselineFrame, spikedFrame, recoveredFrame])
+        )
+
+        let leftAnkleIndex = OdoroSkeletonDefinition.index(of: .leftAnkle)
+        let leftFootIndex = OdoroSkeletonDefinition.index(of: .leftFoot)
+        let referenceLength = simd_distance(
+            baselineFrame.jointPositions[leftAnkleIndex],
+            baselineFrame.jointPositions[leftFootIndex]
+        )
+        let rawSpikeLength = simd_distance(
+            spikedFrame.jointPositions[leftAnkleIndex],
+            spikedFrame.jointPositions[leftFootIndex]
+        )
+        let stabilizedSpikeLength = simd_distance(
+            stabilized[1].jointPositions[leftAnkleIndex],
+            stabilized[1].jointPositions[leftFootIndex]
+        )
+
+        #expect(abs(stabilizedSpikeLength - referenceLength) < abs(rawSpikeLength - referenceLength))
+        #expect(stabilizedSpikeLength < rawSpikeLength)
+    }
+
+    @Test func motionClipStageStabilizerPinsCanonicalFootWhileContactLooksStable() {
+        let stabilizer = MotionClipStageStabilizer()
+        let pinnedX: Float = -0.12
+        let clip = MotionClip(frames: [
+            Self.canonicalFrame(
+                time: 0,
+                overrides: [
+                    .leftFoot: SIMD3<Float>(pinnedX, 0.0, 0.18),
+                    .rightFoot: SIMD3<Float>(0.12, 0.0, 0.18),
+                ]
+            ),
+            Self.canonicalFrame(
+                time: 1.0 / 30.0,
+                overrides: [
+                    .leftFoot: SIMD3<Float>(0.22, 0.01, 0.18),
+                    .rightFoot: SIMD3<Float>(0.12, 0.0, 0.18),
+                ]
+            ),
+            Self.canonicalFrame(
+                time: 2.0 / 30.0,
+                overrides: [
+                    .leftFoot: SIMD3<Float>(0.26, 0.01, 0.18),
+                    .rightFoot: SIMD3<Float>(0.12, 0.0, 0.18),
+                ]
+            ),
+        ])
+
+        let stabilized = stabilizer.stabilize(clip)
+        let leftFootIndex = OdoroSkeletonDefinition.index(of: .leftFoot)
+        let stabilizedFootX = stabilized[1].jointPositions[leftFootIndex].x
+
+        #expect(abs(stabilizedFootX - pinnedX) < 0.08)
+        #expect(abs(stabilizedFootX - pinnedX) < abs(clip.frames[1].jointPositions[leftFootIndex].x - pinnedX))
     }
 
     @Test func motionClipNormalizationDampensPositionSpikes() {
@@ -614,6 +700,41 @@ struct OdoroTests {
 
     private static func rotationAngle(_ rotation: simd_quatf) -> Float {
         2 * acos(min(max(abs(rotation.vector.w), -1), 1))
+    }
+
+    private static func canonicalFrame(
+        time: TimeInterval,
+        overrides: [OdoroJointName: SIMD3<Float>] = [:]
+    ) -> MotionFrame {
+        var positions = [
+            OdoroJointName.root: SIMD3<Float>(0, 1.0, 0),
+            .head: SIMD3<Float>(0, 1.6, 0),
+            .nose: SIMD3<Float>(0, 1.68, 0.05),
+            .leftShoulder: SIMD3<Float>(-0.22, 1.42, 0),
+            .rightShoulder: SIMD3<Float>(0.22, 1.42, 0),
+            .leftElbow: SIMD3<Float>(-0.46, 1.22, 0.02),
+            .rightElbow: SIMD3<Float>(0.46, 1.22, 0.02),
+            .leftWrist: SIMD3<Float>(-0.66, 1.02, 0.03),
+            .rightWrist: SIMD3<Float>(0.66, 1.02, 0.03),
+            .leftHip: SIMD3<Float>(-0.12, 0.92, 0),
+            .rightHip: SIMD3<Float>(0.12, 0.92, 0),
+            .leftKnee: SIMD3<Float>(-0.12, 0.52, 0.03),
+            .rightKnee: SIMD3<Float>(0.12, 0.52, 0.03),
+            .leftAnkle: SIMD3<Float>(-0.12, 0.12, 0.1),
+            .rightAnkle: SIMD3<Float>(0.12, 0.12, 0.1),
+            .leftFoot: SIMD3<Float>(-0.12, 0.0, 0.18),
+            .rightFoot: SIMD3<Float>(0.12, 0.0, 0.18),
+        ]
+
+        for (joint, position) in overrides {
+            positions[joint] = position
+        }
+
+        let orderedPositions = OdoroSkeletonDefinition.jointNames.map { jointName in
+            positions[jointName] ?? .zero
+        }
+
+        return MotionFrame(time: time, jointPositions: orderedPositions)
     }
 }
 

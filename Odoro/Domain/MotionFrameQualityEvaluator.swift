@@ -9,6 +9,7 @@ import simd
 struct MotionFrameQualityAssessment: Sendable {
     let score: Float
     let validPositionMask: [Bool]
+    let jointScores: [Float]
     let robustCenter: SIMD3<Float>?
 }
 
@@ -39,6 +40,7 @@ struct MotionFrameQualityEvaluator: Sendable {
             return MotionFrameQualityAssessment(
                 score: 0,
                 validPositionMask: [],
+                jointScores: [],
                 robustCenter: nil
             )
         }
@@ -49,27 +51,30 @@ struct MotionFrameQualityEvaluator: Sendable {
                 isValid ? position : nil
             }
         let validRatio = Float(validPositions.count) / Float(frame.jointPositions.count)
+        let frameScore: Float
 
-        guard validPositions.count >= tuning.minimumQualityJointCount else {
-            return MotionFrameQualityAssessment(
-                score: validRatio * tuning.limitedQualityMultiplier,
-                validPositionMask: validPositionMask,
-                robustCenter: robustCenter(of: validPositions)
+        if validPositions.count < tuning.minimumQualityJointCount {
+            frameScore = validRatio * tuning.limitedQualityMultiplier
+        } else {
+            let span = span(of: validPositions)
+            let maxSpan = Swift.max(span.x, Swift.max(span.y, span.z))
+            let spanScore = descendingPenalty(
+                value: maxSpan,
+                fullPenaltyUpperBound: tuning.fullQualitySpanUpperBound,
+                degradedPenaltyUpperBound: tuning.degradedQualitySpanUpperBound,
+                minimumPenalty: tuning.minimumSpanScore
             )
+            frameScore = min(max(validRatio * spanScore, 0), 1)
         }
 
-        let span = span(of: validPositions)
-        let maxSpan = Swift.max(span.x, Swift.max(span.y, span.z))
-        let spanScore = descendingPenalty(
-            value: maxSpan,
-            fullPenaltyUpperBound: tuning.fullQualitySpanUpperBound,
-            degradedPenaltyUpperBound: tuning.degradedQualitySpanUpperBound,
-            minimumPenalty: tuning.minimumSpanScore
-        )
+        let jointScores = validPositionMask.map { isValid in
+            isValid ? frameScore : 0
+        }
 
         return MotionFrameQualityAssessment(
-            score: min(max(validRatio * spanScore, 0), 1),
+            score: frameScore,
             validPositionMask: validPositionMask,
+            jointScores: jointScores,
             robustCenter: robustCenter(of: validPositions)
         )
     }
