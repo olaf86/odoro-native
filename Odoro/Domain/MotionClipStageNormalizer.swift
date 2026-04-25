@@ -1,0 +1,44 @@
+//
+//  MotionClipStageNormalizer.swift
+//  Odoro
+//
+
+import Foundation
+import simd
+
+struct MotionClipStageNormalizer: Sendable {
+    let qualityEvaluator: MotionFrameQualityEvaluator
+    let stabilizer: MotionClipStageStabilizer
+
+    nonisolated init(
+        qualityEvaluator: MotionFrameQualityEvaluator = .init(),
+        stabilizer: MotionClipStageStabilizer? = nil
+    ) {
+        self.qualityEvaluator = qualityEvaluator
+        self.stabilizer = stabilizer ?? MotionClipStageStabilizer(qualityEvaluator: qualityEvaluator)
+    }
+
+    /// Normalizes a clip for stage playback by stabilizing the motion and rebasing origin/floor.
+    nonisolated func normalized(clip: MotionClip) -> MotionClip {
+        guard let firstFrame = clip.frames.first, !clip.frames.isEmpty else {
+            return clip
+        }
+
+        let stabilizedFrames = stabilizer.stabilize(clip)
+        let originFrame = stabilizedFrames.first ?? firstFrame
+        let firstAverage = qualityEvaluator.robustCenter(of: originFrame.jointPositions)
+            ?? originFrame.jointPositions.reduce(SIMD3<Float>.zero, +) / Float(max(originFrame.jointPositions.count, 1))
+        let floorHeight = stabilizer.estimatedFloorHeight(in: stabilizedFrames) ?? 0
+
+        let origin = SIMD3<Float>(firstAverage.x, floorHeight, firstAverage.z)
+        let normalizedFrames = stabilizedFrames.map { frame in
+            MotionFrame(
+                time: frame.time,
+                jointPositions: frame.jointPositions.map { $0 - origin },
+                jointRotations: frame.jointRotations
+            )
+        }
+
+        return MotionClip(frames: normalizedFrames)
+    }
+}
