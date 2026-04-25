@@ -118,6 +118,59 @@ struct OdoroTests {
         #expect(normalized.frames[0].jointPositions[2].y == -10.0)
     }
 
+    @Test func motionFrameQualityEvaluatorScoresSparseInvalidFrameAsLowQuality() {
+        let evaluator = MotionFrameQualityEvaluator()
+        let frame = MotionFrame(
+            time: 0,
+            jointPositions: [
+                SIMD3<Float>(0, 1, 0),
+                SIMD3<Float>(0, -10, 0),
+                SIMD3<Float>(.infinity, 0, 0),
+            ]
+        )
+
+        let assessment = evaluator.assess(frame)
+
+        #expect(assessment.score > 0)
+        #expect(assessment.score < 0.2)
+        #expect(assessment.validPositionMask == [true, false, false])
+        #expect(assessment.robustCenter == SIMD3<Float>(0, 1, 0))
+    }
+
+    @Test func motionClipStageStabilizerEstimatesFloorWithoutInvalidOutliers() {
+        let stabilizer = MotionClipStageStabilizer()
+        let frames = [
+            MotionFrame(
+                time: 0,
+                jointPositions: [
+                    SIMD3<Float>(0, 1.1, 0),
+                    SIMD3<Float>(0, 0.05, 0),
+                    SIMD3<Float>(0, -10, 0),
+                ]
+            ),
+            MotionFrame(
+                time: 1.0 / 30.0,
+                jointPositions: [
+                    SIMD3<Float>(0, 1.15, 0),
+                    SIMD3<Float>(0, 0.02, 0),
+                    SIMD3<Float>(0, -10, 0),
+                ]
+            ),
+            MotionFrame(
+                time: 2.0 / 30.0,
+                jointPositions: [
+                    SIMD3<Float>(0, 1.2, 0),
+                    SIMD3<Float>(0, 0.04, 0),
+                    SIMD3<Float>(0, -10, 0),
+                ]
+            ),
+        ]
+
+        let floorHeight = stabilizer.estimatedFloorHeight(in: frames)
+
+        #expect(floorHeight == 0.02)
+    }
+
     @Test func motionClipNormalizationDampensPositionSpikes() {
         let clip = MotionClip(
             frames: [
