@@ -21,30 +21,40 @@ final class StagePlaybackRenderer: NSObject {
     private let renderJointNames: [OdoroJointName] = [
         .root,
         .head,
+        .nose,
         .leftShoulder,
         .rightShoulder,
+        .leftElbow,
+        .rightElbow,
         .leftWrist,
         .rightWrist,
         .leftHip,
         .rightHip,
         .leftKnee,
         .rightKnee,
+        .leftAnkle,
+        .rightAnkle,
         .leftFoot,
         .rightFoot,
     ]
     private let renderLimbs: [RenderLimb] = [
         .init(startIndex: 0, endIndex: 1),
-        .init(startIndex: 2, endIndex: 3),
-        .init(startIndex: 0, endIndex: 2),
+        .init(startIndex: 1, endIndex: 2),
+        .init(startIndex: 3, endIndex: 4),
         .init(startIndex: 0, endIndex: 3),
-        .init(startIndex: 2, endIndex: 4),
+        .init(startIndex: 0, endIndex: 4),
         .init(startIndex: 3, endIndex: 5),
-        .init(startIndex: 0, endIndex: 6),
-        .init(startIndex: 0, endIndex: 7),
+        .init(startIndex: 5, endIndex: 7),
+        .init(startIndex: 4, endIndex: 6),
         .init(startIndex: 6, endIndex: 8),
-        .init(startIndex: 7, endIndex: 9),
-        .init(startIndex: 8, endIndex: 10),
+        .init(startIndex: 0, endIndex: 9),
+        .init(startIndex: 0, endIndex: 10),
         .init(startIndex: 9, endIndex: 11),
+        .init(startIndex: 10, endIndex: 12),
+        .init(startIndex: 11, endIndex: 13),
+        .init(startIndex: 12, endIndex: 14),
+        .init(startIndex: 13, endIndex: 15),
+        .init(startIndex: 14, endIndex: 16),
     ]
 
     private weak var view: ARView?
@@ -378,26 +388,32 @@ final class StagePlaybackRenderer: NSObject {
     }
 
     private func resolvedJointPositions(from frame: MotionFrame) -> [SIMD3<Float>?] {
-        if frame.jointPositions.count == OdoroSkeletonDefinition.jointCount {
-            return renderJointNames.map { jointName in
-                canonicalPosition(for: jointName, in: frame)
+        let canonicalPositions = canonicalJointPositions(from: frame)
+
+        return renderJointNames.map { jointName in
+            let index = OdoroSkeletonDefinition.index(of: jointName)
+            guard canonicalPositions.indices.contains(index) else {
+                return nil
             }
+
+            let position = canonicalPositions[index]
+            guard Self.isValidMotionPosition(position) else {
+                return nil
+            }
+
+            return position
+        }
+    }
+
+    private func canonicalJointPositions(from frame: MotionFrame) -> [SIMD3<Float>] {
+        if frame.jointPositions.count == OdoroSkeletonDefinition.jointCount {
+            return frame.jointPositions
         }
 
-        return [
-            resolvedPosition(for: .root, fallbackRawName: "hips_joint", in: frame),
-            resolvedPosition(for: .head, fallbackRawName: "head_joint", in: frame),
-            resolvedPosition(for: .leftShoulder, fallbackRawName: "left_shoulder_1_joint", in: frame),
-            resolvedPosition(for: .rightShoulder, fallbackRawName: "right_shoulder_1_joint", in: frame),
-            resolvedPosition(for: .leftHand, fallbackRawName: "left_hand_joint", in: frame),
-            resolvedPosition(for: .rightHand, fallbackRawName: "right_hand_joint", in: frame),
-            resolvedPosition(for: ARSkeleton.JointName(rawValue: "left_upLeg_joint"), in: frame),
-            resolvedPosition(for: ARSkeleton.JointName(rawValue: "right_upLeg_joint"), in: frame),
-            resolvedPosition(for: ARSkeleton.JointName(rawValue: "left_leg_joint"), in: frame),
-            resolvedPosition(for: ARSkeleton.JointName(rawValue: "right_leg_joint"), in: frame),
-            resolvedPosition(for: .leftFoot, fallbackRawName: "left_foot_joint", in: frame),
-            resolvedPosition(for: .rightFoot, fallbackRawName: "right_foot_joint", in: frame),
-        ]
+        return OdoroCanonicalPoseMapper
+            .map(frame: frame)
+            .positions
+            .map(\.simdValue)
     }
 
     private func canonicalPosition(for jointName: OdoroJointName, in frame: MotionFrame) -> SIMD3<Float>? {
