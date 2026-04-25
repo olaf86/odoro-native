@@ -80,7 +80,7 @@ final class StudioViewModel: ObservableObject {
         self.interactor = MotionStudioInteractor(
             source: source,
             maximumCaptureDuration: normalizedRecordingContext.fixedCaptureDuration,
-            prepareCapturedClip: Self.makePlaybackReadyClipProcessor(for: initialMode)
+            capturedClipPreparer: Self.makeCapturedClipPreparer(for: initialMode)
         )
 
         configureForCurrentSource()
@@ -132,18 +132,7 @@ final class StudioViewModel: ObservableObject {
         context.normalizedForFixedCaptureLength()
     }
 
-    static func makePlaybackReadyClipProcessor(for captureMode: CaptureMode) -> (MotionClip) -> MotionClip {
-        switch captureMode {
-        case .rearBody3D, .frontUpperBody, .importedVideo:
-            return { clip in
-                OdoroCanonicalPoseMapper
-                    .canonicalizedClip(from: clip)
-                    .normalizedForStage()
-            }
-        case .mock:
-            return { clip in
-                clip.normalizedForStage()
-            }
-        }
+    static func makeCapturedClipPreparer(for captureMode: CaptureMode) -> any CapturedClipPreparing {
+        StudioPlaybackCapturedClipPreparer(captureMode: captureMode)
     }
 }

@@ -756,7 +756,7 @@ struct OdoroTests {
     }
 
     @MainActor
-    @Test func motionStudioInteractorUsesPlaybackClipProcessorWhenRecordingStops() async {
+    @Test func motionStudioInteractorUsesCapturedClipPreparerWhenRecordingStops() async {
         let source = TestMotionSource()
         let canonicalClip = MotionClip(frames: [
             Self.canonicalFrame(time: 0),
@@ -765,7 +765,7 @@ struct OdoroTests {
         let interactor = MotionStudioInteractor(
             source: source,
             maximumCaptureDuration: 1,
-            prepareCapturedClip: { _ in canonicalClip }
+            capturedClipPreparer: TestCapturedClipPreparer(preparedClip: canonicalClip)
         )
 
         interactor.beginRecording()
@@ -848,5 +848,13 @@ private final class TestMotionSource: MotionSource {
     func emitFrame(at time: TimeInterval, joints: Int) {
         let positions = Array(repeating: SIMD3<Float>(0, 1, 0), count: joints)
         onFrame?(MotionFrame(time: time, jointPositions: positions))
+    }
+}
+
+private struct TestCapturedClipPreparer: CapturedClipPreparing {
+    let preparedClip: MotionClip
+
+    nonisolated func prepareCapturedClip(_ clip: MotionClip) -> MotionClip {
+        preparedClip
     }
 }

@@ -26,7 +26,7 @@ final class MotionStudioInteractor {
     }
 
     private let source: MotionSource
-    private let prepareCapturedClip: (MotionClip) -> MotionClip
+    private let capturedClipPreparer: any CapturedClipPreparing
     private var maximumCaptureDuration: TimeInterval
     private let currentTime: () -> TimeInterval
     private var capturedFrames: [MotionFrame] = []
@@ -38,12 +38,12 @@ final class MotionStudioInteractor {
     init(
         source: MotionSource,
         maximumCaptureDuration: TimeInterval = 10,
-        prepareCapturedClip: @escaping (MotionClip) -> MotionClip = { $0.normalizedForStage() },
+        capturedClipPreparer: any CapturedClipPreparing = StageNormalizedCapturedClipPreparer(),
         currentTime: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }
     ) {
         self.source = source
         self.maximumCaptureDuration = maximumCaptureDuration
-        self.prepareCapturedClip = prepareCapturedClip
+        self.capturedClipPreparer = capturedClipPreparer
         self.currentTime = currentTime
 
         source.onFrame = { [weak self] frame in
@@ -119,7 +119,7 @@ final class MotionStudioInteractor {
             return
         }
 
-        currentClip = prepareCapturedClip(MotionClip(frames: capturedFrames))
+        currentClip = capturedClipPreparer.prepareCapturedClip(MotionClip(frames: capturedFrames))
         updateStatusTextIfNeeded(L10n.statusCaptureComplete)
         state.presentation = .stage
     }

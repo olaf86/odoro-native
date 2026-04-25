@@ -45,7 +45,7 @@ extension StudioViewModel {
         interactor = MotionStudioInteractor(
             source: source,
             maximumCaptureDuration: recordingContext.fixedCaptureDuration,
-            prepareCapturedClip: Self.makePlaybackReadyClipProcessor(for: mode)
+            capturedClipPreparer: Self.makeCapturedClipPreparer(for: mode)
         )
         state = MotionStudioState(statusText: mode.descriptionText)
         currentSessionID = nil

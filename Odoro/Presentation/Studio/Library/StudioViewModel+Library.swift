@@ -95,7 +95,8 @@ extension StudioViewModel {
             }
 
             let normalizedClip = Self
-                .makePlaybackReadyClipProcessor(for: .importedVideo)(clip)
+                .makeCapturedClipPreparer(for: .importedVideo)
+                .prepareCapturedClip(clip)
             let saveResult = try archiveStore.saveTake(
                 clip: normalizedClip,
                 clipIsCanonical: true,

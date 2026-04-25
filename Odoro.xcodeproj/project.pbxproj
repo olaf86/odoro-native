@@ -24,12 +24,12 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		F0AA10012F85378A00710FFB /* AvatarStorage.base.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = AvatarStorage.base.xcconfig; sourceTree = "<group>"; };
-		F0AA10022F85378A00710FFB /* AvatarStorage.local.example.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = AvatarStorage.local.example.xcconfig; sourceTree = "<group>"; };
 		EDAB17E42F85378A00710FFB /* Odoro.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Odoro.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		EDAB17F32F85378A00710FFB /* OdoroTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = OdoroTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		EDAB17FD2F85378A00710FFB /* OdoroUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = OdoroUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		EDAB18182F85378A00710FFB /* Odoro Staging.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Odoro Staging.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		F0AA10012F85378A00710FFB /* AvatarStorage.base.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = AvatarStorage.base.xcconfig; sourceTree = "<group>"; };
+		F0AA10022F85378A00710FFB /* AvatarStorage.local.example.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = AvatarStorage.local.example.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
