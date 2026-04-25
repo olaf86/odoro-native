@@ -12,6 +12,9 @@ import UIKit
 @MainActor
 final class StagePlaybackRenderer: NSObject {
     private static let logger = Logger(subsystem: Bundle.main.bundleIdentifier!, category: "StagePlaybackRenderer")
+    nonisolated private static let stageCameraNearPlane: Float = 0.1
+    nonisolated private static let stageCameraFarPlane: Float = 20
+    nonisolated private static let stageCameraFieldOfViewDegrees: Float = 60
     enum SkeletonDebugLayout: Equatable {
         case rawARKit
         case canonical
@@ -313,11 +316,22 @@ final class StagePlaybackRenderer: NSObject {
         stageAnchor.addChild(dancerRoot)
 
         let camera = Entity()
-        camera.components.set(PerspectiveCameraComponent())
+        camera.components.set(Self.makeStageCameraComponent())
         camera.look(at: [0, 0.95, 0], from: [0, 1.35, 3.4], relativeTo: nil)
         stageAnchor.addChild(camera)
 
         view.scene.addAnchor(stageAnchor)
+    }
+
+    nonisolated static func makeStageCameraComponent() -> PerspectiveCameraComponent {
+        // The playback stage is a compact scene. A finite frustum with a slightly
+        // larger near plane preserves depth precision so distant skinned meshes do
+        // not lose body parts from z-buffer instability.
+        PerspectiveCameraComponent(
+            near: stageCameraNearPlane,
+            far: stageCameraFarPlane,
+            fieldOfViewInDegrees: stageCameraFieldOfViewDegrees
+        )
     }
 
     private var activeRenderLimbs: [RenderLimb] {

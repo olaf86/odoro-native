@@ -119,6 +119,14 @@ struct OdoroTests {
         #expect(normalized.frames[0].jointPositions[2].y == -10.0)
     }
 
+    @Test func stagePlaybackCameraUsesFiniteFrustumForStableDepthPrecision() {
+        let camera = StagePlaybackRenderer.makeStageCameraComponent()
+
+        #expect(camera.near == 0.1)
+        #expect(camera.far == 20.0)
+        #expect(camera.fieldOfViewInDegrees == 60.0)
+    }
+
     @Test func motionClipRebasingMovesOriginWithoutChangingRotations() {
         let rotations: [MotionJointRotation?] = [
             MotionJointRotation(simd_quatf(angle: 0.15, axis: SIMD3<Float>(0, 1, 0))),
