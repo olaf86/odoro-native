@@ -7,6 +7,7 @@
 
 import ARKit
 import Foundation
+import RealityKit
 import SwiftData
 import Testing
 @testable import Odoro
@@ -401,6 +402,31 @@ struct OdoroTests {
         #expect(profile.bindings.contains { $0.boneName == "root/hips_joint/spine_1_joint/spine_2_joint" })
         #expect(profile.bindings.contains { $0.boneName == "root/hips_joint/left_upLeg_joint/left_leg_joint/left_foot_joint" })
         #expect(profile.bindings.contains { $0.boneName == "root/hips_joint/spine_1_joint/spine_2_joint/spine_3_joint/spine_4_joint/spine_5_joint/spine_6_joint/spine_7_joint/right_shoulder_1_joint/right_arm_joint/right_forearm_joint/right_hand_joint" })
+        #expect(profile.bindings.first(where: { $0.boneName == profile.rootBoneName })?.translationMode == .direct)
+        #expect(profile.bindings.filter { $0.boneName != profile.rootBoneName }.allSatisfy { $0.translationMode == .bindPose })
+    }
+
+    @Test func stageRendererBindPoseTranslationKeepsExistingJointOffset() {
+        let baseTransform = Transform(
+            scale: SIMD3<Float>(1.2, 1.2, 1.2),
+            rotation: simd_quatf(angle: 0.05, axis: SIMD3<Float>(0, 1, 0)),
+            translation: SIMD3<Float>(0, 0.42, 0.18)
+        )
+        let worldRotation = simd_quatf(angle: 0.4, axis: SIMD3<Float>(0, 0, 1))
+        let parentWorldRotation = simd_quatf(angle: -0.2, axis: SIMD3<Float>(0, 1, 0))
+        let localTransform = StagePlaybackRenderer.makeRigLocalTransform(
+            preserving: baseTransform,
+            worldRotation: worldRotation,
+            worldPosition: SIMD3<Float>(1.0, 1.8, 0.3),
+            parentWorldRotation: parentWorldRotation,
+            parentWorldPosition: SIMD3<Float>(0.9, 1.0, 0.1),
+            floorOffset: 0.977,
+            translationMode: .bindPose
+        )
+
+        #expect(localTransform.translation == baseTransform.translation)
+        #expect(localTransform.scale == baseTransform.scale)
+        #expect(localTransform.rotation != baseTransform.rotation)
     }
 
     @Test func motionPayloadRoundTripPreservesMappedRotations() {

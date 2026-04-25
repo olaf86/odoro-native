@@ -65,6 +65,7 @@ struct AvatarRigJointReference: Codable, Hashable, Sendable {
 
 enum AvatarTranslationMode: String, Codable, Sendable {
     case direct
+    case bindPose
 }
 
 struct AvatarBoneBinding: Codable, Hashable, Identifiable, Sendable {
@@ -399,7 +400,15 @@ enum AvatarCatalog {
                 sourceJoint: .init(canonicalJoint: .rightShoulder, rawJointName: "right_shoulder_1_joint"),
                 parentSourceJoint: .init(canonicalJoint: .root, rawJointName: "spine_7_joint")
             ),
-        ],
+        ].map { binding in
+            guard binding.boneName != robotJointPath() else {
+                return binding
+            }
+
+            var binding = binding
+            binding.translationMode = .bindPose
+            return binding
+        },
         scaleCompensation: 1,
         floorOffset: 0.977,
         schemaVersion: 1

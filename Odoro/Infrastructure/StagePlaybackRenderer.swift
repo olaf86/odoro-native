@@ -587,22 +587,24 @@ final class StagePlaybackRenderer: NSObject {
             }
 
             let resolvedRotation = binding.rotationOffset.map { worldRot * $0.simdValue } ?? worldRot
-            let localTransform: Transform
-
+            let parentWorldRotationAndPosition: (rotation: simd_quatf, position: SIMD3<Float>)?
             if let parentReference = binding.parentSourceJoint,
                let parentWorldRot = rotation(for: parentReference, in: frame)?.simdValue,
                let parentPos = position(for: parentReference, in: frame) {
-                let parentRotInv = parentWorldRot.inverse
-                localTransform = Transform(
-                    rotation: parentRotInv * resolvedRotation,
-                    translation: simd_act(parentRotInv, worldPos - parentPos)
-                )
+                parentWorldRotationAndPosition = (rotation: parentWorldRot, position: parentPos)
             } else {
-                let localPos = worldPos - SIMD3<Float>(0, rigProfile.floorOffset, 0)
-                localTransform = Transform(rotation: resolvedRotation, translation: localPos)
+                parentWorldRotationAndPosition = nil
             }
 
-            jointTransforms[targetIndex] = localTransform
+            jointTransforms[targetIndex] = Self.makeRigLocalTransform(
+                preserving: jointTransforms[targetIndex],
+                worldRotation: resolvedRotation,
+                worldPosition: worldPos,
+                parentWorldRotation: parentWorldRotationAndPosition?.rotation,
+                parentWorldPosition: parentWorldRotationAndPosition?.position,
+                floorOffset: rigProfile.floorOffset,
+                translationMode: binding.translationMode
+            )
             resolvedJointCount += 1
         }
 
@@ -620,6 +622,38 @@ final class StagePlaybackRenderer: NSObject {
 
         modelEntity.jointTransforms = jointTransforms
         return true
+    }
+
+    nonisolated static func makeRigLocalTransform(
+        preserving baseTransform: Transform,
+        worldRotation: simd_quatf,
+        worldPosition: SIMD3<Float>,
+        parentWorldRotation: simd_quatf?,
+        parentWorldPosition: SIMD3<Float>?,
+        floorOffset: Float,
+        translationMode: AvatarTranslationMode
+    ) -> Transform {
+        var localTransform = baseTransform
+
+        if let parentWorldRotation, let parentWorldPosition {
+            let parentRotationInverse = parentWorldRotation.inverse
+            localTransform.rotation = parentRotationInverse * worldRotation
+
+            if translationMode == .direct {
+                localTransform.translation = simd_act(
+                    parentRotationInverse,
+                    worldPosition - parentWorldPosition
+                )
+            }
+        } else {
+            localTransform.rotation = worldRotation
+
+            if translationMode == .direct {
+                localTransform.translation = worldPosition - SIMD3<Float>(0, floorOffset, 0)
+            }
+        }
+
+        return localTransform
     }
 
     /// Moves the character entity using the procedural hip position.
