@@ -114,7 +114,51 @@ struct MotionClip: Sendable {
     }
 }
 
+private struct MotionClipStageStabilizerTuning: Sendable {
+    let minimumFrameCount = 3
+    let fallbackDeltaTime: TimeInterval = 1.0 / 30.0
+    let invalidStagePositionYThreshold: Float = -5
+
+    let minimumQualityJointCount = 2
+    let limitedQualityMultiplier: Float = 0.25
+    let fullQualitySpanUpperBound: Float = 2.8
+    let degradedQualitySpanUpperBound: Float = 4.2
+    let minimumSpanScore: Float = 0.2
+
+    let centerFullSpeedUpperBound: Float = 3.5
+    let centerDegradedSpeedUpperBound: Float = 7
+    let centerMinimumPenalty: Float = 0.18
+    let centerAlphaFloor: Float = 0.08
+    let centerAlphaBase: Float = 0.12
+    let centerAlphaScale: Float = 0.72
+    let centerAlphaCeiling: Float = 0.92
+
+    let localDeltaFullPenaltyUpperBound: Float = 0.35
+    let localDeltaDegradedPenaltyUpperBound: Float = 1.0
+    let localDeltaMinimumPenalty: Float = 0.12
+    let jointAlphaFloor: Float = 0.06
+    let jointAlphaBase: Float = 0.08
+    let jointAlphaScale: Float = 0.76
+    let jointAlphaCeiling: Float = 0.88
+
+    let rotationDeltaFullPenaltyUpperBound: Float = 0.45
+    let rotationDeltaDegradedPenaltyUpperBound: Float = 1.2
+    let rotationDeltaMinimumPenalty: Float = 0.18
+    let rotationAlphaFloor: Float = 0.08
+    let rotationAlphaBase: Float = 0.1
+    let rotationAlphaScale: Float = 0.75
+    let rotationAlphaCeiling: Float = 0.9
+
+    let floorHeightPercentile: Float = 0.05
+
+    nonisolated init() {}
+}
+
 private extension MotionClip {
+    nonisolated static var stageStabilizerTuning: MotionClipStageStabilizerTuning {
+        MotionClipStageStabilizerTuning()
+    }
+
     struct StabilizerState {
         var time: TimeInterval
         var center: SIMD3<Float>
@@ -122,8 +166,16 @@ private extension MotionClip {
         var rotations: [MotionJointRotation?]?
     }
 
+    /// Applies a lightweight post-process stabilization pass to a recorded clip.
+    ///
+    /// This is not a Kalman filter. It uses quality-weighted temporal smoothing:
+    /// 1. estimate a robust body center per frame,
+    /// 2. smooth center motion over time,
+    /// 3. smooth each joint in body-local space,
+    /// 4. smooth joint rotations with slerp,
+    /// 5. keep invalid observations from contaminating the running state.
     nonisolated func stageStabilizedFrames() -> [MotionFrame] {
-        guard frames.count >= 3, let firstFrame = frames.first else {
+        guard frames.count >= Self.stageStabilizerTuning.minimumFrameCount, let firstFrame = frames.first else {
             return frames
         }
 
@@ -137,7 +189,7 @@ private extension MotionClip {
         return frames.map { frame in
             let quality = Self.qualityScore(for: frame)
             let observedCenter = Self.robustCenter(of: frame.jointPositions) ?? state.center
-            let deltaTime = max(frame.time - state.time, 1 / 30)
+            let deltaTime = max(frame.time - state.time, Self.stageStabilizerTuning.fallbackDeltaTime)
             let centerAlpha = Self.centerSmoothingAlpha(
                 quality: quality,
                 centerDelta: simd_length(observedCenter - state.center),
@@ -184,6 +236,7 @@ private extension MotionClip {
         }
     }
 
+    /// Returns a coarse confidence score for a frame based on valid joint count and body span.
     nonisolated static func qualityScore(for frame: MotionFrame) -> Float {
         guard !frame.jointPositions.isEmpty else {
             return 0
@@ -191,39 +244,44 @@ private extension MotionClip {
 
         let validPositions = frame.jointPositions.filter(isValidStagePosition)
         let validRatio = Float(validPositions.count) / Float(frame.jointPositions.count)
-        guard validPositions.count >= 2 else {
-            return validRatio * 0.25
+        guard validPositions.count >= Self.stageStabilizerTuning.minimumQualityJointCount else {
+            return validRatio * Self.stageStabilizerTuning.limitedQualityMultiplier
         }
 
         let span = Self.span(of: validPositions)
         let maxSpan = max(span.x, span.y, span.z)
-        let spanScore: Float
-        if maxSpan <= 2.8 {
-            spanScore = 1
-        } else if maxSpan >= 4.2 {
-            spanScore = 0.2
-        } else {
-            spanScore = 1 - ((maxSpan - 2.8) / 1.4) * 0.8
-        }
+        let spanScore = descendingPenalty(
+            value: maxSpan,
+            fullPenaltyUpperBound: Self.stageStabilizerTuning.fullQualitySpanUpperBound,
+            degradedPenaltyUpperBound: Self.stageStabilizerTuning.degradedQualitySpanUpperBound,
+            minimumPenalty: Self.stageStabilizerTuning.minimumSpanScore
+        )
 
         return min(max(validRatio * spanScore, 0), 1)
     }
 
+    /// Computes how aggressively to follow observed body-center motion for the next frame.
     nonisolated static func centerSmoothingAlpha(quality: Float, centerDelta: Float, deltaTime: TimeInterval) -> Float {
-        let interval = max(Float(deltaTime), 1 / 30)
+        let interval = max(Float(deltaTime), Float(Self.stageStabilizerTuning.fallbackDeltaTime))
         let speed = centerDelta / interval
-        let speedPenalty: Float
-        if speed <= 3.5 {
-            speedPenalty = 1
-        } else if speed >= 7 {
-            speedPenalty = 0.18
-        } else {
-            speedPenalty = 1 - ((speed - 3.5) / 3.5) * 0.82
-        }
+        let speedPenalty = descendingPenalty(
+            value: speed,
+            fullPenaltyUpperBound: Self.stageStabilizerTuning.centerFullSpeedUpperBound,
+            degradedPenaltyUpperBound: Self.stageStabilizerTuning.centerDegradedSpeedUpperBound,
+            minimumPenalty: Self.stageStabilizerTuning.centerMinimumPenalty
+        )
 
-        return min(max(0.12 + quality * speedPenalty * 0.72, 0.08), 0.92)
+        return clampedAlpha(
+            base: Self.stageStabilizerTuning.centerAlphaBase,
+            quality: quality,
+            penalty: speedPenalty,
+            scale: Self.stageStabilizerTuning.centerAlphaScale,
+            floor: Self.stageStabilizerTuning.centerAlphaFloor,
+            ceiling: Self.stageStabilizerTuning.centerAlphaCeiling
+        )
     }
 
+    /// Computes how aggressively to follow observed joint motion in body-local space.
     nonisolated static func jointSmoothingAlpha(
         quality: Float,
         observedLocal: SIMD3<Float>,
@@ -234,18 +292,24 @@ private extension MotionClip {
         }
 
         let localDelta = simd_length(observedLocal - previousLocal)
-        let spikePenalty: Float
-        if localDelta <= 0.35 {
-            spikePenalty = 1
-        } else if localDelta >= 1.0 {
-            spikePenalty = 0.12
-        } else {
-            spikePenalty = 1 - ((localDelta - 0.35) / 0.65) * 0.88
-        }
+        let spikePenalty = descendingPenalty(
+            value: localDelta,
+            fullPenaltyUpperBound: Self.stageStabilizerTuning.localDeltaFullPenaltyUpperBound,
+            degradedPenaltyUpperBound: Self.stageStabilizerTuning.localDeltaDegradedPenaltyUpperBound,
+            minimumPenalty: Self.stageStabilizerTuning.localDeltaMinimumPenalty
+        )
 
-        return min(max(0.08 + quality * spikePenalty * 0.76, 0.06), 0.88)
+        return clampedAlpha(
+            base: Self.stageStabilizerTuning.jointAlphaBase,
+            quality: quality,
+            penalty: spikePenalty,
+            scale: Self.stageStabilizerTuning.jointAlphaScale,
+            floor: Self.stageStabilizerTuning.jointAlphaFloor,
+            ceiling: Self.stageStabilizerTuning.jointAlphaCeiling
+        )
     }
 
+    /// Spherically interpolates joint rotations to soften single-frame spikes.
     nonisolated static func smoothedRotations(
         observed: [MotionJointRotation?]?,
         previous: [MotionJointRotation?]?,
@@ -270,20 +334,26 @@ private extension MotionClip {
             let observedQuat = rotation.simdValue
             let previousQuat = previousRotation.simdValue
             let angularDelta = angleBetween(previousQuat, observedQuat)
-            let spikePenalty: Float
-            if angularDelta <= 0.45 {
-                spikePenalty = 1
-            } else if angularDelta >= 1.2 {
-                spikePenalty = 0.18
-            } else {
-                spikePenalty = 1 - ((angularDelta - 0.45) / 0.75) * 0.82
-            }
+            let spikePenalty = descendingPenalty(
+                value: angularDelta,
+                fullPenaltyUpperBound: Self.stageStabilizerTuning.rotationDeltaFullPenaltyUpperBound,
+                degradedPenaltyUpperBound: Self.stageStabilizerTuning.rotationDeltaDegradedPenaltyUpperBound,
+                minimumPenalty: Self.stageStabilizerTuning.rotationDeltaMinimumPenalty
+            )
 
-            let alpha = min(max(0.1 + quality * spikePenalty * 0.75, 0.08), 0.9)
+            let alpha = clampedAlpha(
+                base: Self.stageStabilizerTuning.rotationAlphaBase,
+                quality: quality,
+                penalty: spikePenalty,
+                scale: Self.stageStabilizerTuning.rotationAlphaScale,
+                floor: Self.stageStabilizerTuning.rotationAlphaFloor,
+                ceiling: Self.stageStabilizerTuning.rotationAlphaCeiling
+            )
             return MotionJointRotation(simd_slerp(previousQuat, observedQuat, alpha))
         }
     }
 
+    /// Estimates a stable stage floor using a low percentile instead of the raw minimum.
     nonisolated static func estimatedFloorHeight(in frames: [MotionFrame]) -> Float? {
         let ys = frames
             .flatMap(\.jointPositions)
@@ -295,9 +365,10 @@ private extension MotionClip {
             return nil
         }
 
-        return percentile(0.05, in: ys)
+        return percentile(Self.stageStabilizerTuning.floorHeightPercentile, in: ys)
     }
 
+    /// Returns a center point that is less sensitive to outliers than a simple average.
     nonisolated static func robustCenter(of positions: [SIMD3<Float>]) -> SIMD3<Float>? {
         let validPositions = positions.filter(isValidStagePosition)
         guard !validPositions.isEmpty else {
@@ -334,6 +405,7 @@ private extension MotionClip {
         return bounds.max - bounds.min
     }
 
+    /// Returns the median of a sorted or unsorted Float collection.
     nonisolated static func median(_ values: [Float]) -> Float {
         let sorted = values.sorted()
         guard !sorted.isEmpty else {
@@ -348,6 +420,7 @@ private extension MotionClip {
         return sorted[middle]
     }
 
+    /// Returns the nearest-rank percentile for an already sorted array of values.
     nonisolated static func percentile(_ percentile: Float, in sortedValues: [Float]) -> Float {
         guard let first = sortedValues.first, sortedValues.count > 1 else {
             return sortedValues.first ?? 0
@@ -358,17 +431,54 @@ private extension MotionClip {
         return sortedValues[safe: index] ?? first
     }
 
+    /// Measures the angular difference between two unit quaternions.
     nonisolated static func angleBetween(_ lhs: simd_quatf, _ rhs: simd_quatf) -> Float {
         let dot = abs(simd_dot(lhs.vector, rhs.vector))
         return 2 * acos(min(max(dot, -1), 1))
     }
 
+    /// Linearly interpolates between two 3D vectors.
     nonisolated static func mix(_ lhs: SIMD3<Float>, _ rhs: SIMD3<Float>, alpha: Float) -> SIMD3<Float> {
         lhs + (rhs - lhs) * alpha
     }
 
+    /// Converts a quality/penalty pair into a bounded smoothing coefficient.
+    nonisolated static func clampedAlpha(
+        base: Float,
+        quality: Float,
+        penalty: Float,
+        scale: Float,
+        floor: Float,
+        ceiling: Float
+    ) -> Float {
+        min(max(base + quality * penalty * scale, floor), ceiling)
+    }
+
+    /// Produces a penalty curve that stays at 1 until a threshold, then decays linearly.
+    nonisolated static func descendingPenalty(
+        value: Float,
+        fullPenaltyUpperBound: Float,
+        degradedPenaltyUpperBound: Float,
+        minimumPenalty: Float
+    ) -> Float {
+        if value <= fullPenaltyUpperBound {
+            return 1
+        }
+
+        if value >= degradedPenaltyUpperBound {
+            return minimumPenalty
+        }
+
+        let progress = (value - fullPenaltyUpperBound) / (degradedPenaltyUpperBound - fullPenaltyUpperBound)
+        return 1 - progress * (1 - minimumPenalty)
+    }
+
+    /// Filters out placeholder / invalid stage positions before they influence statistics.
     nonisolated static func isValidStagePosition(_ position: SIMD3<Float>) -> Bool {
-        position.x.isFinite && position.y.isFinite && position.z.isFinite && position.y > -5
+        position.x.isFinite &&
+            position.y.isFinite &&
+            position.z.isFinite &&
+            position.y > Self.stageStabilizerTuning.invalidStagePositionYThreshold
     }
 }
 
