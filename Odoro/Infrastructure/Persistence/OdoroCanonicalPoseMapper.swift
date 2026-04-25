@@ -38,6 +38,27 @@ enum OdoroCanonicalPoseMapper {
         map(frame: frame) { skeletonDefinition.index(for: $0) }
     }
 
+    nonisolated static func canonicalizedClip(from clip: MotionClip) -> MotionClip {
+        guard !clip.frames.isEmpty else {
+            return clip
+        }
+
+        let frames = clip.frames.map { frame in
+            if frame.jointPositions.count == OdoroSkeletonDefinition.jointCount {
+                return frame
+            }
+
+            let mappedFrame = map(frame: frame)
+            return MotionFrame(
+                time: frame.time,
+                jointPositions: mappedFrame.positions.map { $0.simdValue },
+                jointRotations: mappedFrame.rotations
+            )
+        }
+
+        return MotionClip(frames: frames)
+    }
+
     nonisolated static func map(frame: MotionFrame, jointIndex: JointIndexResolver) -> MappedFrame {
         let leftShoulder = resolvedPosition(for: .leftShoulder, in: frame, jointIndex: jointIndex)
         let rightShoulder = resolvedPosition(for: .rightShoulder, in: frame, jointIndex: jointIndex)

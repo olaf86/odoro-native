@@ -257,6 +257,63 @@ struct OdoroTests {
         #expect(abs(stabilizedFootX - pinnedX) < abs(clip.frames[1].jointPositions[leftFootIndex].x - pinnedX))
     }
 
+    @Test func canonicalPoseMapperCanonicalizesClipFramesForPlayback() {
+        let rawClip = MotionClip(frames: [
+            MotionFrame(
+                time: 0,
+                jointPositions: [
+                    SIMD3<Float>(0, 1, 0),
+                    SIMD3<Float>(0, 1.6, 0),
+                    SIMD3<Float>(-0.2, 1.4, 0),
+                    SIMD3<Float>(0.2, 1.4, 0),
+                    SIMD3<Float>(-0.4, 1.2, 0),
+                    SIMD3<Float>(0.4, 1.2, 0),
+                    SIMD3<Float>(-0.6, 1.0, 0),
+                    SIMD3<Float>(0.6, 1.0, 0),
+                    SIMD3<Float>(-0.1, 0.9, 0),
+                    SIMD3<Float>(0.1, 0.9, 0),
+                    SIMD3<Float>(-0.1, 0.5, 0.05),
+                    SIMD3<Float>(0.1, 0.5, -0.05),
+                    SIMD3<Float>(-0.1, 0.1, 0.12),
+                    SIMD3<Float>(0.1, 0.1, 0.12),
+                ]
+            )
+        ])
+
+        let canonicalClip = OdoroCanonicalPoseMapper.canonicalizedClip(from: rawClip)
+
+        #expect(canonicalClip.frameCount == 1)
+        #expect(canonicalClip.frames[0].jointPositions.count == OdoroSkeletonDefinition.jointCount)
+    }
+
+    @Test func motionPayloadRoundTripPreservesCanonicalClipWithoutRemapping() {
+        let canonicalClip = MotionClip(frames: [
+            Self.canonicalFrame(
+                time: 0,
+                overrides: [
+                    .root: SIMD3<Float>(0.1, 1.05, 0.02),
+                    .leftFoot: SIMD3<Float>(-0.14, 0.0, 0.2),
+                ]
+            )
+        ])
+
+        let payload = MotionPayload(
+            clip: canonicalClip,
+            clipIsCanonical: true,
+            captureMode: .rearBody3D,
+            recordingContext: .defaultMetronomeLoop,
+            sourcePlatform: "iOS",
+            sourceBackend: "arkit.bodyTracking"
+        )
+
+        let reloadedClip = payload.makeMotionClip()
+        let leftFootIndex = OdoroSkeletonDefinition.index(of: .leftFoot)
+
+        #expect(reloadedClip.frameCount == 1)
+        #expect(reloadedClip.frames[0].jointPositions.count == OdoroSkeletonDefinition.jointCount)
+        #expect(reloadedClip.frames[0].jointPositions[leftFootIndex] == canonicalClip.frames[0].jointPositions[leftFootIndex])
+    }
+
     @Test func motionClipNormalizationDampensPositionSpikes() {
         let clip = MotionClip(
             frames: [
@@ -696,6 +753,31 @@ struct OdoroTests {
         #expect(interactor.state.recordingDuration == 1)
         #expect(interactor.currentClip == nil)
         #expect(interactor.state.statusText == L10n.statusInsufficientMotion)
+    }
+
+    @MainActor
+    @Test func motionStudioInteractorUsesPlaybackClipProcessorWhenRecordingStops() async {
+        let source = TestMotionSource()
+        let canonicalClip = MotionClip(frames: [
+            Self.canonicalFrame(time: 0),
+            Self.canonicalFrame(time: 0.1, overrides: [.root: SIMD3<Float>(0.1, 1.0, 0)])
+        ])
+        let interactor = MotionStudioInteractor(
+            source: source,
+            maximumCaptureDuration: 1,
+            prepareCapturedClip: { _ in canonicalClip }
+        )
+
+        interactor.beginRecording()
+        source.emitFrame(at: 0, joints: 2)
+        source.emitFrame(at: 0.1, joints: 2)
+        await Task.yield()
+
+        interactor.stopRecording()
+
+        #expect(interactor.currentClip?.frameCount == canonicalClip.frameCount)
+        #expect(interactor.currentClip?.frames[0].jointPositions.count == OdoroSkeletonDefinition.jointCount)
+        #expect(interactor.currentClip?.frames[1].jointPositions[OdoroSkeletonDefinition.index(of: .root)] == canonicalClip.frames[1].jointPositions[OdoroSkeletonDefinition.index(of: .root)])
     }
 
     private static func rotationAngle(_ rotation: simd_quatf) -> Float {

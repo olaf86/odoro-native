@@ -71,6 +71,7 @@ final class MotionArchiveStore {
 
     func saveTake(
         clip: MotionClip,
+        clipIsCanonical: Bool = false,
         captureMode: CaptureMode,
         recordingContext: MotionRecordingContext,
         existingSessionID: UUID? = nil,
@@ -85,6 +86,7 @@ final class MotionArchiveStore {
         let takeID = UUID()
         let payload = MotionPayload(
             clip: clip,
+            clipIsCanonical: clipIsCanonical,
             captureMode: captureMode,
             recordingContext: recordingContext,
             sourcePlatform: "iOS",

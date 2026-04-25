@@ -21,7 +21,7 @@ struct MotionPayloadVector3: Codable, Sendable {
         self.init(x: vector.x, y: vector.y, z: vector.z)
     }
 
-    var simdValue: SIMD3<Float> {
+    nonisolated var simdValue: SIMD3<Float> {
         SIMD3<Float>(x, y, z)
     }
 }
@@ -39,7 +39,7 @@ struct MotionPayloadQuaternion: Codable, Sendable {
         self.r = rotation.r
     }
 
-    var motionValue: MotionJointRotation {
+    nonisolated var motionValue: MotionJointRotation {
         MotionJointRotation(ix: ix, iy: iy, iz: iz, r: r)
     }
 }
@@ -67,6 +67,7 @@ struct MotionPayload: Codable, Sendable {
 
     init(
         clip: MotionClip,
+        clipIsCanonical: Bool = false,
         captureMode: CaptureMode,
         recordingContext: MotionRecordingContext,
         sourcePlatform: String,
@@ -80,16 +81,36 @@ struct MotionPayload: Codable, Sendable {
         self.captureMode = captureMode
         self.sourcePlatform = sourcePlatform
         self.sourceBackend = sourceBackend
-        self.frames = clip.frames.map { frame in
-            let canonicalFrame = canonicalPoseMapper(frame)
-            return MotionPayloadFrame(
-                timeSeconds: frame.time,
-                timeBeats: frame.time * recordingContext.bpm / 60,
-                positions: canonicalFrame.positions,
-                rotations: canonicalFrame.rotations?.map { $0.map(MotionPayloadQuaternion.init) },
-                confidences: nil,
-                jointStatuses: canonicalFrame.statuses
-            )
+
+        if clipIsCanonical {
+            self.frames = clip.frames.map { frame in
+                let rotations = frame.jointRotations?.count == frame.jointPositions.count
+                    ? frame.jointRotations?.map { $0.map(MotionPayloadQuaternion.init) }
+                    : nil
+                return MotionPayloadFrame(
+                    timeSeconds: frame.time,
+                    timeBeats: frame.time * recordingContext.bpm / 60,
+                    positions: frame.jointPositions.map(MotionPayloadVector3.init),
+                    rotations: rotations,
+                    confidences: nil,
+                    jointStatuses: Array(
+                        repeating: .observed,
+                        count: frame.jointPositions.count
+                    )
+                )
+            }
+        } else {
+            self.frames = clip.frames.map { frame in
+                let canonicalFrame = canonicalPoseMapper(frame)
+                return MotionPayloadFrame(
+                    timeSeconds: frame.time,
+                    timeBeats: frame.time * recordingContext.bpm / 60,
+                    positions: canonicalFrame.positions,
+                    rotations: canonicalFrame.rotations?.map { $0.map(MotionPayloadQuaternion.init) },
+                    confidences: nil,
+                    jointStatuses: canonicalFrame.statuses
+                )
+            }
         }
     }
 

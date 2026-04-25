@@ -94,9 +94,11 @@ extension StudioViewModel {
                 return
             }
 
-            let normalizedClip = clip.normalizedForStage()
+            let normalizedClip = Self
+                .makePlaybackReadyClipProcessor(for: .importedVideo)(clip)
             let saveResult = try archiveStore.saveTake(
                 clip: normalizedClip,
+                clipIsCanonical: true,
                 captureMode: .importedVideo,
                 recordingContext: recordingContext,
                 existingSessionID: currentSessionID
@@ -148,6 +150,7 @@ extension StudioViewModel {
 
         let saveResult = try archiveStore.saveTake(
             clip: clip,
+            clipIsCanonical: true,
             captureMode: captureMode,
             recordingContext: recordingContext,
             existingSessionID: currentSessionID
@@ -187,6 +190,7 @@ extension StudioViewModel {
 
         let saveResult = try archiveStore.saveTake(
             clip: currentClip,
+            clipIsCanonical: true,
             captureMode: captureMode,
             recordingContext: recordingContext,
             existingSessionID: currentSessionID
