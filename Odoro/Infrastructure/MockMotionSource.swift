@@ -70,6 +70,8 @@ final class MockMotionSource: MotionSource {
         let rightElbow = rightShoulder + SIMD3<Float>(0.20, 0.10 - armSwing * 0.12, 0.04)
         let leftHand = leftElbow + SIMD3<Float>(-0.16, -0.08 + armSwing * 0.10, 0)
         let rightHand = rightElbow + SIMD3<Float>(0.16, -0.08 - armSwing * 0.10, 0)
+        let leftUpperArm = (leftShoulder + leftElbow) * 0.5
+        let rightUpperArm = (rightShoulder + rightElbow) * 0.5
         let leftHip = root + SIMD3<Float>(-0.12, -0.02, 0)
         let rightHip = root + SIMD3<Float>(0.12, -0.02, 0)
         let leftKnee = leftHip + SIMD3<Float>(-0.03, -0.38 + max(0, step) * 0.08, 0.06)
@@ -101,15 +103,15 @@ final class MockMotionSource: MotionSource {
 
         setJoint(.leftShoulder, to: leftShoulder, in: &joints)
         setJoint(named: "left_shoulder_1_joint", to: leftShoulder, in: &joints)
-        setJoint(named: "left_arm_joint", to: leftElbow, in: &joints)
-        setJoint(named: "left_forearm_joint", to: (leftElbow + leftHand) * 0.5, in: &joints)
+        setJoint(named: "left_arm_joint", to: leftUpperArm, in: &joints)
+        setJoint(named: "left_forearm_joint", to: leftElbow, in: &joints)
         setJoint(.leftHand, to: leftHand, in: &joints)
         setFingerChain(prefix: "left_hand", hand: leftHand, spread: 1, in: &joints)
 
         setJoint(.rightShoulder, to: rightShoulder, in: &joints)
         setJoint(named: "right_shoulder_1_joint", to: rightShoulder, in: &joints)
-        setJoint(named: "right_arm_joint", to: rightElbow, in: &joints)
-        setJoint(named: "right_forearm_joint", to: (rightElbow + rightHand) * 0.5, in: &joints)
+        setJoint(named: "right_arm_joint", to: rightUpperArm, in: &joints)
+        setJoint(named: "right_forearm_joint", to: rightElbow, in: &joints)
         setJoint(.rightHand, to: rightHand, in: &joints)
         setFingerChain(prefix: "right_hand", hand: rightHand, spread: -1, in: &joints)
 

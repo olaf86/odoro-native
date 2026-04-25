@@ -37,6 +37,8 @@ enum VisionBodyPoseFrameBuilder {
         let rightElbow = stagePosition(for: .rightElbow, in: points) ?? rightShoulder + SIMD3<Float>(0.18, -0.18, 0.02)
         let leftHand = stagePosition(for: .leftWrist, in: points) ?? leftElbow + SIMD3<Float>(-0.18, -0.14, 0)
         let rightHand = stagePosition(for: .rightWrist, in: points) ?? rightElbow + SIMD3<Float>(0.18, -0.14, 0)
+        let leftUpperArm = (leftShoulder + leftElbow) * 0.5
+        let rightUpperArm = (rightShoulder + rightElbow) * 0.5
 
         let leftHip = root + SIMD3<Float>(-0.12, -0.02, 0)
         let rightHip = root + SIMD3<Float>(0.12, -0.02, 0)
@@ -54,8 +56,10 @@ enum VisionBodyPoseFrameBuilder {
         setJoint(.head, to: head, in: &joints)
         setJoint(.leftShoulder, to: leftShoulder, in: &joints)
         setJoint(.rightShoulder, to: rightShoulder, in: &joints)
-        setJoint(named: "left_arm_joint", to: leftElbow, in: &joints)
-        setJoint(named: "right_arm_joint", to: rightElbow, in: &joints)
+        setJoint(named: "left_arm_joint", to: leftUpperArm, in: &joints)
+        setJoint(named: "right_arm_joint", to: rightUpperArm, in: &joints)
+        setJoint(named: "left_forearm_joint", to: leftElbow, in: &joints)
+        setJoint(named: "right_forearm_joint", to: rightElbow, in: &joints)
         setJoint(.leftHand, to: leftHand, in: &joints)
         setJoint(.rightHand, to: rightHand, in: &joints)
         setJoint(named: "left_upLeg_joint", to: leftHip, in: &joints)

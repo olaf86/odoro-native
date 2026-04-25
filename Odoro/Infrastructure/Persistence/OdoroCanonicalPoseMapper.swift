@@ -71,6 +71,8 @@ enum OdoroCanonicalPoseMapper {
         let root = resolvedPosition(for: .root, in: frame, jointIndex: jointIndex) ?? midpoint(leftHip, rightHip)
         let head = resolvedPosition(for: .head, fallbackJointName: JointNames.head, in: frame, jointIndex: jointIndex)
         let nose = resolvedPosition(for: JointNames.nose, in: frame, jointIndex: jointIndex)
+        let leftUpperArm = resolvedPosition(for: JointNames.leftArm, in: frame, jointIndex: jointIndex)
+        let rightUpperArm = resolvedPosition(for: JointNames.rightArm, in: frame, jointIndex: jointIndex)
         let leftElbow = resolvedPosition(
             for: JointNames.leftForearm,
             fallbackJointName: JointNames.leftArm,
@@ -91,55 +93,87 @@ enum OdoroCanonicalPoseMapper {
             ?? rightElbow
 
         let headRotation = resolvedRotation(for: .head, fallbackJointName: JointNames.head, in: frame, jointIndex: jointIndex)
+        let leftUpperArmRotation = resolvedRotation(for: JointNames.leftArm, in: frame, jointIndex: jointIndex)
+        let rightUpperArmRotation = resolvedRotation(for: JointNames.rightArm, in: frame, jointIndex: jointIndex)
+        let leftElbowRotation = resolvedRotation(
+            for: JointNames.leftForearm,
+            fallbackJointName: JointNames.leftArm,
+            in: frame,
+            jointIndex: jointIndex
+        )
+        let rightElbowRotation = resolvedRotation(
+            for: JointNames.rightForearm,
+            fallbackJointName: JointNames.rightArm,
+            in: frame,
+            jointIndex: jointIndex
+        )
         let leftHandRotation = resolvedRotation(for: .leftHand, fallbackJointName: JointNames.leftHand, in: frame, jointIndex: jointIndex)
         let rightHandRotation = resolvedRotation(for: .rightHand, fallbackJointName: JointNames.rightHand, in: frame, jointIndex: jointIndex)
         let leftFootRotation = resolvedRotation(for: .leftFoot, fallbackJointName: JointNames.leftFoot, in: frame, jointIndex: jointIndex)
         let rightFootRotation = resolvedRotation(for: .rightFoot, fallbackJointName: JointNames.rightFoot, in: frame, jointIndex: jointIndex)
-        let mappedJoints: [(SIMD3<Float>, OdoroJointStatus)] = [
-            required(root, fallback: .zero, status: root == nil ? .missing : .observed),
-            required(head, fallback: shoulderCenter ?? .zero, status: head == nil ? .missing : .observed),
-            required(nose, fallback: head ?? shoulderCenter ?? .zero, status: nose == nil ? .missing : .observed),
-            required(leftShoulder, fallback: .zero, status: leftShoulder == nil ? .missing : .observed),
-            required(rightShoulder, fallback: .zero, status: rightShoulder == nil ? .missing : .observed),
-            required(leftElbow, fallback: leftShoulder ?? .zero, status: .mapped),
-            required(rightElbow, fallback: rightShoulder ?? .zero, status: .mapped),
-            required(leftWrist, fallback: leftElbow ?? leftShoulder ?? .zero, status: .mapped),
-            required(rightWrist, fallback: rightElbow ?? rightShoulder ?? .zero, status: .mapped),
-            required(leftHip, fallback: root ?? .zero, status: leftHip == nil ? .missing : .mapped),
-            required(rightHip, fallback: root ?? .zero, status: rightHip == nil ? .missing : .mapped),
-            required(resolvedPosition(for: JointNames.leftLeg, in: frame, jointIndex: jointIndex), fallback: leftHip ?? .zero, status: .mapped),
-            required(resolvedPosition(for: JointNames.rightLeg, in: frame, jointIndex: jointIndex), fallback: rightHip ?? .zero, status: .mapped),
-            derivedAnkle(knee: resolvedPosition(for: JointNames.leftLeg, in: frame, jointIndex: jointIndex), foot: resolvedPosition(for: .leftFoot, fallbackJointName: JointNames.leftFoot, in: frame, jointIndex: jointIndex)),
-            derivedAnkle(knee: resolvedPosition(for: JointNames.rightLeg, in: frame, jointIndex: jointIndex), foot: resolvedPosition(for: .rightFoot, fallbackJointName: JointNames.rightFoot, in: frame, jointIndex: jointIndex)),
-            required(resolvedPosition(for: .leftFoot, fallbackJointName: JointNames.leftFoot, in: frame, jointIndex: jointIndex), fallback: resolvedPosition(for: JointNames.leftLeg, in: frame, jointIndex: jointIndex) ?? leftHip ?? .zero, status: .mapped),
-            required(resolvedPosition(for: .rightFoot, fallbackJointName: JointNames.rightFoot, in: frame, jointIndex: jointIndex), fallback: resolvedPosition(for: JointNames.rightLeg, in: frame, jointIndex: jointIndex) ?? rightHip ?? .zero, status: .mapped),
-        ]
-        let mappedRotations = frame.jointRotations.map { _ in
-            [
-                resolvedRotation(for: .root, in: frame, jointIndex: jointIndex),
-                headRotation,
-                resolvedRotation(for: JointNames.nose, in: frame, jointIndex: jointIndex) ?? headRotation,
-                resolvedRotation(for: .leftShoulder, in: frame, jointIndex: jointIndex),
-                resolvedRotation(for: .rightShoulder, in: frame, jointIndex: jointIndex),
-                resolvedRotation(for: JointNames.leftArm, in: frame, jointIndex: jointIndex),
-                resolvedRotation(for: JointNames.rightArm, in: frame, jointIndex: jointIndex),
-                leftHandRotation,
-                rightHandRotation,
-                resolvedRotation(for: JointNames.leftUpLeg, in: frame, jointIndex: jointIndex),
-                resolvedRotation(for: JointNames.rightUpLeg, in: frame, jointIndex: jointIndex),
-                resolvedRotation(for: JointNames.leftLeg, in: frame, jointIndex: jointIndex),
-                resolvedRotation(for: JointNames.rightLeg, in: frame, jointIndex: jointIndex),
-                leftFootRotation,
-                rightFootRotation,
-                leftFootRotation,
-                rightFootRotation,
+        let leftKnee = resolvedPosition(for: JointNames.leftLeg, in: frame, jointIndex: jointIndex)
+        let rightKnee = resolvedPosition(for: JointNames.rightLeg, in: frame, jointIndex: jointIndex)
+        let leftFoot = resolvedPosition(for: .leftFoot, fallbackJointName: JointNames.leftFoot, in: frame, jointIndex: jointIndex)
+        let rightFoot = resolvedPosition(for: .rightFoot, fallbackJointName: JointNames.rightFoot, in: frame, jointIndex: jointIndex)
+        let mappedJoints = Dictionary(
+            uniqueKeysWithValues: [
+                (OdoroJointName.root, required(root, fallback: .zero, status: root == nil ? .missing : .observed)),
+                (OdoroJointName.head, required(head, fallback: shoulderCenter ?? .zero, status: head == nil ? .missing : .observed)),
+                (OdoroJointName.nose, required(nose, fallback: head ?? shoulderCenter ?? .zero, status: nose == nil ? .missing : .observed)),
+                (OdoroJointName.leftShoulder, required(leftShoulder, fallback: .zero, status: leftShoulder == nil ? .missing : .observed)),
+                (OdoroJointName.rightShoulder, required(rightShoulder, fallback: .zero, status: rightShoulder == nil ? .missing : .observed)),
+                (OdoroJointName.leftElbow, required(leftElbow, fallback: leftUpperArm ?? leftShoulder ?? .zero, status: .mapped)),
+                (OdoroJointName.rightElbow, required(rightElbow, fallback: rightUpperArm ?? rightShoulder ?? .zero, status: .mapped)),
+                (OdoroJointName.leftWrist, required(leftWrist, fallback: leftElbow ?? leftUpperArm ?? leftShoulder ?? .zero, status: .mapped)),
+                (OdoroJointName.rightWrist, required(rightWrist, fallback: rightElbow ?? rightUpperArm ?? rightShoulder ?? .zero, status: .mapped)),
+                (OdoroJointName.leftHip, required(leftHip, fallback: root ?? .zero, status: leftHip == nil ? .missing : .mapped)),
+                (OdoroJointName.rightHip, required(rightHip, fallback: root ?? .zero, status: rightHip == nil ? .missing : .mapped)),
+                (OdoroJointName.leftKnee, required(leftKnee, fallback: leftHip ?? .zero, status: .mapped)),
+                (OdoroJointName.rightKnee, required(rightKnee, fallback: rightHip ?? .zero, status: .mapped)),
+                (OdoroJointName.leftAnkle, derivedAnkle(knee: leftKnee, foot: leftFoot)),
+                (OdoroJointName.rightAnkle, derivedAnkle(knee: rightKnee, foot: rightFoot)),
+                (OdoroJointName.leftFoot, required(leftFoot, fallback: leftKnee ?? leftHip ?? .zero, status: .mapped)),
+                (OdoroJointName.rightFoot, required(rightFoot, fallback: rightKnee ?? rightHip ?? .zero, status: .mapped)),
+                (OdoroJointName.leftUpperArm, required(leftUpperArm, fallback: midpoint(leftShoulder, leftElbow) ?? leftShoulder ?? .zero, status: .mapped)),
+                (OdoroJointName.rightUpperArm, required(rightUpperArm, fallback: midpoint(rightShoulder, rightElbow) ?? rightShoulder ?? .zero, status: .mapped)),
             ]
+        )
+        let mappedRotations = frame.jointRotations.map { _ in
+            let values = Dictionary(
+                uniqueKeysWithValues: [
+                    (OdoroJointName.root, resolvedRotation(for: .root, in: frame, jointIndex: jointIndex)),
+                    (OdoroJointName.head, headRotation),
+                    (OdoroJointName.nose, resolvedRotation(for: JointNames.nose, in: frame, jointIndex: jointIndex) ?? headRotation),
+                    (OdoroJointName.leftShoulder, resolvedRotation(for: .leftShoulder, in: frame, jointIndex: jointIndex)),
+                    (OdoroJointName.rightShoulder, resolvedRotation(for: .rightShoulder, in: frame, jointIndex: jointIndex)),
+                    (OdoroJointName.leftElbow, leftElbowRotation),
+                    (OdoroJointName.rightElbow, rightElbowRotation),
+                    (OdoroJointName.leftWrist, leftHandRotation),
+                    (OdoroJointName.rightWrist, rightHandRotation),
+                    (OdoroJointName.leftHip, resolvedRotation(for: JointNames.leftUpLeg, in: frame, jointIndex: jointIndex)),
+                    (OdoroJointName.rightHip, resolvedRotation(for: JointNames.rightUpLeg, in: frame, jointIndex: jointIndex)),
+                    (OdoroJointName.leftKnee, resolvedRotation(for: JointNames.leftLeg, in: frame, jointIndex: jointIndex)),
+                    (OdoroJointName.rightKnee, resolvedRotation(for: JointNames.rightLeg, in: frame, jointIndex: jointIndex)),
+                    (OdoroJointName.leftAnkle, leftFootRotation),
+                    (OdoroJointName.rightAnkle, rightFootRotation),
+                    (OdoroJointName.leftFoot, leftFootRotation),
+                    (OdoroJointName.rightFoot, rightFootRotation),
+                    (OdoroJointName.leftUpperArm, leftUpperArmRotation),
+                    (OdoroJointName.rightUpperArm, rightUpperArmRotation),
+                ]
+            )
+
+            return OdoroSkeletonDefinition.jointNames.map { values[$0] ?? nil }
         }
 
         return (
-            mappedJoints.map { MotionPayloadVector3($0.0) },
+            OdoroSkeletonDefinition.jointNames.map { jointName in
+                MotionPayloadVector3(mappedJoints[jointName]?.0 ?? .zero)
+            },
             mappedRotations,
-            mappedJoints.map(\.1)
+            OdoroSkeletonDefinition.jointNames.map { jointName in
+                mappedJoints[jointName]?.1 ?? .missing
+            }
         )
     }
 

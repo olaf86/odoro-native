@@ -366,6 +366,8 @@ struct OdoroTests {
 
         let mapped = OdoroCanonicalPoseMapper.map(frame: frame, jointIndex: jointIndex)
 
+        #expect(mapped.positions[OdoroSkeletonDefinition.index(of: .leftUpperArm)].simdValue == leftArm)
+        #expect(mapped.positions[OdoroSkeletonDefinition.index(of: .rightUpperArm)].simdValue == rightArm)
         #expect(mapped.positions[OdoroSkeletonDefinition.index(of: .leftElbow)].simdValue == leftForearm)
         #expect(mapped.positions[OdoroSkeletonDefinition.index(of: .rightElbow)].simdValue == rightForearm)
         #expect(mapped.positions[OdoroSkeletonDefinition.index(of: .leftWrist)].simdValue == leftHand)
@@ -632,6 +634,10 @@ struct OdoroTests {
         let headRotation = simd_quatf(angle: 0.2, axis: SIMD3<Float>(1, 0, 0))
         let leftShoulderRotation = simd_quatf(angle: 0.3, axis: SIMD3<Float>(0, 0, 1))
         let rightShoulderRotation = simd_quatf(angle: -0.3, axis: SIMD3<Float>(0, 0, 1))
+        let leftArmRotation = simd_quatf(angle: 0.15, axis: SIMD3<Float>(1, 0, 0))
+        let rightArmRotation = simd_quatf(angle: -0.15, axis: SIMD3<Float>(1, 0, 0))
+        let leftForearmRotation = simd_quatf(angle: 0.22, axis: SIMD3<Float>(0, 0, 1))
+        let rightForearmRotation = simd_quatf(angle: -0.22, axis: SIMD3<Float>(0, 0, 1))
         let leftFootRotation = simd_quatf(angle: 0.4, axis: SIMD3<Float>(1, 1, 0))
         let rightFootRotation = simd_quatf(angle: -0.4, axis: SIMD3<Float>(1, 1, 0))
 
@@ -639,8 +645,10 @@ struct OdoroTests {
         setJoint(.head, position: SIMD3<Float>(0, 1.6, 0), rotation: headRotation)
         setJoint(.leftShoulder, position: SIMD3<Float>(-0.2, 1.4, 0), rotation: leftShoulderRotation)
         setJoint(.rightShoulder, position: SIMD3<Float>(0.2, 1.4, 0), rotation: rightShoulderRotation)
-        setJoint(ARSkeleton.JointName(rawValue: "left_arm_joint"), position: SIMD3<Float>(-0.4, 1.2, 0), rotation: simd_quatf(angle: 0.15, axis: SIMD3<Float>(1, 0, 0)))
-        setJoint(ARSkeleton.JointName(rawValue: "right_arm_joint"), position: SIMD3<Float>(0.4, 1.2, 0), rotation: simd_quatf(angle: -0.15, axis: SIMD3<Float>(1, 0, 0)))
+        setJoint(ARSkeleton.JointName(rawValue: "left_arm_joint"), position: SIMD3<Float>(-0.3, 1.3, 0), rotation: leftArmRotation)
+        setJoint(ARSkeleton.JointName(rawValue: "right_arm_joint"), position: SIMD3<Float>(0.3, 1.3, 0), rotation: rightArmRotation)
+        setJoint(ARSkeleton.JointName(rawValue: "left_forearm_joint"), position: SIMD3<Float>(-0.48, 1.16, 0), rotation: leftForearmRotation)
+        setJoint(ARSkeleton.JointName(rawValue: "right_forearm_joint"), position: SIMD3<Float>(0.48, 1.16, 0), rotation: rightForearmRotation)
         setJoint(.leftHand, position: SIMD3<Float>(-0.6, 1.0, 0), rotation: simd_quatf(angle: 0.1, axis: SIMD3<Float>(0, 1, 1)))
         setJoint(.rightHand, position: SIMD3<Float>(0.6, 1.0, 0), rotation: simd_quatf(angle: -0.1, axis: SIMD3<Float>(0, 1, 1)))
         setJoint(ARSkeleton.JointName(rawValue: "left_upLeg_joint"), position: SIMD3<Float>(-0.1, 0.9, 0), rotation: simd_quatf(angle: 0.12, axis: SIMD3<Float>(1, 0, 1)))
@@ -674,6 +682,10 @@ struct OdoroTests {
         #expect(reloadedFrame.jointRotations?[OdoroSkeletonDefinition.index(of: .nose)] == MotionJointRotation(headRotation))
         #expect(reloadedFrame.jointRotations?[OdoroSkeletonDefinition.index(of: .leftShoulder)] == MotionJointRotation(leftShoulderRotation))
         #expect(reloadedFrame.jointRotations?[OdoroSkeletonDefinition.index(of: .rightShoulder)] == MotionJointRotation(rightShoulderRotation))
+        #expect(reloadedFrame.jointRotations?[OdoroSkeletonDefinition.index(of: .leftUpperArm)] == MotionJointRotation(leftArmRotation))
+        #expect(reloadedFrame.jointRotations?[OdoroSkeletonDefinition.index(of: .rightUpperArm)] == MotionJointRotation(rightArmRotation))
+        #expect(reloadedFrame.jointRotations?[OdoroSkeletonDefinition.index(of: .leftElbow)] == MotionJointRotation(leftForearmRotation))
+        #expect(reloadedFrame.jointRotations?[OdoroSkeletonDefinition.index(of: .rightElbow)] == MotionJointRotation(rightForearmRotation))
         #expect(reloadedFrame.jointRotations?[OdoroSkeletonDefinition.index(of: .leftAnkle)] == MotionJointRotation(leftFootRotation))
         #expect(reloadedFrame.jointRotations?[OdoroSkeletonDefinition.index(of: .rightFoot)] == MotionJointRotation(rightFootRotation))
     }
@@ -687,6 +699,8 @@ struct OdoroTests {
             ARSkeleton.JointName.rightShoulder.rawValue,
             ARSkeleton.JointName(rawValue: "left_arm_joint").rawValue,
             ARSkeleton.JointName(rawValue: "right_arm_joint").rawValue,
+            ARSkeleton.JointName(rawValue: "left_forearm_joint").rawValue,
+            ARSkeleton.JointName(rawValue: "right_forearm_joint").rawValue,
             ARSkeleton.JointName.leftHand.rawValue,
             ARSkeleton.JointName.rightHand.rawValue,
             ARSkeleton.JointName(rawValue: "left_upLeg_joint").rawValue,
@@ -997,6 +1011,8 @@ struct OdoroTests {
             .nose: SIMD3<Float>(0, 1.68, 0.05),
             .leftShoulder: SIMD3<Float>(-0.22, 1.42, 0),
             .rightShoulder: SIMD3<Float>(0.22, 1.42, 0),
+            .leftUpperArm: SIMD3<Float>(-0.34, 1.32, 0.01),
+            .rightUpperArm: SIMD3<Float>(0.34, 1.32, 0.01),
             .leftElbow: SIMD3<Float>(-0.46, 1.22, 0.02),
             .rightElbow: SIMD3<Float>(0.46, 1.22, 0.02),
             .leftWrist: SIMD3<Float>(-0.66, 1.02, 0.03),

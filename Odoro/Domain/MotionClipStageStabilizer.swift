@@ -494,6 +494,8 @@ private extension MotionClipStageStabilizer {
         let nose = OdoroSkeletonDefinition.index(of: .nose)
         let leftShoulder = OdoroSkeletonDefinition.index(of: .leftShoulder)
         let rightShoulder = OdoroSkeletonDefinition.index(of: .rightShoulder)
+        let leftUpperArm = OdoroSkeletonDefinition.index(of: .leftUpperArm)
+        let rightUpperArm = OdoroSkeletonDefinition.index(of: .rightUpperArm)
         let leftElbow = OdoroSkeletonDefinition.index(of: .leftElbow)
         let rightElbow = OdoroSkeletonDefinition.index(of: .rightElbow)
         let leftWrist = OdoroSkeletonDefinition.index(of: .leftWrist)
@@ -513,8 +515,10 @@ private extension MotionClipStageStabilizer {
                 (parentIndex: head, childIndex: nose),
                 (parentIndex: root, childIndex: leftShoulder),
                 (parentIndex: root, childIndex: rightShoulder),
-                (parentIndex: leftShoulder, childIndex: leftElbow),
-                (parentIndex: rightShoulder, childIndex: rightElbow),
+                (parentIndex: leftShoulder, childIndex: leftUpperArm),
+                (parentIndex: rightShoulder, childIndex: rightUpperArm),
+                (parentIndex: leftUpperArm, childIndex: leftElbow),
+                (parentIndex: rightUpperArm, childIndex: rightElbow),
                 (parentIndex: leftElbow, childIndex: leftWrist),
                 (parentIndex: rightElbow, childIndex: rightWrist),
                 (parentIndex: root, childIndex: leftHip),
