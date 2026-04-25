@@ -603,7 +603,9 @@ final class StagePlaybackRenderer: NSObject {
                 parentWorldRotation: parentWorldRotationAndPosition?.rotation,
                 parentWorldPosition: parentWorldRotationAndPosition?.position,
                 floorOffset: rigProfile.floorOffset,
-                translationMode: binding.translationMode
+                translationMode: binding.translationMode,
+                preservesBindPoseRotation: Self.shouldPreserveBindPoseRotation(for: binding),
+                rotationWeight: binding.weight
             )
             resolvedJointCount += 1
         }
@@ -631,13 +633,21 @@ final class StagePlaybackRenderer: NSObject {
         parentWorldRotation: simd_quatf?,
         parentWorldPosition: SIMD3<Float>?,
         floorOffset: Float,
-        translationMode: AvatarTranslationMode
+        translationMode: AvatarTranslationMode,
+        preservesBindPoseRotation: Bool,
+        rotationWeight: Float
     ) -> Transform {
         var localTransform = baseTransform
 
         if let parentWorldRotation, let parentWorldPosition {
             let parentRotationInverse = parentWorldRotation.inverse
-            localTransform.rotation = parentRotationInverse * worldRotation
+            let motionLocalRotation = weightedRotation(
+                parentRotationInverse * worldRotation,
+                weight: rotationWeight
+            )
+            localTransform.rotation = preservesBindPoseRotation
+                ? baseTransform.rotation * motionLocalRotation
+                : motionLocalRotation
 
             if translationMode == .direct {
                 localTransform.translation = simd_act(
@@ -646,7 +656,10 @@ final class StagePlaybackRenderer: NSObject {
                 )
             }
         } else {
-            localTransform.rotation = worldRotation
+            let weightedWorldRotation = weightedRotation(worldRotation, weight: rotationWeight)
+            localTransform.rotation = preservesBindPoseRotation
+                ? baseTransform.rotation * weightedWorldRotation
+                : weightedWorldRotation
 
             if translationMode == .direct {
                 localTransform.translation = worldPosition - SIMD3<Float>(0, floorOffset, 0)
@@ -654,6 +667,32 @@ final class StagePlaybackRenderer: NSObject {
         }
 
         return localTransform
+    }
+
+    nonisolated static func shouldPreserveBindPoseRotation(for binding: AvatarBoneBinding) -> Bool {
+        guard binding.translationMode == .bindPose else {
+            return false
+        }
+
+        if binding.sourceJoint.canonicalJoint == binding.parentSourceJoint?.canonicalJoint {
+            return true
+        }
+
+        switch binding.sourceJoint.canonicalJoint {
+        case .root?, .head?:
+            return true
+        default:
+            return false
+        }
+    }
+
+    nonisolated static func weightedRotation(_ rotation: simd_quatf, weight: Float) -> simd_quatf {
+        let clampedWeight = min(max(weight, 0), 1)
+        guard clampedWeight < 0.999 else {
+            return rotation
+        }
+
+        return simd_slerp(simd_quatf(angle: 0, axis: SIMD3<Float>(0, 1, 0)), rotation, clampedWeight)
     }
 
     /// Moves the character entity using the procedural hip position.

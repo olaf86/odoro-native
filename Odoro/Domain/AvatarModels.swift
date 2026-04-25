@@ -156,6 +156,12 @@ struct AvatarRigProfileDocument: Codable, Hashable, Sendable {
     var profile: AvatarRigProfile
 }
 
+enum RobotRigTuning {
+    /// Keeps the clavicle motion subtle so arm swing is not over-applied
+    /// on top of the upper-arm retargeting.
+    nonisolated static let shoulderRotationWeight: Float = 0.35
+}
+
 struct AvatarPackageManifest: Codable, Hashable, Sendable {
     var schemaVersion: Int
     var avatarID: String
@@ -353,7 +359,8 @@ enum AvatarCatalog {
             AvatarBoneBinding(
                 boneName: robotSpineJointPath("spine_3_joint", "spine_4_joint", "spine_5_joint", "spine_6_joint", "spine_7_joint", "left_shoulder_1_joint"),
                 sourceJoint: .init(canonicalJoint: .leftShoulder, rawJointName: "left_shoulder_1_joint"),
-                parentSourceJoint: .init(canonicalJoint: .root, rawJointName: "spine_7_joint")
+                parentSourceJoint: .init(canonicalJoint: .root, rawJointName: "spine_7_joint"),
+                weight: RobotRigTuning.shoulderRotationWeight
             ),
             AvatarBoneBinding(
                 boneName: robotSpineJointPath("spine_3_joint", "spine_4_joint", "spine_5_joint", "spine_6_joint", "spine_7_joint", "neck_1_joint", "neck_2_joint", "neck_3_joint"),
@@ -398,7 +405,8 @@ enum AvatarCatalog {
             AvatarBoneBinding(
                 boneName: robotSpineJointPath("spine_3_joint", "spine_4_joint", "spine_5_joint", "spine_6_joint", "spine_7_joint", "right_shoulder_1_joint"),
                 sourceJoint: .init(canonicalJoint: .rightShoulder, rawJointName: "right_shoulder_1_joint"),
-                parentSourceJoint: .init(canonicalJoint: .root, rawJointName: "spine_7_joint")
+                parentSourceJoint: .init(canonicalJoint: .root, rawJointName: "spine_7_joint"),
+                weight: RobotRigTuning.shoulderRotationWeight
             ),
         ].map { binding in
             guard binding.boneName != robotJointPath() else {

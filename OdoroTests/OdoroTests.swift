@@ -404,6 +404,8 @@ struct OdoroTests {
         #expect(profile.bindings.contains { $0.boneName == "root/hips_joint/spine_1_joint/spine_2_joint/spine_3_joint/spine_4_joint/spine_5_joint/spine_6_joint/spine_7_joint/right_shoulder_1_joint/right_arm_joint/right_forearm_joint/right_hand_joint" })
         #expect(profile.bindings.first(where: { $0.boneName == profile.rootBoneName })?.translationMode == .direct)
         #expect(profile.bindings.filter { $0.boneName != profile.rootBoneName }.allSatisfy { $0.translationMode == .bindPose })
+        #expect(profile.bindings.first(where: { $0.boneName.hasSuffix("/left_shoulder_1_joint") })?.weight == RobotRigTuning.shoulderRotationWeight)
+        #expect(profile.bindings.first(where: { $0.boneName.hasSuffix("/right_shoulder_1_joint") })?.weight == RobotRigTuning.shoulderRotationWeight)
     }
 
     @Test func stageRendererBindPoseTranslationKeepsExistingJointOffset() {
@@ -421,12 +423,100 @@ struct OdoroTests {
             parentWorldRotation: parentWorldRotation,
             parentWorldPosition: SIMD3<Float>(0.9, 1.0, 0.1),
             floorOffset: 0.977,
-            translationMode: .bindPose
+            translationMode: .bindPose,
+            preservesBindPoseRotation: false,
+            rotationWeight: 1
         )
 
         #expect(localTransform.translation == baseTransform.translation)
         #expect(localTransform.scale == baseTransform.scale)
         #expect(localTransform.rotation != baseTransform.rotation)
+    }
+
+    @Test func stageRendererBindPoseRotationPreservesBaseOrientationAtRest() {
+        let baseTransform = Transform(
+            scale: .one,
+            rotation: simd_quatf(angle: .pi / 2, axis: SIMD3<Float>(1, 0, 0)),
+            translation: SIMD3<Float>(0, 0.3, 0)
+        )
+
+        let localTransform = StagePlaybackRenderer.makeRigLocalTransform(
+            preserving: baseTransform,
+            worldRotation: simd_quatf(angle: 0, axis: SIMD3<Float>(0, 1, 0)),
+            worldPosition: .zero,
+            parentWorldRotation: nil,
+            parentWorldPosition: nil,
+            floorOffset: 0.977,
+            translationMode: .bindPose,
+            preservesBindPoseRotation: true,
+            rotationWeight: 1
+        )
+
+        #expect(localTransform.rotation == baseTransform.rotation)
+        #expect(localTransform.translation == baseTransform.translation)
+    }
+
+    @Test func stageRendererRotationWeightDampensAppliedLocalRotation() {
+        let fullRotation = StagePlaybackRenderer.weightedRotation(
+            simd_quatf(angle: .pi / 2, axis: SIMD3<Float>(0, 0, 1)),
+            weight: 1
+        )
+        let dampedRotation = StagePlaybackRenderer.weightedRotation(
+            simd_quatf(angle: .pi / 2, axis: SIMD3<Float>(0, 0, 1)),
+            weight: RobotRigTuning.shoulderRotationWeight
+        )
+
+        #expect(Self.rotationAngle(dampedRotation) < Self.rotationAngle(fullRotation))
+        #expect(Self.rotationAngle(dampedRotation) > 0)
+    }
+
+    @Test func stageRendererPreservesBindPoseRotationForTorsoHeadAndSharedCanonicalBindings() {
+        #expect(
+            StagePlaybackRenderer.shouldPreserveBindPoseRotation(
+                for: AvatarBoneBinding(
+                    boneName: "spine",
+                    sourceJoint: .init(canonicalJoint: .root),
+                    translationMode: .bindPose
+                )
+            )
+        )
+        #expect(
+            StagePlaybackRenderer.shouldPreserveBindPoseRotation(
+                for: AvatarBoneBinding(
+                    boneName: "head",
+                    sourceJoint: .init(canonicalJoint: .head),
+                    translationMode: .bindPose
+                )
+            )
+        )
+        #expect(
+            StagePlaybackRenderer.shouldPreserveBindPoseRotation(
+                for: AvatarBoneBinding(
+                    boneName: "left_hand",
+                    sourceJoint: .init(canonicalJoint: .leftWrist, rawJointName: "left_hand_joint"),
+                    parentSourceJoint: .init(canonicalJoint: .leftWrist, rawJointName: "left_forearm_joint"),
+                    translationMode: .bindPose
+                )
+            )
+        )
+        #expect(
+            !StagePlaybackRenderer.shouldPreserveBindPoseRotation(
+                for: AvatarBoneBinding(
+                    boneName: "left_arm",
+                    sourceJoint: .init(canonicalJoint: .leftElbow),
+                    translationMode: .bindPose
+                )
+            )
+        )
+        #expect(
+            !StagePlaybackRenderer.shouldPreserveBindPoseRotation(
+                for: AvatarBoneBinding(
+                    boneName: "hips",
+                    sourceJoint: .init(canonicalJoint: .root),
+                    translationMode: .direct
+                )
+            )
+        )
     }
 
     @Test func motionPayloadRoundTripPreservesMappedRotations() {
