@@ -8,6 +8,8 @@ import ARKit
 import simd
 
 final class MockMotionSource: MotionSource {
+    private static let upperArmInterpolation: Float = 0.35
+
     var captureMode: CaptureMode { .mock }
     var onFrame: ((MotionFrame) -> Void)?
     var onStatusTextChange: ((String) -> Void)?
@@ -70,8 +72,8 @@ final class MockMotionSource: MotionSource {
         let rightElbow = rightShoulder + SIMD3<Float>(0.20, 0.10 - armSwing * 0.12, 0.04)
         let leftHand = leftElbow + SIMD3<Float>(-0.16, -0.08 + armSwing * 0.10, 0)
         let rightHand = rightElbow + SIMD3<Float>(0.16, -0.08 - armSwing * 0.10, 0)
-        let leftUpperArm = (leftShoulder + leftElbow) * 0.5
-        let rightUpperArm = (rightShoulder + rightElbow) * 0.5
+        let leftUpperArm = Self.interpolatedPosition(from: leftShoulder, to: leftElbow, t: Self.upperArmInterpolation)
+        let rightUpperArm = Self.interpolatedPosition(from: rightShoulder, to: rightElbow, t: Self.upperArmInterpolation)
         let leftHip = root + SIMD3<Float>(-0.12, -0.02, 0)
         let rightHip = root + SIMD3<Float>(0.12, -0.02, 0)
         let leftKnee = leftHip + SIMD3<Float>(-0.03, -0.38 + max(0, step) * 0.08, 0.06)
@@ -175,5 +177,9 @@ final class MockMotionSource: MotionSource {
         for (suffix, offset) in fingerOffsets {
             setJoint(named: "\(prefix)\(suffix)", to: hand + offset, in: &joints)
         }
+    }
+
+    private static func interpolatedPosition(from start: SIMD3<Float>, to end: SIMD3<Float>, t: Float) -> SIMD3<Float> {
+        start + (end - start) * t
     }
 }

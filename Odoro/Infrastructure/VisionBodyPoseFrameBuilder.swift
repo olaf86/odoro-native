@@ -9,6 +9,7 @@ import Vision
 
 enum VisionBodyPoseFrameBuilder {
     private static let skeletonDefinition = ARSkeletonDefinition.defaultBody3D
+    private static let upperArmInterpolation: Float = 0.35
     private static let neutralJointPositions: [SIMD3<Float>] = {
         let neutral = ARSkeletonDefinition.defaultBody3D.neutralBodySkeleton3D?.jointModelTransforms ?? []
         return neutral.map { transform in
@@ -37,8 +38,8 @@ enum VisionBodyPoseFrameBuilder {
         let rightElbow = stagePosition(for: .rightElbow, in: points) ?? rightShoulder + SIMD3<Float>(0.18, -0.18, 0.02)
         let leftHand = stagePosition(for: .leftWrist, in: points) ?? leftElbow + SIMD3<Float>(-0.18, -0.14, 0)
         let rightHand = stagePosition(for: .rightWrist, in: points) ?? rightElbow + SIMD3<Float>(0.18, -0.14, 0)
-        let leftUpperArm = (leftShoulder + leftElbow) * 0.5
-        let rightUpperArm = (rightShoulder + rightElbow) * 0.5
+        let leftUpperArm = interpolatedPosition(from: leftShoulder, to: leftElbow, t: upperArmInterpolation)
+        let rightUpperArm = interpolatedPosition(from: rightShoulder, to: rightElbow, t: upperArmInterpolation)
 
         let leftHip = root + SIMD3<Float>(-0.12, -0.02, 0)
         let rightHip = root + SIMD3<Float>(0.12, -0.02, 0)
@@ -104,5 +105,9 @@ enum VisionBodyPoseFrameBuilder {
         in joints: inout [SIMD3<Float>]
     ) {
         setJoint(ARSkeleton.JointName(rawValue: rawValue), to: position, in: &joints)
+    }
+
+    private static func interpolatedPosition(from start: SIMD3<Float>, to end: SIMD3<Float>, t: Float) -> SIMD3<Float> {
+        start + (end - start) * t
     }
 }
