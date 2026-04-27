@@ -341,6 +341,51 @@ struct OdoroTests {
         #expect(canonicalClip.frames[0].jointPositions.count == OdoroSkeletonDefinition.jointCount)
     }
 
+    @Test func canonicalPoseMapperPlacesDerivedAnklesCloserToFootThanLegacyMidpoint() {
+        let jointNames = arkitFixtureJointNames.map(ARSkeleton.JointName.init(rawValue:))
+        let jointIndex: (ARSkeleton.JointName) -> Int = { name in
+            jointNames.firstIndex(of: name) ?? NSNotFound
+        }
+        var positions = Array(
+            repeating: SIMD3<Float>(0, -10, 0),
+            count: jointNames.count
+        )
+
+        func setJoint(_ name: ARSkeleton.JointName, position: SIMD3<Float>) {
+            let index = jointIndex(name)
+            guard index != NSNotFound else { return }
+            positions[index] = position
+        }
+
+        let leftKnee = SIMD3<Float>(-0.12, 0.47, 0.04)
+        let leftFoot = SIMD3<Float>(-0.12, 0.08, 0.12)
+
+        setJoint(ARSkeleton.JointName(rawValue: "left_leg_joint"), position: leftKnee)
+        setJoint(.leftFoot, position: leftFoot)
+        setJoint(ARSkeleton.JointName(rawValue: "left_foot_joint"), position: leftFoot)
+
+        let mapped = OdoroCanonicalPoseMapper.map(
+            frame: MotionFrame(time: 0, jointPositions: positions),
+            jointIndex: jointIndex
+        )
+
+        let leftKneeIndex = OdoroSkeletonDefinition.index(of: .leftKnee)
+        let leftAnkleIndex = OdoroSkeletonDefinition.index(of: .leftAnkle)
+        let leftFootIndex = OdoroSkeletonDefinition.index(of: .leftFoot)
+
+        let knee = mapped.positions[leftKneeIndex].simdValue
+        let ankle = mapped.positions[leftAnkleIndex].simdValue
+        let foot = mapped.positions[leftFootIndex].simdValue
+
+        let legacyMidpointDistance = simd_distance((knee + foot) * 0.5, foot)
+        let derivedDistance = simd_distance(ankle, foot)
+        let lowerLegLength = simd_distance(knee, foot)
+
+        #expect(mapped.statuses[leftAnkleIndex] == .derived)
+        #expect(derivedDistance < legacyMidpointDistance)
+        #expect(abs((derivedDistance / lowerLegLength) - 0.08) < 0.02)
+    }
+
     @Test func canonicalPoseMapperMapsElbowsFromForearmJoints() {
         let jointNames: [ARSkeleton.JointName] = [
             .root,
@@ -1069,11 +1114,16 @@ struct OdoroTests {
 
     private static func arKitFrame(
         time: TimeInterval,
-        overrides: [ARSkeleton.JointName: SIMD3<Float>] = [:]
+        overrides: [ARSkeleton.JointName: SIMD3<Float>] = [:],
+        rotationOverrides: [ARSkeleton.JointName: simd_quatf] = [:]
     ) -> MotionFrame {
         let skeletonDefinition = ARSkeletonDefinition.defaultBody3D
         var positions = Array(
             repeating: SIMD3<Float>(0, -10, 0),
+            count: skeletonDefinition.jointNames.count
+        )
+        var rotations = Array<MotionJointRotation?>(
+            repeating: nil,
             count: skeletonDefinition.jointNames.count
         )
 
@@ -1081,6 +1131,12 @@ struct OdoroTests {
             let index = skeletonDefinition.index(for: name)
             guard index != NSNotFound else { return }
             positions[index] = position
+        }
+
+        func setJointRotation(_ name: ARSkeleton.JointName, rotation: simd_quatf) {
+            let index = skeletonDefinition.index(for: name)
+            guard index != NSNotFound else { return }
+            rotations[index] = MotionJointRotation(rotation)
         }
 
         setJoint(.root, position: SIMD3<Float>(0, 1.0, 0))
@@ -1098,13 +1154,28 @@ struct OdoroTests {
         setJoint(ARSkeleton.JointName(rawValue: "left_leg_joint"), position: SIMD3<Float>(-0.12, 0.47, 0.04))
         setJoint(ARSkeleton.JointName(rawValue: "right_leg_joint"), position: SIMD3<Float>(0.12, 0.47, 0.04))
         setJoint(.leftFoot, position: SIMD3<Float>(-0.12, 0.08, 0.12))
+        setJoint(ARSkeleton.JointName(rawValue: "left_foot_joint"), position: SIMD3<Float>(-0.12, 0.08, 0.12))
         setJoint(.rightFoot, position: SIMD3<Float>(0.12, 0.08, 0.12))
+        setJoint(ARSkeleton.JointName(rawValue: "right_foot_joint"), position: SIMD3<Float>(0.12, 0.08, 0.12))
 
         for (jointName, position) in overrides {
             setJoint(jointName, position: position)
         }
 
-        return MotionFrame(time: time, jointPositions: positions)
+        for (jointName, rotation) in rotationOverrides {
+            setJointRotation(jointName, rotation: rotation)
+            switch jointName.rawValue {
+            case ARSkeleton.JointName.leftFoot.rawValue:
+                setJointRotation(ARSkeleton.JointName(rawValue: "left_foot_joint"), rotation: rotation)
+            case ARSkeleton.JointName.rightFoot.rawValue:
+                setJointRotation(ARSkeleton.JointName(rawValue: "right_foot_joint"), rotation: rotation)
+            default:
+                break
+            }
+        }
+
+        let jointRotations = rotationOverrides.isEmpty ? nil : rotations
+        return MotionFrame(time: time, jointPositions: positions, jointRotations: jointRotations)
     }
 }
 
