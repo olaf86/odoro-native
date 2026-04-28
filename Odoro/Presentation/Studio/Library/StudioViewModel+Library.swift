@@ -22,12 +22,16 @@ extension StudioViewModel {
                 interactor.updateMaximumCaptureDuration(recordingContext.fixedCaptureDuration)
             }
 
-            let clip = try archiveStore.loadClip(fromLocalFilePath: take.localFilePath)
+            let storedTake = try archiveStore.loadStoredTake(
+                withID: take.id,
+                fromLocalFilePath: take.localFilePath
+            )
             currentSessionID = take.sessionID
             currentTakeID = take.id
             playbackCaptureMode = take.captureMode
+            storedDerivedArtifacts = storedTake.derivedArtifacts
             stageRenderer.setUsesProceduralMockPlayback(take.captureMode == .mock)
-            interactor.replaceCurrentClip(clip)
+            interactor.replaceCurrentClip(storedTake.clip)
             try refreshCurrentSessionTakes()
             interactor.enterStageMode()
         } catch {
@@ -109,9 +113,13 @@ extension StudioViewModel {
             currentSessionID = saveResult.sessionID
             currentTakeID = saveResult.takeID
             playbackCaptureMode = .importedVideo
-            let savedClip = try archiveStore.loadClip(fromLocalFilePath: saveResult.localFilePath)
+            let storedTake = try archiveStore.loadStoredTake(
+                withID: saveResult.takeID,
+                fromLocalFilePath: saveResult.localFilePath
+            )
+            storedDerivedArtifacts = storedTake.derivedArtifacts
             stageRenderer.setUsesProceduralMockPlayback(false)
-            interactor.replaceCurrentClip(savedClip, sourceClip: clip)
+            interactor.replaceCurrentClip(storedTake.clip, sourceClip: clip)
             try refreshCurrentSessionTakes()
             refreshLibrary()
             interactor.setStatusText(L10n.statusVideoImportComplete)
@@ -161,10 +169,14 @@ extension StudioViewModel {
         currentSessionID = saveResult.sessionID
         currentTakeID = saveResult.takeID
         playbackCaptureMode = captureMode
-        let savedClip = try archiveStore.loadClip(fromLocalFilePath: saveResult.localFilePath)
+        let storedTake = try archiveStore.loadStoredTake(
+            withID: saveResult.takeID,
+            fromLocalFilePath: saveResult.localFilePath
+        )
+        storedDerivedArtifacts = storedTake.derivedArtifacts
         stageRenderer.setUsesProceduralMockPlayback(captureMode == .mock)
         interactor.replaceCurrentClip(
-            playbackClip(for: clip, savedClip: savedClip, captureMode: captureMode),
+            playbackClip(for: clip, savedClip: storedTake.clip, captureMode: captureMode),
             sourceClip: interactor.sourceClip
         )
         try refreshCurrentSessionTakes()
@@ -204,6 +216,11 @@ extension StudioViewModel {
         )
         currentSessionID = saveResult.sessionID
         currentTakeID = saveResult.takeID
+        let storedTake = try archiveStore.loadStoredTake(
+            withID: saveResult.takeID,
+            fromLocalFilePath: saveResult.localFilePath
+        )
+        storedDerivedArtifacts = storedTake.derivedArtifacts
         try refreshCurrentSessionTakes()
 
         guard let persistedTake = currentTake else {

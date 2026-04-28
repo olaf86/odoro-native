@@ -528,6 +528,29 @@ struct OdoroTests {
         #expect(prepared.stabilized.endEffectorInference == nil)
     }
 
+    @Test func stagePreparedPlaybackBuilderUsesStoredArtifactsWhenSourceClipIsUnavailable() throws {
+        let playbackClip = MotionClip(frames: [
+            Self.canonicalFrame(time: 0),
+            Self.canonicalFrame(time: 1.0 / 30.0),
+        ])
+        let storedArtifacts = try #require(
+            MotionDerivedArtifactsBuilder().build(
+                playbackClip: playbackClip,
+                captureMode: .rearBody3D
+            )
+        )
+
+        let prepared = StagePreparedPlaybackBuilder().prepare(
+            sourceClip: nil,
+            playbackClip: playbackClip,
+            captureMode: .rearBody3D,
+            storedArtifacts: storedArtifacts
+        )
+
+        #expect(prepared.canonical.endEffectorInference == storedArtifacts.stagePlayback?.canonical.endEffectorInference)
+        #expect(prepared.stabilized.endEffectorInference == storedArtifacts.stagePlayback?.stabilized.endEffectorInference)
+    }
+
     @Test func motionPayloadRoundTripPreservesCanonicalClipWithoutRemapping() {
         let canonicalClip = MotionClip(frames: [
             Self.canonicalFrame(
@@ -880,7 +903,8 @@ struct OdoroTests {
             .appending(path: UUID().uuidString, directoryHint: .isDirectory)
         let archiveStore = MotionArchiveStore(
             modelContainer: container,
-            payloadFileStore: MotionPayloadFileStore(baseDirectoryURL: tempDirectory)
+            payloadFileStore: MotionPayloadFileStore(baseDirectoryURL: tempDirectory),
+            derivedArtifactsFileStore: MotionDerivedArtifactsFileStore(baseDirectoryURL: tempDirectory)
         )
         let runtimeClip = MotionClip(frames: [
             MotionFrame(
@@ -901,11 +925,16 @@ struct OdoroTests {
             captureMode: .rearBody3D,
             recordingContext: .defaultMetronomeLoop
         )
-        let reloadedClip = try archiveStore.loadClip(fromLocalFilePath: saveResult.localFilePath)
+        let storedTake = try archiveStore.loadStoredTake(
+            withID: saveResult.takeID,
+            fromLocalFilePath: saveResult.localFilePath
+        )
+        let reloadedClip = storedTake.clip
 
         #expect(reloadedClip.frameCount == 1)
         #expect(reloadedClip.frames[0].jointPositions.count == OdoroSkeletonDefinition.jointCount)
         #expect(FileManager.default.fileExists(atPath: saveResult.localFilePath))
+        #expect(storedTake.derivedArtifacts?.stagePlayback?.stabilized.endEffectorInference != nil)
 
         let secondSaveResult = try archiveStore.saveTake(
             clip: runtimeClip,
@@ -934,7 +963,8 @@ struct OdoroTests {
             .appending(path: UUID().uuidString, directoryHint: .isDirectory)
         let archiveStore = MotionArchiveStore(
             modelContainer: container,
-            payloadFileStore: MotionPayloadFileStore(baseDirectoryURL: tempDirectory)
+            payloadFileStore: MotionPayloadFileStore(baseDirectoryURL: tempDirectory),
+            derivedArtifactsFileStore: MotionDerivedArtifactsFileStore(baseDirectoryURL: tempDirectory)
         )
         let runtimeClip = MotionClip(frames: [
             MotionFrame(
@@ -987,7 +1017,8 @@ struct OdoroTests {
             .appending(path: UUID().uuidString, directoryHint: .isDirectory)
         let archiveStore = MotionArchiveStore(
             modelContainer: container,
-            payloadFileStore: MotionPayloadFileStore(baseDirectoryURL: tempDirectory)
+            payloadFileStore: MotionPayloadFileStore(baseDirectoryURL: tempDirectory),
+            derivedArtifactsFileStore: MotionDerivedArtifactsFileStore(baseDirectoryURL: tempDirectory)
         )
         let runtimeClip = MotionClip(frames: [
             MotionFrame(
@@ -1016,9 +1047,14 @@ struct OdoroTests {
             recordingContext: .defaultMetronomeLoop
         )
         let summaries = try archiveStore.fetchTakeSummaries(inSessionID: saveResult.sessionID)
+        let storedTake = try archiveStore.loadStoredTake(
+            withID: saveResult.takeID,
+            fromLocalFilePath: saveResult.localFilePath
+        )
 
         #expect(summaries.count == 1)
         #expect(summaries.first?.captureMode == .importedVideo)
+        #expect(storedTake.derivedArtifacts == nil)
     }
 
     @MainActor

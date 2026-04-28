@@ -57,6 +57,7 @@ final class StudioViewModel: ObservableObject {
     var transientMessageDismissTask: Task<Void, Never>?
     var playbackCaptureMode: CaptureMode?
     var preparedStagePlayback: StagePreparedPlayback?
+    var storedDerivedArtifacts: MotionDerivedArtifacts?
 
     // MARK: - Initialization
 
@@ -138,7 +139,8 @@ final class StudioViewModel: ObservableObject {
         preparedStagePlayback = stagePlaybackBuilder.prepare(
             sourceClip: interactor.sourceClip,
             playbackClip: interactor.currentClip,
-            captureMode: activePlaybackCaptureMode
+            captureMode: activePlaybackCaptureMode,
+            storedArtifacts: storedDerivedArtifacts
         )
     }
 

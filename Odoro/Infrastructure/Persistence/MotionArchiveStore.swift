@@ -63,10 +63,19 @@ struct MotionTakeSummary: Identifiable, Sendable {
 final class MotionArchiveStore {
     private let modelContainer: ModelContainer
     private let payloadFileStore: MotionPayloadFileStore
+    private let derivedArtifactsFileStore: MotionDerivedArtifactsFileStore
+    private let derivedArtifactsBuilder: MotionDerivedArtifactsBuilder
 
-    init(modelContainer: ModelContainer, payloadFileStore: MotionPayloadFileStore? = nil) {
+    init(
+        modelContainer: ModelContainer,
+        payloadFileStore: MotionPayloadFileStore? = nil,
+        derivedArtifactsFileStore: MotionDerivedArtifactsFileStore? = nil,
+        derivedArtifactsBuilder: MotionDerivedArtifactsBuilder = MotionDerivedArtifactsBuilder()
+    ) {
         self.modelContainer = modelContainer
         self.payloadFileStore = payloadFileStore ?? MotionPayloadFileStore()
+        self.derivedArtifactsFileStore = derivedArtifactsFileStore ?? MotionDerivedArtifactsFileStore()
+        self.derivedArtifactsBuilder = derivedArtifactsBuilder
     }
 
     func saveTake(
@@ -92,7 +101,20 @@ final class MotionArchiveStore {
             sourcePlatform: "iOS",
             sourceBackend: sourceBackendName(for: captureMode)
         )
-        let payloadURL = try payloadFileStore.write(payload, for: takeID)
+        let payloadURL: URL
+        do {
+            payloadURL = try payloadFileStore.write(payload, for: takeID)
+            let storedClip = payload.makeMotionClip()
+            let derivedArtifacts = derivedArtifactsBuilder.build(
+                playbackClip: storedClip,
+                captureMode: captureMode
+            )
+            _ = try derivedArtifactsFileStore.write(derivedArtifacts, for: takeID)
+        } catch {
+            try? payloadFileStore.removePayload(for: takeID)
+            try? derivedArtifactsFileStore.removeArtifacts(for: takeID)
+            throw error
+        }
 
         do {
             let takeIndex = nextTakeIndex(in: session)
@@ -114,7 +136,8 @@ final class MotionArchiveStore {
             context.insert(take)
             try context.save()
         } catch {
-            try? FileManager.default.removeItem(at: payloadURL)
+            try? payloadFileStore.removePayload(for: takeID)
+            try? derivedArtifactsFileStore.removeArtifacts(for: takeID)
             throw error
         }
 
@@ -128,6 +151,19 @@ final class MotionArchiveStore {
     func loadClip(fromLocalFilePath localFilePath: String) throws -> MotionClip {
         let payloadURL = URL(fileURLWithPath: localFilePath)
         return try payloadFileStore.read(from: payloadURL).makeMotionClip()
+    }
+
+    func loadStoredTake(
+        withID takeID: UUID,
+        fromLocalFilePath localFilePath: String
+    ) throws -> StoredMotionTake {
+        let payloadURL = URL(fileURLWithPath: localFilePath)
+        let clip = try payloadFileStore.read(from: payloadURL).makeMotionClip()
+        let derivedArtifacts = try derivedArtifactsFileStore.read(for: takeID)
+        return StoredMotionTake(
+            clip: clip,
+            derivedArtifacts: derivedArtifacts
+        )
     }
 
     func fetchSessionSummary(withID sessionID: UUID) throws -> RecordingSessionSummary? {

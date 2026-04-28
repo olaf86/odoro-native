@@ -28,7 +28,8 @@ struct StagePreparedPlaybackBuilder: Sendable {
     nonisolated func prepare(
         sourceClip: MotionClip?,
         playbackClip: MotionClip?,
-        captureMode: CaptureMode
+        captureMode: CaptureMode,
+        storedArtifacts: MotionDerivedArtifacts? = nil
     ) -> StagePreparedPlayback {
         let rawClip = (sourceClip ?? playbackClip)?.rebasedForStage()
         let canonicalClip = canonicalPlaybackClip(sourceClip: sourceClip, playbackClip: playbackClip)
@@ -38,11 +39,21 @@ struct StagePreparedPlaybackBuilder: Sendable {
             raw: PreparedStagePlaybackClip(clip: rawClip, endEffectorInference: nil),
             canonical: PreparedStagePlaybackClip(
                 clip: canonicalClip,
-                endEffectorInference: inferredArtifacts(for: canonicalClip, captureMode: captureMode)
+                endEffectorInference: inferredArtifacts(
+                    for: canonicalClip,
+                    captureMode: captureMode,
+                    sourceClip: sourceClip,
+                    storedInference: storedArtifacts?.stagePlayback?.canonical.endEffectorInference
+                )
             ),
             stabilized: PreparedStagePlaybackClip(
                 clip: stabilizedClip,
-                endEffectorInference: inferredArtifacts(for: stabilizedClip, captureMode: captureMode)
+                endEffectorInference: inferredArtifacts(
+                    for: stabilizedClip,
+                    captureMode: captureMode,
+                    sourceClip: sourceClip,
+                    storedInference: storedArtifacts?.stagePlayback?.stabilized.endEffectorInference
+                )
             )
         )
     }
@@ -72,13 +83,24 @@ struct StagePreparedPlaybackBuilder: Sendable {
 
     nonisolated private func inferredArtifacts(
         for clip: MotionClip?,
-        captureMode: CaptureMode
+        captureMode: CaptureMode,
+        sourceClip: MotionClip?,
+        storedInference: MotionClipEndEffectorInference?
     ) -> MotionClipEndEffectorInference? {
         guard
             captureMode == .rearBody3D,
-            let clip,
-            clip.frames.first?.jointPositions.count == OdoroSkeletonDefinition.jointCount
+            let clip
         else {
+            return nil
+        }
+
+        if sourceClip == nil,
+           let storedInference,
+           storedInference.frames.count == clip.frames.count {
+            return storedInference
+        }
+
+        guard clip.frames.first?.jointPositions.count == OdoroSkeletonDefinition.jointCount else {
             return nil
         }
 

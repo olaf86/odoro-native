@@ -29,6 +29,7 @@ extension StudioViewModel {
         currentTakeID = nil
         playbackCaptureMode = nil
         preparedStagePlayback = nil
+        storedDerivedArtifacts = nil
     }
 
     func prepareStagePlayback() {

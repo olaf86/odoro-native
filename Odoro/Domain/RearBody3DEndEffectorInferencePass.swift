@@ -6,32 +6,32 @@
 import Foundation
 import simd
 
-struct DerivedEndEffectorPose: Sendable, Equatable {
+struct DerivedEndEffectorPose: Codable, Sendable, Equatable {
     let pivot: SIMD3<Float>
     let forward: SIMD3<Float>
     let up: SIMD3<Float>
     let confidence: Float
 }
 
-struct DerivedFootPoses: Sendable, Equatable {
+struct DerivedFootPoses: Codable, Sendable, Equatable {
     let left: DerivedEndEffectorPose?
     let right: DerivedEndEffectorPose?
     let leftContactWeight: Float
     let rightContactWeight: Float
 }
 
-struct DerivedHandPoses: Sendable, Equatable {
+struct DerivedHandPoses: Codable, Sendable, Equatable {
     let left: DerivedEndEffectorPose?
     let right: DerivedEndEffectorPose?
 }
 
-struct MotionFrameEndEffectorInference: Sendable, Equatable {
+struct MotionFrameEndEffectorInference: Codable, Sendable, Equatable {
     let time: TimeInterval
     let feet: DerivedFootPoses
     let hands: DerivedHandPoses
 }
 
-struct MotionClipEndEffectorInference: Sendable, Equatable {
+struct MotionClipEndEffectorInference: Codable, Sendable, Equatable {
     let frames: [MotionFrameEndEffectorInference]
 }
 
