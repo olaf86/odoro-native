@@ -341,6 +341,51 @@ struct OdoroTests {
         #expect(canonicalClip.frames[0].jointPositions.count == OdoroSkeletonDefinition.jointCount)
     }
 
+    @Test func canonicalPoseMapperPlacesDerivedAnklesCloserToFootThanLegacyMidpoint() {
+        let jointNames = arkitFixtureJointNames.map(ARSkeleton.JointName.init(rawValue:))
+        let jointIndex: (ARSkeleton.JointName) -> Int = { name in
+            jointNames.firstIndex(of: name) ?? NSNotFound
+        }
+        var positions = Array(
+            repeating: SIMD3<Float>(0, -10, 0),
+            count: jointNames.count
+        )
+
+        func setJoint(_ name: ARSkeleton.JointName, position: SIMD3<Float>) {
+            let index = jointIndex(name)
+            guard index != NSNotFound else { return }
+            positions[index] = position
+        }
+
+        let leftKnee = SIMD3<Float>(-0.12, 0.47, 0.04)
+        let leftFoot = SIMD3<Float>(-0.12, 0.08, 0.12)
+
+        setJoint(ARSkeleton.JointName(rawValue: "left_leg_joint"), position: leftKnee)
+        setJoint(.leftFoot, position: leftFoot)
+        setJoint(ARSkeleton.JointName(rawValue: "left_foot_joint"), position: leftFoot)
+
+        let mapped = OdoroCanonicalPoseMapper.map(
+            frame: MotionFrame(time: 0, jointPositions: positions),
+            jointIndex: jointIndex
+        )
+
+        let leftKneeIndex = OdoroSkeletonDefinition.index(of: .leftKnee)
+        let leftAnkleIndex = OdoroSkeletonDefinition.index(of: .leftAnkle)
+        let leftFootIndex = OdoroSkeletonDefinition.index(of: .leftFoot)
+
+        let knee = mapped.positions[leftKneeIndex].simdValue
+        let ankle = mapped.positions[leftAnkleIndex].simdValue
+        let foot = mapped.positions[leftFootIndex].simdValue
+
+        let legacyMidpointDistance = simd_distance((knee + foot) * 0.5, foot)
+        let derivedDistance = simd_distance(ankle, foot)
+        let lowerLegLength = simd_distance(knee, foot)
+
+        #expect(mapped.statuses[leftAnkleIndex] == .derived)
+        #expect(derivedDistance < legacyMidpointDistance)
+        #expect(abs((derivedDistance / lowerLegLength) - 0.08) < 0.02)
+    }
+
     @Test func canonicalPoseMapperMapsElbowsFromForearmJoints() {
         let jointNames: [ARSkeleton.JointName] = [
             .root,
@@ -401,6 +446,109 @@ struct OdoroTests {
         #expect(mapped.positions[OdoroSkeletonDefinition.index(of: .rightElbow)].simdValue == rightForearm)
         #expect(mapped.positions[OdoroSkeletonDefinition.index(of: .leftWrist)].simdValue == leftHand)
         #expect(mapped.positions[OdoroSkeletonDefinition.index(of: .rightWrist)].simdValue == rightHand)
+    }
+
+    @Test func rearBodyInferenceProducesFootPoseForCanonicalClip() throws {
+        let clip = MotionClip(frames: [
+            Self.canonicalFrame(time: 0),
+            Self.canonicalFrame(time: 1.0 / 30.0),
+        ])
+
+        let inference = RearBody3DAppendagePoseEstimator().estimatePoses(for: clip)
+        let leftFoot = try #require(inference.frames.first?.feet.left)
+
+        #expect(inference.frames.count == clip.frames.count)
+        #expect(leftFoot.pivot == clip.frames[0].jointPositions[OdoroSkeletonDefinition.index(of: .leftFoot)])
+        #expect(leftFoot.forward.z > 0.5)
+        #expect(leftFoot.confidence >= 0.55)
+        #expect((inference.frames.first?.feet.leftContactWeight ?? 0) > 0.5)
+    }
+
+    @Test func rearBodyInferenceLeavesUnsupportedSkeletonEmpty() {
+        let clip = MotionClip(frames: [
+            MotionFrame(
+                time: 0,
+                jointPositions: [
+                    SIMD3<Float>(0, 1, 0),
+                    SIMD3<Float>(0, 0, 0),
+                ]
+            )
+        ])
+
+        let inference = RearBody3DAppendagePoseEstimator().estimatePoses(for: clip)
+
+        #expect(inference.frames.count == 1)
+        #expect(inference.frames[0].feet.left == nil)
+        #expect(inference.frames[0].feet.right == nil)
+        #expect(inference.frames[0].hands.left == nil)
+        #expect(inference.frames[0].hands.right == nil)
+    }
+
+    @Test func stagePreparedPlaybackBuilderCachesRearBodyInferenceOnPreparedVariants() {
+        let sourceClip = MotionClip(frames: [
+            MotionFrame(
+                time: 0,
+                jointPositions: Array(repeating: .zero, count: 2)
+            ),
+            MotionFrame(
+                time: 1.0 / 30.0,
+                jointPositions: Array(repeating: .zero, count: 2)
+            ),
+        ])
+        let playbackClip = MotionClip(frames: [
+            Self.canonicalFrame(time: 0),
+            Self.canonicalFrame(time: 1.0 / 30.0),
+        ])
+
+        let prepared = StagePreparedPlaybackBuilder().prepare(
+            sourceClip: sourceClip,
+            playbackClip: playbackClip,
+            captureMode: .rearBody3D
+        )
+
+        #expect(prepared.raw.appendagePoses == nil)
+        #expect(prepared.canonical.clip != nil)
+        #expect(prepared.canonical.appendagePoses?.frames.count == prepared.canonical.clip?.frames.count)
+        #expect(prepared.stabilized.appendagePoses?.frames.count == prepared.stabilized.clip?.frames.count)
+    }
+
+    @Test func stagePreparedPlaybackBuilderSkipsInferenceOutsideRearBodyMode() {
+        let playbackClip = MotionClip(frames: [
+            Self.canonicalFrame(time: 0),
+            Self.canonicalFrame(time: 1.0 / 30.0),
+        ])
+
+        let prepared = StagePreparedPlaybackBuilder().prepare(
+            sourceClip: nil,
+            playbackClip: playbackClip,
+            captureMode: .importedVideo
+        )
+
+        #expect(prepared.canonical.appendagePoses == nil)
+        #expect(prepared.stabilized.appendagePoses == nil)
+    }
+
+    @Test func stagePreparedPlaybackBuilderUsesStoredArtifactsWhenSourceClipIsUnavailable() throws {
+        let playbackClip = MotionClip(frames: [
+            Self.canonicalFrame(time: 0),
+            Self.canonicalFrame(time: 1.0 / 30.0),
+        ])
+        let storedArtifacts = try #require(
+            MotionPlaybackArtifactsBuilder().build(
+                playbackClip: playbackClip,
+                captureMode: .rearBody3D
+            )
+        )
+
+        let prepared = StagePreparedPlaybackBuilder().prepare(
+            sourceClip: nil,
+            playbackClip: playbackClip,
+            captureMode: .rearBody3D,
+            playbackArtifacts: storedArtifacts
+        )
+
+        #expect(prepared.canonical.appendagePoses == storedArtifacts.stagePlayback?.canonical.appendagePoses)
+        #expect(prepared.stabilized.appendagePoses == storedArtifacts.stagePlayback?.stabilized.appendagePoses)
     }
 
     @Test func motionPayloadRoundTripPreservesCanonicalClipWithoutRemapping() {
@@ -755,7 +903,8 @@ struct OdoroTests {
             .appending(path: UUID().uuidString, directoryHint: .isDirectory)
         let archiveStore = MotionArchiveStore(
             modelContainer: container,
-            payloadFileStore: MotionPayloadFileStore(baseDirectoryURL: tempDirectory)
+            payloadFileStore: MotionPayloadFileStore(baseDirectoryURL: tempDirectory),
+            playbackArtifactsFileStore: MotionPlaybackArtifactsFileStore(baseDirectoryURL: tempDirectory)
         )
         let runtimeClip = MotionClip(frames: [
             MotionFrame(
@@ -776,11 +925,16 @@ struct OdoroTests {
             captureMode: .rearBody3D,
             recordingContext: .defaultMetronomeLoop
         )
-        let reloadedClip = try archiveStore.loadClip(fromLocalFilePath: saveResult.localFilePath)
+        let storedTake = try archiveStore.loadStoredTake(
+            withID: saveResult.takeID,
+            fromLocalFilePath: saveResult.localFilePath
+        )
+        let reloadedClip = storedTake.clip
 
         #expect(reloadedClip.frameCount == 1)
         #expect(reloadedClip.frames[0].jointPositions.count == OdoroSkeletonDefinition.jointCount)
         #expect(FileManager.default.fileExists(atPath: saveResult.localFilePath))
+        #expect(storedTake.playbackArtifacts?.stagePlayback?.stabilized.appendagePoses != nil)
 
         let secondSaveResult = try archiveStore.saveTake(
             clip: runtimeClip,
@@ -809,7 +963,8 @@ struct OdoroTests {
             .appending(path: UUID().uuidString, directoryHint: .isDirectory)
         let archiveStore = MotionArchiveStore(
             modelContainer: container,
-            payloadFileStore: MotionPayloadFileStore(baseDirectoryURL: tempDirectory)
+            payloadFileStore: MotionPayloadFileStore(baseDirectoryURL: tempDirectory),
+            playbackArtifactsFileStore: MotionPlaybackArtifactsFileStore(baseDirectoryURL: tempDirectory)
         )
         let runtimeClip = MotionClip(frames: [
             MotionFrame(
@@ -862,7 +1017,8 @@ struct OdoroTests {
             .appending(path: UUID().uuidString, directoryHint: .isDirectory)
         let archiveStore = MotionArchiveStore(
             modelContainer: container,
-            payloadFileStore: MotionPayloadFileStore(baseDirectoryURL: tempDirectory)
+            payloadFileStore: MotionPayloadFileStore(baseDirectoryURL: tempDirectory),
+            playbackArtifactsFileStore: MotionPlaybackArtifactsFileStore(baseDirectoryURL: tempDirectory)
         )
         let runtimeClip = MotionClip(frames: [
             MotionFrame(
@@ -891,9 +1047,14 @@ struct OdoroTests {
             recordingContext: .defaultMetronomeLoop
         )
         let summaries = try archiveStore.fetchTakeSummaries(inSessionID: saveResult.sessionID)
+        let storedTake = try archiveStore.loadStoredTake(
+            withID: saveResult.takeID,
+            fromLocalFilePath: saveResult.localFilePath
+        )
 
         #expect(summaries.count == 1)
         #expect(summaries.first?.captureMode == .importedVideo)
+        #expect(storedTake.playbackArtifacts == nil)
     }
 
     @MainActor
@@ -1069,11 +1230,16 @@ struct OdoroTests {
 
     private static func arKitFrame(
         time: TimeInterval,
-        overrides: [ARSkeleton.JointName: SIMD3<Float>] = [:]
+        overrides: [ARSkeleton.JointName: SIMD3<Float>] = [:],
+        rotationOverrides: [ARSkeleton.JointName: simd_quatf] = [:]
     ) -> MotionFrame {
         let skeletonDefinition = ARSkeletonDefinition.defaultBody3D
         var positions = Array(
             repeating: SIMD3<Float>(0, -10, 0),
+            count: skeletonDefinition.jointNames.count
+        )
+        var rotations = Array<MotionJointRotation?>(
+            repeating: nil,
             count: skeletonDefinition.jointNames.count
         )
 
@@ -1081,6 +1247,12 @@ struct OdoroTests {
             let index = skeletonDefinition.index(for: name)
             guard index != NSNotFound else { return }
             positions[index] = position
+        }
+
+        func setJointRotation(_ name: ARSkeleton.JointName, rotation: simd_quatf) {
+            let index = skeletonDefinition.index(for: name)
+            guard index != NSNotFound else { return }
+            rotations[index] = MotionJointRotation(rotation)
         }
 
         setJoint(.root, position: SIMD3<Float>(0, 1.0, 0))
@@ -1098,13 +1270,28 @@ struct OdoroTests {
         setJoint(ARSkeleton.JointName(rawValue: "left_leg_joint"), position: SIMD3<Float>(-0.12, 0.47, 0.04))
         setJoint(ARSkeleton.JointName(rawValue: "right_leg_joint"), position: SIMD3<Float>(0.12, 0.47, 0.04))
         setJoint(.leftFoot, position: SIMD3<Float>(-0.12, 0.08, 0.12))
+        setJoint(ARSkeleton.JointName(rawValue: "left_foot_joint"), position: SIMD3<Float>(-0.12, 0.08, 0.12))
         setJoint(.rightFoot, position: SIMD3<Float>(0.12, 0.08, 0.12))
+        setJoint(ARSkeleton.JointName(rawValue: "right_foot_joint"), position: SIMD3<Float>(0.12, 0.08, 0.12))
 
         for (jointName, position) in overrides {
             setJoint(jointName, position: position)
         }
 
-        return MotionFrame(time: time, jointPositions: positions)
+        for (jointName, rotation) in rotationOverrides {
+            setJointRotation(jointName, rotation: rotation)
+            switch jointName.rawValue {
+            case ARSkeleton.JointName.leftFoot.rawValue:
+                setJointRotation(ARSkeleton.JointName(rawValue: "left_foot_joint"), rotation: rotation)
+            case ARSkeleton.JointName.rightFoot.rawValue:
+                setJointRotation(ARSkeleton.JointName(rawValue: "right_foot_joint"), rotation: rotation)
+            default:
+                break
+            }
+        }
+
+        let jointRotations = rotationOverrides.isEmpty ? nil : rotations
+        return MotionFrame(time: time, jointPositions: positions, jointRotations: jointRotations)
     }
 }
 

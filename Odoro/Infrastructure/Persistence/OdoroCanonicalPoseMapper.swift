@@ -35,6 +35,8 @@ enum OdoroCanonicalPoseMapper {
     nonisolated private static var skeletonDefinition: ARSkeletonDefinition {
         ARSkeletonDefinition.defaultBody3D
     }
+    nonisolated private static let ankleDistanceRatioFromFootToKnee: Float = 0.08
+    nonisolated private static let minimumVectorLength: Float = 0.0001
 
     nonisolated static func map(frame: MotionFrame) -> MappedFrame {
         map(frame: frame) { skeletonDefinition.index(for: $0) }
@@ -194,7 +196,15 @@ enum OdoroCanonicalPoseMapper {
             return (foot ?? knee ?? .zero, .missing)
         }
 
-        return ((knee + foot) * 0.5, .derived)
+        let footToKnee = knee - foot
+        let footToKneeLength = simd_length(footToKnee)
+        guard footToKneeLength > minimumVectorLength else {
+            return (foot, .derived)
+        }
+
+        let footToKneeDirection = footToKnee / footToKneeLength
+        let footToAnkleDistance = footToKneeLength * ankleDistanceRatioFromFootToKnee
+        return (foot + footToKneeDirection * footToAnkleDistance, .derived)
     }
 
     nonisolated private static func midpoint(_ lhs: SIMD3<Float>?, _ rhs: SIMD3<Float>?) -> SIMD3<Float>? {

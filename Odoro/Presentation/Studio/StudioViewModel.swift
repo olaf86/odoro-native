@@ -50,10 +50,14 @@ final class StudioViewModel: ObservableObject {
     var source: MotionSource
     var interactor: MotionStudioInteractor
     let stageRenderer = StagePlaybackRenderer()
+    let stagePlaybackBuilder = StagePreparedPlaybackBuilder()
     var capturePreviewAttachments = CapturePreviewAttachments()
     var currentSessionID: UUID?
     var swipeHintDismissTask: Task<Void, Never>?
     var transientMessageDismissTask: Task<Void, Never>?
+    var playbackCaptureMode: CaptureMode?
+    var preparedStagePlayback: StagePreparedPlayback?
+    var storedPlaybackArtifacts: MotionPlaybackArtifacts?
 
     // MARK: - Initialization
 
@@ -100,10 +104,12 @@ final class StudioViewModel: ObservableObject {
         }
 
         interactor.onClipChange = { [weak self] clip in
+            self?.rebuildPreparedStagePlayback()
             self?.applyStageDebugPresentation()
         }
 
         interactor.onSourceClipChange = { [weak self] _ in
+            self?.rebuildPreparedStagePlayback()
             self?.applyStageDebugPresentation()
         }
     }
@@ -122,9 +128,20 @@ final class StudioViewModel: ObservableObject {
                 refreshLibrary()
             }
 
+            playbackCaptureMode = captureMode
+            rebuildPreparedStagePlayback()
             prepareStagePlayback()
             navigate(to: .stage, transition: .fromLeading)
         }
+    }
+
+    func rebuildPreparedStagePlayback() {
+        preparedStagePlayback = stagePlaybackBuilder.prepare(
+            sourceClip: interactor.sourceClip,
+            playbackClip: interactor.currentClip,
+            captureMode: activePlaybackCaptureMode,
+            playbackArtifacts: storedPlaybackArtifacts
+        )
     }
 
     // MARK: - Defaults

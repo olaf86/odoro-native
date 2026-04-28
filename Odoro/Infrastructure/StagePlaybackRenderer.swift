@@ -111,6 +111,7 @@ final class StagePlaybackRenderer: NSObject {
 
     private weak var view: ARView?
     private var clip: MotionClip?
+    private var appendagePoses: MotionClipAppendagePoses?
     private var playbackTimer: Timer?
     private var playbackStartedAt: Date?
     private var usesProceduralMockPlayback = false
@@ -120,6 +121,7 @@ final class StagePlaybackRenderer: NSObject {
     private var dancerRoot = Entity()
     private var jointEntities: [ModelEntity] = []
     private var limbEntities: [ModelEntity] = []
+    private var footDirectionEntities: [ModelEntity] = []
 
     private var characterEntity: Entity?
     private var skeletalModelEntity: ModelEntity?
@@ -136,7 +138,7 @@ final class StagePlaybackRenderer: NSObject {
         self.view = view
         configureScene(in: view)
         if let clip, let firstFrame = clip.frames.first {
-            render(frame: firstFrame)
+            render(frame: firstFrame, frameIndex: 0)
         }
     }
 
@@ -144,7 +146,17 @@ final class StagePlaybackRenderer: NSObject {
         self.clip = clip
 
         if let firstFrame = clip?.frames.first, !jointEntities.isEmpty, !limbEntities.isEmpty {
-            render(frame: firstFrame)
+            render(frame: firstFrame, frameIndex: 0)
+        }
+    }
+
+    func setAppendagePoses(_ poses: MotionClipAppendagePoses?) {
+        appendagePoses = poses
+
+        if let clip, let firstFrame = clip.frames.first {
+            render(frame: firstFrame, frameIndex: 0)
+        } else {
+            footDirectionEntities.forEach { $0.isEnabled = false }
         }
     }
 
@@ -163,7 +175,7 @@ final class StagePlaybackRenderer: NSObject {
         if let view {
             configureScene(in: view)
             if let firstFrame = clip?.frames.first {
-                render(frame: firstFrame)
+                render(frame: firstFrame, frameIndex: 0)
             }
             if wasPlaying {
                 play()
@@ -182,7 +194,7 @@ final class StagePlaybackRenderer: NSObject {
         if let view {
             configureScene(in: view)
             if let firstFrame = clip?.frames.first {
-                render(frame: firstFrame)
+                render(frame: firstFrame, frameIndex: 0)
             }
         }
     }
@@ -269,7 +281,7 @@ final class StagePlaybackRenderer: NSObject {
         guard let clip, !clip.isEmpty else { return }
 
         pause()
-        render(frame: clip.frames[0])
+        render(frame: clip.frames[0], frameIndex: 0)
         playbackStartedAt = Date()
 
         playbackTimer = Timer.scheduledTimer(
@@ -297,6 +309,7 @@ final class StagePlaybackRenderer: NSObject {
         dancerRoot = Entity()
         jointEntities.removeAll()
         limbEntities.removeAll()
+        footDirectionEntities.removeAll()
 
         let floor = ModelEntity(
             mesh: .generateBox(size: [2.8, 0.06, 2.8]),
@@ -408,6 +421,23 @@ final class StagePlaybackRenderer: NSObject {
             limbEntities.append(limb)
             dancerRoot.addChild(limb)
         }
+
+        for _ in 0..<2 {
+            let directionMesh: MeshResource
+            if #available(iOS 18.0, *) {
+                directionMesh = .generateCylinder(height: 1.0, radius: 0.012)
+            } else {
+                directionMesh = .generateBox(size: [0.024, 1.0, 0.024])
+            }
+
+            let direction = ModelEntity(
+                mesh: directionMesh,
+                materials: [UnlitMaterial(color: UIColor(red: 1.0, green: 0.82, blue: 0.28, alpha: 0.95))]
+            )
+            direction.isEnabled = false
+            footDirectionEntities.append(direction)
+            dancerRoot.addChild(direction)
+        }
     }
 
     @objc private func handlePlaybackTimer() {
@@ -420,12 +450,14 @@ final class StagePlaybackRenderer: NSObject {
         }
 
         let elapsed = Date().timeIntervalSince(playbackStartedAt).truncatingRemainder(dividingBy: clip.duration)
-        let frame = clip.frames.last { $0.time <= elapsed } ?? clip.frames[0]
-        render(frame: frame)
+        let frameIndex = clip.frames.lastIndex(where: { $0.time <= elapsed }) ?? 0
+        let frame = clip.frames[frameIndex]
+        render(frame: frame, frameIndex: frameIndex)
     }
 
-    private func render(frame: MotionFrame) {
+    private func render(frame: MotionFrame, frameIndex: Int) {
         if currentAvatarOption.selection.kind == .avatar, characterEntity != nil {
+            renderFootDirections(frameIndex: frameIndex, isVisible: false)
             if let rigProfile = activeRigProfile,
                Self.hasUsableJointRotations(frame.jointRotations),
                renderCharacter(frame: frame, rigProfile: rigProfile) {
@@ -486,6 +518,47 @@ final class StagePlaybackRenderer: NSObject {
             limbEntity.position = (start + end) * 0.5
             limbEntity.orientation = simd_quatf(from: SIMD3<Float>(0, 1, 0), to: simd_normalize(delta))
             limbEntity.scale = [1, length, 1]
+        }
+
+        renderFootDirections(frameIndex: frameIndex, isVisible: skeletonDebugLayout == .canonical)
+    }
+
+    private func renderFootDirections(frameIndex: Int, isVisible: Bool) {
+        guard
+            isVisible,
+            let appendagePoses,
+            appendagePoses.frames.indices.contains(frameIndex),
+            footDirectionEntities.count == 2
+        else {
+            footDirectionEntities.forEach { $0.isEnabled = false }
+            return
+        }
+
+        let footPoses = appendagePoses.frames[frameIndex].feet
+        let poses: [(AppendagePose?, Float)] = [
+            (footPoses.left, footPoses.leftContactWeight),
+            (footPoses.right, footPoses.rightContactWeight),
+        ]
+
+        for (index, item) in poses.enumerated() {
+            let entity = footDirectionEntities[index]
+            guard let pose = item.0 else {
+                entity.isEnabled = false
+                continue
+            }
+
+            let length = 0.16 + item.1 * 0.06
+            let delta = pose.forward * length
+            let magnitude = simd_length(delta)
+            guard magnitude > 0.0001 else {
+                entity.isEnabled = false
+                continue
+            }
+
+            entity.isEnabled = true
+            entity.position = pose.pivot + delta * 0.5
+            entity.orientation = simd_quatf(from: SIMD3<Float>(0, 1, 0), to: simd_normalize(delta))
+            entity.scale = [1, magnitude, 1]
         }
     }
 
