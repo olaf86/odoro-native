@@ -287,28 +287,28 @@ private enum BodySide {
     case left
     case right
 
-    var ankleJoint: OdoroJointName {
+    nonisolated var ankleJoint: OdoroJointName {
         switch self {
         case .left: .leftAnkle
         case .right: .rightAnkle
         }
     }
 
-    var footJoint: OdoroJointName {
+    nonisolated var footJoint: OdoroJointName {
         switch self {
         case .left: .leftFoot
         case .right: .rightFoot
         }
     }
 
-    var elbowJoint: OdoroJointName {
+    nonisolated var elbowJoint: OdoroJointName {
         switch self {
         case .left: .leftElbow
         case .right: .rightElbow
         }
     }
 
-    var wristJoint: OdoroJointName {
+    nonisolated var wristJoint: OdoroJointName {
         switch self {
         case .left: .leftWrist
         case .right: .rightWrist
@@ -317,7 +317,7 @@ private enum BodySide {
 }
 
 private extension simd_quatf {
-    func acting(on vector: SIMD3<Float>) -> SIMD3<Float> {
+    nonisolated func acting(on vector: SIMD3<Float>) -> SIMD3<Float> {
         simd_act(self, vector)
     }
 }
