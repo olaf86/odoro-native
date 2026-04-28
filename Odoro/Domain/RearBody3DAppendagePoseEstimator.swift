@@ -1,41 +1,41 @@
 //
-//  RearBody3DEndEffectorInferencePass.swift
+//  RearBody3DAppendagePoseEstimator.swift
 //  Odoro
 //
 
 import Foundation
 import simd
 
-struct DerivedEndEffectorPose: Codable, Sendable, Equatable {
+struct AppendagePose: Codable, Sendable, Equatable {
     let pivot: SIMD3<Float>
     let forward: SIMD3<Float>
     let up: SIMD3<Float>
     let confidence: Float
 }
 
-struct DerivedFootPoses: Codable, Sendable, Equatable {
-    let left: DerivedEndEffectorPose?
-    let right: DerivedEndEffectorPose?
+struct FootPoses: Codable, Sendable, Equatable {
+    let left: AppendagePose?
+    let right: AppendagePose?
     let leftContactWeight: Float
     let rightContactWeight: Float
 }
 
-struct DerivedHandPoses: Codable, Sendable, Equatable {
-    let left: DerivedEndEffectorPose?
-    let right: DerivedEndEffectorPose?
+struct HandPoses: Codable, Sendable, Equatable {
+    let left: AppendagePose?
+    let right: AppendagePose?
 }
 
-struct MotionFrameEndEffectorInference: Codable, Sendable, Equatable {
+struct MotionFrameAppendagePoses: Codable, Sendable, Equatable {
     let time: TimeInterval
-    let feet: DerivedFootPoses
-    let hands: DerivedHandPoses
+    let feet: FootPoses
+    let hands: HandPoses
 }
 
-struct MotionClipEndEffectorInference: Codable, Sendable, Equatable {
-    let frames: [MotionFrameEndEffectorInference]
+struct MotionClipAppendagePoses: Codable, Sendable, Equatable {
+    let frames: [MotionFrameAppendagePoses]
 }
 
-struct RearBody3DEndEffectorInferencePass: Sendable {
+struct RearBody3DAppendagePoseEstimator: Sendable {
     struct Tuning: Sendable {
         let minimumDirectionLength: Float = 0.0001
         let footContactHeightTolerance: Float = 0.06
@@ -53,8 +53,8 @@ struct RearBody3DEndEffectorInferencePass: Sendable {
         self.tuning = tuning
     }
 
-    nonisolated func infer(clip: MotionClip) -> MotionClipEndEffectorInference {
-        MotionClipEndEffectorInference(
+    nonisolated func estimatePoses(for clip: MotionClip) -> MotionClipAppendagePoses {
+        MotionClipAppendagePoses(
             frames: clip.frames.enumerated().map { index, frame in
                 inferFrame(frame, at: index, in: clip.frames)
             }
@@ -65,12 +65,12 @@ struct RearBody3DEndEffectorInferencePass: Sendable {
         _ frame: MotionFrame,
         at index: Int,
         in frames: [MotionFrame]
-    ) -> MotionFrameEndEffectorInference {
+    ) -> MotionFrameAppendagePoses {
         guard frame.jointPositions.count == OdoroSkeletonDefinition.jointCount else {
-            return MotionFrameEndEffectorInference(
+            return MotionFrameAppendagePoses(
                 time: frame.time,
-                feet: DerivedFootPoses(left: nil, right: nil, leftContactWeight: 0, rightContactWeight: 0),
-                hands: DerivedHandPoses(left: nil, right: nil)
+                feet: FootPoses(left: nil, right: nil, leftContactWeight: 0, rightContactWeight: 0),
+                hands: HandPoses(left: nil, right: nil)
             )
         }
 
@@ -90,15 +90,15 @@ struct RearBody3DEndEffectorInferencePass: Sendable {
         let leftHand = inferHandPose(side: .left, in: frame, bodyForwardHint: bodyForwardHint)
         let rightHand = inferHandPose(side: .right, in: frame, bodyForwardHint: bodyForwardHint)
 
-        return MotionFrameEndEffectorInference(
+        return MotionFrameAppendagePoses(
             time: frame.time,
-            feet: DerivedFootPoses(
+            feet: FootPoses(
                 left: leftFoot,
                 right: rightFoot,
                 leftContactWeight: footContactWeight(side: .left, frameIndex: index, frames: frames),
                 rightContactWeight: footContactWeight(side: .right, frameIndex: index, frames: frames)
             ),
-            hands: DerivedHandPoses(left: leftHand, right: rightHand)
+            hands: HandPoses(left: leftHand, right: rightHand)
         )
     }
 
@@ -107,7 +107,7 @@ struct RearBody3DEndEffectorInferencePass: Sendable {
         in frame: MotionFrame,
         bodyForwardHint: SIMD3<Float>?,
         contactWeight: Float
-    ) -> DerivedEndEffectorPose? {
+    ) -> AppendagePose? {
         guard
             let foot = canonicalPosition(for: side.footJoint, in: frame),
             let ankle = canonicalPosition(for: side.ankleJoint, in: frame)
@@ -145,7 +145,7 @@ struct RearBody3DEndEffectorInferencePass: Sendable {
             confidenceBase = tuning.lowConfidence
         }
 
-        return DerivedEndEffectorPose(
+        return AppendagePose(
             pivot: foot,
             forward: forward,
             up: up,
@@ -157,7 +157,7 @@ struct RearBody3DEndEffectorInferencePass: Sendable {
         side: BodySide,
         in frame: MotionFrame,
         bodyForwardHint: SIMD3<Float>?
-    ) -> DerivedEndEffectorPose? {
+    ) -> AppendagePose? {
         guard
             let wrist = canonicalPosition(for: side.wristJoint, in: frame),
             let elbow = canonicalPosition(for: side.elbowJoint, in: frame)
@@ -176,7 +176,7 @@ struct RearBody3DEndEffectorInferencePass: Sendable {
             ?? SIMD3<Float>(0, 1, 0)
         let confidence = rotationForward != nil ? tuning.highConfidence : tuning.mediumConfidence
 
-        return DerivedEndEffectorPose(
+        return AppendagePose(
             pivot: wrist,
             forward: forward,
             up: up,

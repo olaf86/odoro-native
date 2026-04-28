@@ -454,7 +454,7 @@ struct OdoroTests {
             Self.canonicalFrame(time: 1.0 / 30.0),
         ])
 
-        let inference = RearBody3DEndEffectorInferencePass().infer(clip: clip)
+        let inference = RearBody3DAppendagePoseEstimator().estimatePoses(for: clip)
         let leftFoot = try #require(inference.frames.first?.feet.left)
 
         #expect(inference.frames.count == clip.frames.count)
@@ -475,7 +475,7 @@ struct OdoroTests {
             )
         ])
 
-        let inference = RearBody3DEndEffectorInferencePass().infer(clip: clip)
+        let inference = RearBody3DAppendagePoseEstimator().estimatePoses(for: clip)
 
         #expect(inference.frames.count == 1)
         #expect(inference.frames[0].feet.left == nil)
@@ -506,10 +506,10 @@ struct OdoroTests {
             captureMode: .rearBody3D
         )
 
-        #expect(prepared.raw.endEffectorInference == nil)
+        #expect(prepared.raw.appendagePoses == nil)
         #expect(prepared.canonical.clip != nil)
-        #expect(prepared.canonical.endEffectorInference?.frames.count == prepared.canonical.clip?.frames.count)
-        #expect(prepared.stabilized.endEffectorInference?.frames.count == prepared.stabilized.clip?.frames.count)
+        #expect(prepared.canonical.appendagePoses?.frames.count == prepared.canonical.clip?.frames.count)
+        #expect(prepared.stabilized.appendagePoses?.frames.count == prepared.stabilized.clip?.frames.count)
     }
 
     @Test func stagePreparedPlaybackBuilderSkipsInferenceOutsideRearBodyMode() {
@@ -524,8 +524,8 @@ struct OdoroTests {
             captureMode: .importedVideo
         )
 
-        #expect(prepared.canonical.endEffectorInference == nil)
-        #expect(prepared.stabilized.endEffectorInference == nil)
+        #expect(prepared.canonical.appendagePoses == nil)
+        #expect(prepared.stabilized.appendagePoses == nil)
     }
 
     @Test func stagePreparedPlaybackBuilderUsesStoredArtifactsWhenSourceClipIsUnavailable() throws {
@@ -534,7 +534,7 @@ struct OdoroTests {
             Self.canonicalFrame(time: 1.0 / 30.0),
         ])
         let storedArtifacts = try #require(
-            MotionDerivedArtifactsBuilder().build(
+            MotionPlaybackArtifactsBuilder().build(
                 playbackClip: playbackClip,
                 captureMode: .rearBody3D
             )
@@ -544,11 +544,11 @@ struct OdoroTests {
             sourceClip: nil,
             playbackClip: playbackClip,
             captureMode: .rearBody3D,
-            storedArtifacts: storedArtifacts
+            playbackArtifacts: storedArtifacts
         )
 
-        #expect(prepared.canonical.endEffectorInference == storedArtifacts.stagePlayback?.canonical.endEffectorInference)
-        #expect(prepared.stabilized.endEffectorInference == storedArtifacts.stagePlayback?.stabilized.endEffectorInference)
+        #expect(prepared.canonical.appendagePoses == storedArtifacts.stagePlayback?.canonical.appendagePoses)
+        #expect(prepared.stabilized.appendagePoses == storedArtifacts.stagePlayback?.stabilized.appendagePoses)
     }
 
     @Test func motionPayloadRoundTripPreservesCanonicalClipWithoutRemapping() {
@@ -904,7 +904,7 @@ struct OdoroTests {
         let archiveStore = MotionArchiveStore(
             modelContainer: container,
             payloadFileStore: MotionPayloadFileStore(baseDirectoryURL: tempDirectory),
-            derivedArtifactsFileStore: MotionDerivedArtifactsFileStore(baseDirectoryURL: tempDirectory)
+            playbackArtifactsFileStore: MotionPlaybackArtifactsFileStore(baseDirectoryURL: tempDirectory)
         )
         let runtimeClip = MotionClip(frames: [
             MotionFrame(
@@ -934,7 +934,7 @@ struct OdoroTests {
         #expect(reloadedClip.frameCount == 1)
         #expect(reloadedClip.frames[0].jointPositions.count == OdoroSkeletonDefinition.jointCount)
         #expect(FileManager.default.fileExists(atPath: saveResult.localFilePath))
-        #expect(storedTake.derivedArtifacts?.stagePlayback?.stabilized.endEffectorInference != nil)
+        #expect(storedTake.playbackArtifacts?.stagePlayback?.stabilized.appendagePoses != nil)
 
         let secondSaveResult = try archiveStore.saveTake(
             clip: runtimeClip,
@@ -964,7 +964,7 @@ struct OdoroTests {
         let archiveStore = MotionArchiveStore(
             modelContainer: container,
             payloadFileStore: MotionPayloadFileStore(baseDirectoryURL: tempDirectory),
-            derivedArtifactsFileStore: MotionDerivedArtifactsFileStore(baseDirectoryURL: tempDirectory)
+            playbackArtifactsFileStore: MotionPlaybackArtifactsFileStore(baseDirectoryURL: tempDirectory)
         )
         let runtimeClip = MotionClip(frames: [
             MotionFrame(
@@ -1018,7 +1018,7 @@ struct OdoroTests {
         let archiveStore = MotionArchiveStore(
             modelContainer: container,
             payloadFileStore: MotionPayloadFileStore(baseDirectoryURL: tempDirectory),
-            derivedArtifactsFileStore: MotionDerivedArtifactsFileStore(baseDirectoryURL: tempDirectory)
+            playbackArtifactsFileStore: MotionPlaybackArtifactsFileStore(baseDirectoryURL: tempDirectory)
         )
         let runtimeClip = MotionClip(frames: [
             MotionFrame(
@@ -1054,7 +1054,7 @@ struct OdoroTests {
 
         #expect(summaries.count == 1)
         #expect(summaries.first?.captureMode == .importedVideo)
-        #expect(storedTake.derivedArtifacts == nil)
+        #expect(storedTake.playbackArtifacts == nil)
     }
 
     @MainActor

@@ -1,11 +1,11 @@
 //
-//  MotionDerivedArtifactsFileStore.swift
+//  MotionPlaybackArtifactsFileStore.swift
 //  Odoro
 //
 
 import Foundation
 
-struct MotionDerivedArtifactsFileStore {
+struct MotionPlaybackArtifactsFileStore {
     private let fileManager: FileManager
     private let baseDirectoryURL: URL
 
@@ -24,7 +24,7 @@ struct MotionDerivedArtifactsFileStore {
     }
 
     @discardableResult
-    func write(_ artifacts: MotionDerivedArtifacts?, for takeID: UUID) throws -> URL? {
+    func write(_ artifacts: MotionPlaybackArtifacts?, for takeID: UUID) throws -> URL? {
         guard let artifacts else {
             return nil
         }
@@ -38,7 +38,7 @@ struct MotionDerivedArtifactsFileStore {
         return artifactsURL
     }
 
-    func read(for takeID: UUID) throws -> MotionDerivedArtifacts? {
+    func read(for takeID: UUID) throws -> MotionPlaybackArtifacts? {
         let artifactsURL = artifactsURL(for: takeID)
         guard fileManager.fileExists(atPath: artifactsURL.path()) else {
             return nil
@@ -46,7 +46,7 @@ struct MotionDerivedArtifactsFileStore {
 
         let decoder = JSONDecoder()
         let data = try Data(contentsOf: artifactsURL)
-        return try decoder.decode(MotionDerivedArtifacts.self, from: data)
+        return try decoder.decode(MotionPlaybackArtifacts.self, from: data)
     }
 
     func removeArtifacts(for takeID: UUID) throws {

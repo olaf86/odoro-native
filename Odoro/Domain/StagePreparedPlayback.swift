@@ -7,7 +7,7 @@ import Foundation
 
 struct PreparedStagePlaybackClip: Sendable {
     let clip: MotionClip?
-    let endEffectorInference: MotionClipEndEffectorInference?
+    let appendagePoses: MotionClipAppendagePoses?
 }
 
 struct StagePreparedPlayback: Sendable {
@@ -17,42 +17,42 @@ struct StagePreparedPlayback: Sendable {
 }
 
 struct StagePreparedPlaybackBuilder: Sendable {
-    let endEffectorInferencePass: RearBody3DEndEffectorInferencePass
+    let appendagePoseEstimator: RearBody3DAppendagePoseEstimator
 
     nonisolated init(
-        endEffectorInferencePass: RearBody3DEndEffectorInferencePass = RearBody3DEndEffectorInferencePass()
+        appendagePoseEstimator: RearBody3DAppendagePoseEstimator = RearBody3DAppendagePoseEstimator()
     ) {
-        self.endEffectorInferencePass = endEffectorInferencePass
+        self.appendagePoseEstimator = appendagePoseEstimator
     }
 
     nonisolated func prepare(
         sourceClip: MotionClip?,
         playbackClip: MotionClip?,
         captureMode: CaptureMode,
-        storedArtifacts: MotionDerivedArtifacts? = nil
+        playbackArtifacts: MotionPlaybackArtifacts? = nil
     ) -> StagePreparedPlayback {
         let rawClip = (sourceClip ?? playbackClip)?.rebasedForStage()
         let canonicalClip = canonicalPlaybackClip(sourceClip: sourceClip, playbackClip: playbackClip)
         let stabilizedClip = playbackClip
 
         return StagePreparedPlayback(
-            raw: PreparedStagePlaybackClip(clip: rawClip, endEffectorInference: nil),
+            raw: PreparedStagePlaybackClip(clip: rawClip, appendagePoses: nil),
             canonical: PreparedStagePlaybackClip(
                 clip: canonicalClip,
-                endEffectorInference: inferredArtifacts(
+                appendagePoses: resolvedAppendagePoses(
                     for: canonicalClip,
                     captureMode: captureMode,
                     sourceClip: sourceClip,
-                    storedInference: storedArtifacts?.stagePlayback?.canonical.endEffectorInference
+                    storedPoses: playbackArtifacts?.stagePlayback?.canonical.appendagePoses
                 )
             ),
             stabilized: PreparedStagePlaybackClip(
                 clip: stabilizedClip,
-                endEffectorInference: inferredArtifacts(
+                appendagePoses: resolvedAppendagePoses(
                     for: stabilizedClip,
                     captureMode: captureMode,
                     sourceClip: sourceClip,
-                    storedInference: storedArtifacts?.stagePlayback?.stabilized.endEffectorInference
+                    storedPoses: playbackArtifacts?.stagePlayback?.stabilized.appendagePoses
                 )
             )
         )
@@ -81,12 +81,12 @@ struct StagePreparedPlaybackBuilder: Sendable {
             .rebasedForStage()
     }
 
-    nonisolated private func inferredArtifacts(
+    nonisolated private func resolvedAppendagePoses(
         for clip: MotionClip?,
         captureMode: CaptureMode,
         sourceClip: MotionClip?,
-        storedInference: MotionClipEndEffectorInference?
-    ) -> MotionClipEndEffectorInference? {
+        storedPoses: MotionClipAppendagePoses?
+    ) -> MotionClipAppendagePoses? {
         guard
             captureMode == .rearBody3D,
             let clip
@@ -95,15 +95,15 @@ struct StagePreparedPlaybackBuilder: Sendable {
         }
 
         if sourceClip == nil,
-           let storedInference,
-           storedInference.frames.count == clip.frames.count {
-            return storedInference
+           let storedPoses,
+           storedPoses.frames.count == clip.frames.count {
+            return storedPoses
         }
 
         guard clip.frames.first?.jointPositions.count == OdoroSkeletonDefinition.jointCount else {
             return nil
         }
 
-        return endEffectorInferencePass.infer(clip: clip)
+        return appendagePoseEstimator.estimatePoses(for: clip)
     }
 }

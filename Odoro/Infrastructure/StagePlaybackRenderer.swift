@@ -111,7 +111,7 @@ final class StagePlaybackRenderer: NSObject {
 
     private weak var view: ARView?
     private var clip: MotionClip?
-    private var endEffectorInference: MotionClipEndEffectorInference?
+    private var appendagePoses: MotionClipAppendagePoses?
     private var playbackTimer: Timer?
     private var playbackStartedAt: Date?
     private var usesProceduralMockPlayback = false
@@ -150,8 +150,8 @@ final class StagePlaybackRenderer: NSObject {
         }
     }
 
-    func setEndEffectorInference(_ inference: MotionClipEndEffectorInference?) {
-        endEffectorInference = inference
+    func setAppendagePoses(_ poses: MotionClipAppendagePoses?) {
+        appendagePoses = poses
 
         if let clip, let firstFrame = clip.frames.first {
             render(frame: firstFrame, frameIndex: 0)
@@ -526,16 +526,16 @@ final class StagePlaybackRenderer: NSObject {
     private func renderFootDirections(frameIndex: Int, isVisible: Bool) {
         guard
             isVisible,
-            let endEffectorInference,
-            endEffectorInference.frames.indices.contains(frameIndex),
+            let appendagePoses,
+            appendagePoses.frames.indices.contains(frameIndex),
             footDirectionEntities.count == 2
         else {
             footDirectionEntities.forEach { $0.isEnabled = false }
             return
         }
 
-        let footPoses = endEffectorInference.frames[frameIndex].feet
-        let poses: [(DerivedEndEffectorPose?, Float)] = [
+        let footPoses = appendagePoses.frames[frameIndex].feet
+        let poses: [(AppendagePose?, Float)] = [
             (footPoses.left, footPoses.leftContactWeight),
             (footPoses.right, footPoses.rightContactWeight),
         ]

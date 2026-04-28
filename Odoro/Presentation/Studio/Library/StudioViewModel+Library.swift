@@ -29,7 +29,7 @@ extension StudioViewModel {
             currentSessionID = take.sessionID
             currentTakeID = take.id
             playbackCaptureMode = take.captureMode
-            storedDerivedArtifacts = storedTake.derivedArtifacts
+            storedPlaybackArtifacts = storedTake.playbackArtifacts
             stageRenderer.setUsesProceduralMockPlayback(take.captureMode == .mock)
             interactor.replaceCurrentClip(storedTake.clip)
             try refreshCurrentSessionTakes()
@@ -117,7 +117,7 @@ extension StudioViewModel {
                 withID: saveResult.takeID,
                 fromLocalFilePath: saveResult.localFilePath
             )
-            storedDerivedArtifacts = storedTake.derivedArtifacts
+            storedPlaybackArtifacts = storedTake.playbackArtifacts
             stageRenderer.setUsesProceduralMockPlayback(false)
             interactor.replaceCurrentClip(storedTake.clip, sourceClip: clip)
             try refreshCurrentSessionTakes()
@@ -173,7 +173,7 @@ extension StudioViewModel {
             withID: saveResult.takeID,
             fromLocalFilePath: saveResult.localFilePath
         )
-        storedDerivedArtifacts = storedTake.derivedArtifacts
+        storedPlaybackArtifacts = storedTake.playbackArtifacts
         stageRenderer.setUsesProceduralMockPlayback(captureMode == .mock)
         interactor.replaceCurrentClip(
             playbackClip(for: clip, savedClip: storedTake.clip, captureMode: captureMode),
@@ -220,7 +220,7 @@ extension StudioViewModel {
             withID: saveResult.takeID,
             fromLocalFilePath: saveResult.localFilePath
         )
-        storedDerivedArtifacts = storedTake.derivedArtifacts
+        storedPlaybackArtifacts = storedTake.playbackArtifacts
         try refreshCurrentSessionTakes()
 
         guard let persistedTake = currentTake else {

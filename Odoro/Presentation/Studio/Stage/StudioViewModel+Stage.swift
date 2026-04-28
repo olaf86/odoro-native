@@ -24,12 +24,12 @@ extension StudioViewModel {
         stageRenderer.pause()
         interactor.setPlaybackActive(false)
         stageRenderer.setClip(nil)
-        stageRenderer.setEndEffectorInference(nil)
+        stageRenderer.setAppendagePoses(nil)
         interactor.resetClip()
         currentTakeID = nil
         playbackCaptureMode = nil
         preparedStagePlayback = nil
-        storedDerivedArtifacts = nil
+        storedPlaybackArtifacts = nil
     }
 
     func prepareStagePlayback() {
@@ -135,7 +135,7 @@ extension StudioViewModel {
 
         stageRenderer.setSkeletonDebugLayout(stageDebugSkeletonLayout)
         stageRenderer.setClip(stageDebugPresentation.clip)
-        stageRenderer.setEndEffectorInference(stageDebugPresentation.endEffectorInference)
+        stageRenderer.setAppendagePoses(stageDebugPresentation.appendagePoses)
     }
 
     var stageDebugSkeletonLayout: StagePlaybackRenderer.SkeletonDebugLayout {
@@ -151,13 +151,13 @@ extension StudioViewModel {
         switch stageDebugMotionViewMode {
         case .raw:
             return preparedStagePlayback?.raw
-                ?? PreparedStagePlaybackClip(clip: nil, endEffectorInference: nil)
+                ?? PreparedStagePlaybackClip(clip: nil, appendagePoses: nil)
         case .canonical:
             return preparedStagePlayback?.canonical
-                ?? PreparedStagePlaybackClip(clip: nil, endEffectorInference: nil)
+                ?? PreparedStagePlaybackClip(clip: nil, appendagePoses: nil)
         case .stabilized:
             return preparedStagePlayback?.stabilized
-                ?? PreparedStagePlaybackClip(clip: nil, endEffectorInference: nil)
+                ?? PreparedStagePlaybackClip(clip: nil, appendagePoses: nil)
         }
     }
 

@@ -63,19 +63,19 @@ struct MotionTakeSummary: Identifiable, Sendable {
 final class MotionArchiveStore {
     private let modelContainer: ModelContainer
     private let payloadFileStore: MotionPayloadFileStore
-    private let derivedArtifactsFileStore: MotionDerivedArtifactsFileStore
-    private let derivedArtifactsBuilder: MotionDerivedArtifactsBuilder
+    private let playbackArtifactsFileStore: MotionPlaybackArtifactsFileStore
+    private let playbackArtifactsBuilder: MotionPlaybackArtifactsBuilder
 
     init(
         modelContainer: ModelContainer,
         payloadFileStore: MotionPayloadFileStore? = nil,
-        derivedArtifactsFileStore: MotionDerivedArtifactsFileStore? = nil,
-        derivedArtifactsBuilder: MotionDerivedArtifactsBuilder = MotionDerivedArtifactsBuilder()
+        playbackArtifactsFileStore: MotionPlaybackArtifactsFileStore? = nil,
+        playbackArtifactsBuilder: MotionPlaybackArtifactsBuilder = MotionPlaybackArtifactsBuilder()
     ) {
         self.modelContainer = modelContainer
         self.payloadFileStore = payloadFileStore ?? MotionPayloadFileStore()
-        self.derivedArtifactsFileStore = derivedArtifactsFileStore ?? MotionDerivedArtifactsFileStore()
-        self.derivedArtifactsBuilder = derivedArtifactsBuilder
+        self.playbackArtifactsFileStore = playbackArtifactsFileStore ?? MotionPlaybackArtifactsFileStore()
+        self.playbackArtifactsBuilder = playbackArtifactsBuilder
     }
 
     func saveTake(
@@ -105,14 +105,14 @@ final class MotionArchiveStore {
         do {
             payloadURL = try payloadFileStore.write(payload, for: takeID)
             let storedClip = payload.makeMotionClip()
-            let derivedArtifacts = derivedArtifactsBuilder.build(
+            let playbackArtifacts = playbackArtifactsBuilder.build(
                 playbackClip: storedClip,
                 captureMode: captureMode
             )
-            _ = try derivedArtifactsFileStore.write(derivedArtifacts, for: takeID)
+            _ = try playbackArtifactsFileStore.write(playbackArtifacts, for: takeID)
         } catch {
             try? payloadFileStore.removePayload(for: takeID)
-            try? derivedArtifactsFileStore.removeArtifacts(for: takeID)
+            try? playbackArtifactsFileStore.removeArtifacts(for: takeID)
             throw error
         }
 
@@ -137,7 +137,7 @@ final class MotionArchiveStore {
             try context.save()
         } catch {
             try? payloadFileStore.removePayload(for: takeID)
-            try? derivedArtifactsFileStore.removeArtifacts(for: takeID)
+            try? playbackArtifactsFileStore.removeArtifacts(for: takeID)
             throw error
         }
 
@@ -159,10 +159,10 @@ final class MotionArchiveStore {
     ) throws -> StoredMotionTake {
         let payloadURL = URL(fileURLWithPath: localFilePath)
         let clip = try payloadFileStore.read(from: payloadURL).makeMotionClip()
-        let derivedArtifacts = try derivedArtifactsFileStore.read(for: takeID)
+        let playbackArtifacts = try playbackArtifactsFileStore.read(for: takeID)
         return StoredMotionTake(
             clip: clip,
-            derivedArtifacts: derivedArtifacts
+            playbackArtifacts: playbackArtifacts
         )
     }
 
