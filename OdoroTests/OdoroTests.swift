@@ -448,6 +448,86 @@ struct OdoroTests {
         #expect(mapped.positions[OdoroSkeletonDefinition.index(of: .rightWrist)].simdValue == rightHand)
     }
 
+    @Test func rearBodyInferenceProducesFootPoseForCanonicalClip() throws {
+        let clip = MotionClip(frames: [
+            Self.canonicalFrame(time: 0),
+            Self.canonicalFrame(time: 1.0 / 30.0),
+        ])
+
+        let inference = RearBody3DEndEffectorInferencePass().infer(clip: clip)
+        let leftFoot = try #require(inference.frames.first?.feet.left)
+
+        #expect(inference.frames.count == clip.frames.count)
+        #expect(leftFoot.pivot == clip.frames[0].jointPositions[OdoroSkeletonDefinition.index(of: .leftFoot)])
+        #expect(leftFoot.forward.z > 0.5)
+        #expect(leftFoot.confidence >= 0.55)
+        #expect((inference.frames.first?.feet.leftContactWeight ?? 0) > 0.5)
+    }
+
+    @Test func rearBodyInferenceLeavesUnsupportedSkeletonEmpty() {
+        let clip = MotionClip(frames: [
+            MotionFrame(
+                time: 0,
+                jointPositions: [
+                    SIMD3<Float>(0, 1, 0),
+                    SIMD3<Float>(0, 0, 0),
+                ]
+            )
+        ])
+
+        let inference = RearBody3DEndEffectorInferencePass().infer(clip: clip)
+
+        #expect(inference.frames.count == 1)
+        #expect(inference.frames[0].feet.left == nil)
+        #expect(inference.frames[0].feet.right == nil)
+        #expect(inference.frames[0].hands.left == nil)
+        #expect(inference.frames[0].hands.right == nil)
+    }
+
+    @Test func stagePreparedPlaybackBuilderCachesRearBodyInferenceOnPreparedVariants() {
+        let sourceClip = MotionClip(frames: [
+            MotionFrame(
+                time: 0,
+                jointPositions: Array(repeating: .zero, count: 2)
+            ),
+            MotionFrame(
+                time: 1.0 / 30.0,
+                jointPositions: Array(repeating: .zero, count: 2)
+            ),
+        ])
+        let playbackClip = MotionClip(frames: [
+            Self.canonicalFrame(time: 0),
+            Self.canonicalFrame(time: 1.0 / 30.0),
+        ])
+
+        let prepared = StagePreparedPlaybackBuilder().prepare(
+            sourceClip: sourceClip,
+            playbackClip: playbackClip,
+            captureMode: .rearBody3D
+        )
+
+        #expect(prepared.raw.endEffectorInference == nil)
+        #expect(prepared.canonical.clip != nil)
+        #expect(prepared.canonical.endEffectorInference?.frames.count == prepared.canonical.clip?.frames.count)
+        #expect(prepared.stabilized.endEffectorInference?.frames.count == prepared.stabilized.clip?.frames.count)
+    }
+
+    @Test func stagePreparedPlaybackBuilderSkipsInferenceOutsideRearBodyMode() {
+        let playbackClip = MotionClip(frames: [
+            Self.canonicalFrame(time: 0),
+            Self.canonicalFrame(time: 1.0 / 30.0),
+        ])
+
+        let prepared = StagePreparedPlaybackBuilder().prepare(
+            sourceClip: nil,
+            playbackClip: playbackClip,
+            captureMode: .importedVideo
+        )
+
+        #expect(prepared.canonical.endEffectorInference == nil)
+        #expect(prepared.stabilized.endEffectorInference == nil)
+    }
+
     @Test func motionPayloadRoundTripPreservesCanonicalClipWithoutRemapping() {
         let canonicalClip = MotionClip(frames: [
             Self.canonicalFrame(

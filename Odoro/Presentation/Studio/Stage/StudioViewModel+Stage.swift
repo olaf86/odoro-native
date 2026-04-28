@@ -24,8 +24,11 @@ extension StudioViewModel {
         stageRenderer.pause()
         interactor.setPlaybackActive(false)
         stageRenderer.setClip(nil)
+        stageRenderer.setEndEffectorInference(nil)
         interactor.resetClip()
         currentTakeID = nil
+        playbackCaptureMode = nil
+        preparedStagePlayback = nil
     }
 
     func prepareStagePlayback() {
@@ -125,8 +128,13 @@ extension StudioViewModel {
             stageDebugMotionViewMode = resolvedMode
         }
 
+        if preparedStagePlayback == nil {
+            rebuildPreparedStagePlayback()
+        }
+
         stageRenderer.setSkeletonDebugLayout(stageDebugSkeletonLayout)
-        stageRenderer.setClip(stageDebugClip)
+        stageRenderer.setClip(stageDebugPresentation.clip)
+        stageRenderer.setEndEffectorInference(stageDebugPresentation.endEffectorInference)
     }
 
     var stageDebugSkeletonLayout: StagePlaybackRenderer.SkeletonDebugLayout {
@@ -138,20 +146,21 @@ extension StudioViewModel {
         }
     }
 
-    var stageDebugClip: MotionClip? {
+    var stageDebugPresentation: PreparedStagePlaybackClip {
         switch stageDebugMotionViewMode {
         case .raw:
-            return (interactor.sourceClip ?? interactor.currentClip)?.rebasedForStage()
+            return preparedStagePlayback?.raw
+                ?? PreparedStagePlaybackClip(clip: nil, endEffectorInference: nil)
         case .canonical:
-            let sourceClip = interactor.sourceClip ?? interactor.currentClip
-            guard let sourceClip else {
-                return nil
-            }
-            return OdoroCanonicalPoseMapper
-                .canonicalizedClip(from: sourceClip)
-                .rebasedForStage()
+            return preparedStagePlayback?.canonical
+                ?? PreparedStagePlaybackClip(clip: nil, endEffectorInference: nil)
         case .stabilized:
-            return interactor.currentClip
+            return preparedStagePlayback?.stabilized
+                ?? PreparedStagePlaybackClip(clip: nil, endEffectorInference: nil)
         }
+    }
+
+    var activePlaybackCaptureMode: CaptureMode {
+        playbackCaptureMode ?? currentTake?.captureMode ?? captureMode
     }
 }

@@ -25,6 +25,7 @@ extension StudioViewModel {
             let clip = try archiveStore.loadClip(fromLocalFilePath: take.localFilePath)
             currentSessionID = take.sessionID
             currentTakeID = take.id
+            playbackCaptureMode = take.captureMode
             stageRenderer.setUsesProceduralMockPlayback(take.captureMode == .mock)
             interactor.replaceCurrentClip(clip)
             try refreshCurrentSessionTakes()
@@ -107,6 +108,7 @@ extension StudioViewModel {
 
             currentSessionID = saveResult.sessionID
             currentTakeID = saveResult.takeID
+            playbackCaptureMode = .importedVideo
             let savedClip = try archiveStore.loadClip(fromLocalFilePath: saveResult.localFilePath)
             stageRenderer.setUsesProceduralMockPlayback(false)
             interactor.replaceCurrentClip(savedClip, sourceClip: clip)
@@ -158,6 +160,7 @@ extension StudioViewModel {
         )
         currentSessionID = saveResult.sessionID
         currentTakeID = saveResult.takeID
+        playbackCaptureMode = captureMode
         let savedClip = try archiveStore.loadClip(fromLocalFilePath: saveResult.localFilePath)
         stageRenderer.setUsesProceduralMockPlayback(captureMode == .mock)
         interactor.replaceCurrentClip(
