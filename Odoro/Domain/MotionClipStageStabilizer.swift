@@ -137,7 +137,11 @@ struct MotionClipStageStabilizer: Sendable {
             let deltaTime = max(frame.time - state.time, tuning.fallbackDeltaTime)
             let interval = Float(deltaTime)
 
-            let predictedCenter = previousCenter + state.centerVelocity * interval
+            let predictedCenter = previousCenter + SIMD3<Float>(
+                state.centerVelocity.x * interval,
+                0,
+                state.centerVelocity.z * interval
+            )
             let observedCenterRaw = qualityEvaluator.playbackTrackingCenter(in: frame) ?? assessment.robustCenter ?? state.center
             let centerContinuity = qualityEvaluator.canonicalRoot(in: frame).map { _ in
                 centerObservationContinuity(
@@ -148,17 +152,38 @@ struct MotionClipStageStabilizer: Sendable {
                     deltaTime: deltaTime
                 )
             } ?? 1
-            let observedCenter = mix(predictedCenter, observedCenterRaw, alpha: centerContinuity)
+            let observedHorizontalCenter = mix(
+                predictedCenter,
+                SIMD3<Float>(observedCenterRaw.x, previousCenter.y, observedCenterRaw.z),
+                alpha: centerContinuity
+            )
             let localObservationCenter = observedCenterRaw
             let centerAlpha = centerSmoothingAlpha(
                 quality: assessment.score * centerContinuity,
-                centerDelta: simd_length(observedCenterRaw - previousCenter),
+                centerDelta: horizontalDistance(observedCenterRaw, previousCenter),
                 deltaTime: deltaTime
             )
-            state.center = mix(predictedCenter, observedCenter, alpha: centerAlpha)
-            let resolvedCenterVelocity = (state.center - previousCenter) / interval
+            let smoothedHorizontalCenter = mix(predictedCenter, observedHorizontalCenter, alpha: centerAlpha)
+            let verticalAlpha = clampedAlpha(
+                base: tuning.centerAlphaBase,
+                quality: assessment.score,
+                penalty: 1,
+                scale: tuning.centerAlphaScale,
+                floor: tuning.centerAlphaFloor,
+                ceiling: tuning.centerAlphaCeiling
+            )
+            state.center = SIMD3<Float>(
+                smoothedHorizontalCenter.x,
+                mix(previousCenter, observedCenterRaw, alpha: verticalAlpha).y,
+                smoothedHorizontalCenter.z
+            )
+            let resolvedCenterVelocity = SIMD3<Float>(
+                (state.center.x - previousCenter.x) / interval,
+                0,
+                (state.center.z - previousCenter.z) / interval
+            ) * centerContinuity
             state.centerVelocity = mix(
-                state.centerVelocity,
+                SIMD3<Float>(state.centerVelocity.x, 0, state.centerVelocity.z),
                 resolvedCenterVelocity,
                 alpha: tuning.centerVelocityBlendAlpha
             )
@@ -341,7 +366,7 @@ struct MotionClipStageStabilizer: Sendable {
         deltaTime: TimeInterval
     ) -> Float {
         let interval = max(Float(deltaTime), Float(tuning.fallbackDeltaTime))
-        let speed = simd_length(observedCenter - previousCenter) / interval
+        let speed = horizontalDistance(observedCenter, previousCenter) / interval
         let speedPenalty = descendingPenalty(
             value: speed,
             fullPenaltyUpperBound: tuning.centerContinuityFullSpeedUpperBound,
@@ -349,7 +374,7 @@ struct MotionClipStageStabilizer: Sendable {
             minimumPenalty: tuning.centerContinuityMinimumPenalty
         )
 
-        let predictionError = simd_length(observedCenter - predictedCenter)
+        let predictionError = horizontalDistance(observedCenter, predictedCenter)
         let predictionPenalty = descendingPenalty(
             value: predictionError,
             fullPenaltyUpperBound: tuning.centerContinuityPredictionErrorFullUpperBound,
@@ -358,9 +383,13 @@ struct MotionClipStageStabilizer: Sendable {
         )
 
         let velocityAlignmentPenalty: Float
-        let observedOffset = observedCenter - previousCenter
-        if simd_length(previousVelocity) > 0.0001, simd_length(observedOffset) > 0.0001 {
-            let normalizedVelocity = simd_normalize(previousVelocity)
+        let previousHorizontalVelocity = SIMD2<Float>(previousVelocity.x, previousVelocity.z)
+        let observedOffset = SIMD2<Float>(
+            observedCenter.x - previousCenter.x,
+            observedCenter.z - previousCenter.z
+        )
+        if simd_length(previousHorizontalVelocity) > 0.0001, simd_length(observedOffset) > 0.0001 {
+            let normalizedVelocity = simd_normalize(previousHorizontalVelocity)
             let observedDirection = simd_normalize(observedOffset)
             let alignment = simd_dot(normalizedVelocity, observedDirection)
 
@@ -473,6 +502,10 @@ struct MotionClipStageStabilizer: Sendable {
     /// Linearly interpolates between two 3D vectors.
     nonisolated func mix(_ lhs: SIMD3<Float>, _ rhs: SIMD3<Float>, alpha: Float) -> SIMD3<Float> {
         lhs + (rhs - lhs) * alpha
+    }
+
+    nonisolated func horizontalDistance(_ lhs: SIMD3<Float>, _ rhs: SIMD3<Float>) -> Float {
+        simd_length(SIMD2<Float>(lhs.x - rhs.x, lhs.z - rhs.z))
     }
 
     /// Converts a quality/penalty pair into a bounded smoothing coefficient.

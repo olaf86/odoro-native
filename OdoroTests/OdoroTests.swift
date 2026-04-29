@@ -437,6 +437,34 @@ struct OdoroTests {
         #expect(abs(recoveredXs.last ?? 0 - 0.06) < 0.08)
     }
 
+    @Test func motionClipStageStabilizerDoesNotKeepLiftingAfterCanonicalRootHeightSpike() {
+        let stabilizer = MotionClipStageStabilizer()
+
+        func frame(time: TimeInterval, rootY: Float) -> MotionFrame {
+            Self.canonicalFrame(
+                time: time,
+                overrides: [.root: SIMD3<Float>(0, rootY, 0)]
+            )
+        }
+
+        let stabilized = stabilizer.stabilize(
+            MotionClip(frames: [
+                frame(time: 0, rootY: 1.0),
+                frame(time: 1.0 / 30.0, rootY: 1.9),
+                frame(time: 2.0 / 30.0, rootY: 1.0),
+                frame(time: 3.0 / 30.0, rootY: 1.0),
+                frame(time: 4.0 / 30.0, rootY: 1.0),
+                frame(time: 5.0 / 30.0, rootY: 1.0),
+            ])
+        )
+
+        let rootIndex = OdoroSkeletonDefinition.index(of: .root)
+        let recoveredYs = stabilized.dropFirst(2).map { $0.jointPositions[rootIndex].y }
+
+        #expect(recoveredYs.allSatisfy { $0 < 1.2 })
+        #expect(abs(recoveredYs.last ?? 0 - 1.0) < 0.08)
+    }
+
     @Test func canonicalPoseMapperCanonicalizesClipFramesForPlayback() {
         let rawClip = MotionClip(frames: [
             MotionFrame(
