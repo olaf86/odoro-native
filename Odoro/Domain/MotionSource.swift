@@ -5,6 +5,11 @@
 
 import Foundation
 
+enum MotionSourceActivity: Sendable {
+    case preview
+    case recording
+}
+
 enum CaptureMode: String, CaseIterable, Identifiable, Codable, Sendable {
     case rearBody3D
     case frontUpperBody
@@ -46,6 +51,6 @@ protocol MotionSource: AnyObject {
     var onFrame: ((MotionFrame) -> Void)? { get set }
     var onStatusTextChange: ((String) -> Void)? { get set }
 
-    func activate()
+    func activate(for activity: MotionSourceActivity)
     func deactivate()
 }

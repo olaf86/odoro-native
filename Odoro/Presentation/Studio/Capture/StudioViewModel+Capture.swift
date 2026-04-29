@@ -18,7 +18,7 @@ extension StudioViewModel {
         dismissSwipeHints()
         stopAudioPreview()
         attachCurrentSourceIfPossible()
-        interactor.activateSource()
+        interactor.activateSource(for: .recording)
         interactor.beginRecording()
         startRecordingAudioIfNeeded()
     }
@@ -26,6 +26,9 @@ extension StudioViewModel {
     func stopRecording() {
         stopAudioPlayback()
         interactor.stopRecording()
+        if state.presentation == .capture {
+            interactor.activateSource(for: .preview)
+        }
     }
 
     func enterStageMode() {
@@ -54,7 +57,7 @@ extension StudioViewModel {
 
         configureForCurrentSource()
         attachCurrentSourceIfPossible()
-        interactor.activateSource()
+        interactor.activateSource(for: .preview)
         navigate(to: .capture, transition: .fromTrailing)
     }
 
@@ -76,7 +79,7 @@ extension StudioViewModel {
         }
 
         attachCurrentSourceIfPossible()
-        interactor.activateSource()
+        interactor.activateSource(for: .preview)
     }
 
     func suspendStudioForInactivity() {

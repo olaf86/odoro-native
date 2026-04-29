@@ -70,8 +70,8 @@ final class MotionStudioInteractor {
         recordingClockTimer?.invalidate()
     }
 
-    func activateSource() {
-        source.activate()
+    func activateSource(for activity: MotionSourceActivity) {
+        source.activate(for: activity)
     }
 
     func updateMaximumCaptureDuration(_ duration: TimeInterval) {

@@ -28,7 +28,7 @@ final class MockMotionSource: MotionSource {
     private var startedAt: Date?
     private let frameInterval: TimeInterval = 1 / 30
 
-    func activate() {
+    func activate(for activity: MotionSourceActivity) {
         guard timer == nil else { return }
 
         startedAt = Date()

@@ -10,6 +10,11 @@ import simd
 
 @MainActor
 final class ARKitCaptureOverlayRenderer {
+    enum DetailLevel: Equatable {
+        case preview
+        case recording
+    }
+
     private struct RenderJoint {
         let jointName: ARSkeleton.JointName
         let fallbackRawName: String?
@@ -21,7 +26,7 @@ final class ARKitCaptureOverlayRenderer {
     }
 
     private let skeletonDefinition = ARSkeletonDefinition.defaultBody3D
-    private let renderJoints: [RenderJoint] = [
+    private let recordingRenderJoints: [RenderJoint] = [
         .init(jointName: .root, fallbackRawName: "hips_joint"),
         .init(jointName: .head, fallbackRawName: "head_joint"),
         .init(jointName: .leftShoulder, fallbackRawName: "left_shoulder_1_joint"),
@@ -39,7 +44,19 @@ final class ARKitCaptureOverlayRenderer {
         .init(jointName: .leftFoot, fallbackRawName: "left_foot_joint"),
         .init(jointName: .rightFoot, fallbackRawName: "right_foot_joint"),
     ]
-    private let renderLimbs: [RenderLimb] = [
+    private let previewRenderJoints: [RenderJoint] = [
+        .init(jointName: .root, fallbackRawName: "hips_joint"),
+        .init(jointName: .head, fallbackRawName: "head_joint"),
+        .init(jointName: .leftShoulder, fallbackRawName: "left_shoulder_1_joint"),
+        .init(jointName: .rightShoulder, fallbackRawName: "right_shoulder_1_joint"),
+        .init(jointName: ARSkeleton.JointName(rawValue: "left_forearm_joint"), fallbackRawName: nil),
+        .init(jointName: ARSkeleton.JointName(rawValue: "right_forearm_joint"), fallbackRawName: nil),
+        .init(jointName: .leftHand, fallbackRawName: "left_hand_joint"),
+        .init(jointName: .rightHand, fallbackRawName: "right_hand_joint"),
+        .init(jointName: .leftFoot, fallbackRawName: "left_foot_joint"),
+        .init(jointName: .rightFoot, fallbackRawName: "right_foot_joint"),
+    ]
+    private let recordingRenderLimbs: [RenderLimb] = [
         .init(startIndex: 0, endIndex: 1),
         .init(startIndex: 0, endIndex: 2),
         .init(startIndex: 0, endIndex: 3),
@@ -56,11 +73,41 @@ final class ARKitCaptureOverlayRenderer {
         .init(startIndex: 11, endIndex: 13),
         .init(startIndex: 13, endIndex: 15),
     ]
+    private let previewRenderLimbs: [RenderLimb] = [
+        .init(startIndex: 0, endIndex: 1),
+        .init(startIndex: 0, endIndex: 2),
+        .init(startIndex: 0, endIndex: 3),
+        .init(startIndex: 2, endIndex: 4),
+        .init(startIndex: 4, endIndex: 6),
+        .init(startIndex: 3, endIndex: 5),
+        .init(startIndex: 5, endIndex: 7),
+        .init(startIndex: 0, endIndex: 8),
+        .init(startIndex: 0, endIndex: 9),
+    ]
 
     private weak var view: ARView?
     private var overlayAnchor = AnchorEntity(world: .zero)
     private var jointEntities: [ModelEntity] = []
     private var limbEntities: [ModelEntity] = []
+    private var detailLevel: DetailLevel = .preview
+
+    private var renderJoints: [RenderJoint] {
+        switch detailLevel {
+        case .preview:
+            previewRenderJoints
+        case .recording:
+            recordingRenderJoints
+        }
+    }
+
+    private var renderLimbs: [RenderLimb] {
+        switch detailLevel {
+        case .preview:
+            previewRenderLimbs
+        case .recording:
+            recordingRenderLimbs
+        }
+    }
 
     func attach(to view: ARView) {
         if self.view !== view {
@@ -69,6 +116,19 @@ final class ARKitCaptureOverlayRenderer {
             configureOverlay(in: view)
         } else if overlayAnchor.scene == nil {
             view.scene.addAnchor(overlayAnchor)
+        }
+    }
+
+    func setDetailLevel(_ detailLevel: DetailLevel) {
+        guard self.detailLevel != detailLevel else {
+            return
+        }
+
+        self.detailLevel = detailLevel
+
+        if let view {
+            overlayAnchor.removeFromParent()
+            configureOverlay(in: view)
         }
     }
 

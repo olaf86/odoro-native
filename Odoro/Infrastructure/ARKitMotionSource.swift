@@ -10,6 +10,7 @@ import RealityKit
 
 final class ARKitMotionSource: NSObject, MotionSource {
     private static let logger = Logger(subsystem: Bundle.main.bundleIdentifier!, category: "ARKitMotionSource")
+    private let previewOverlayFrameInterval = 15
 
     var captureMode: CaptureMode { .rearBody3D }
     var onFrame: ((MotionFrame) -> Void)?
@@ -23,23 +24,30 @@ final class ARKitMotionSource: NSObject, MotionSource {
     private let overlayRenderer = ARKitCaptureOverlayRenderer()
     private let liveFrameValidator = ARKitLiveCaptureFrameValidator()
     private weak var attachedView: ARView?
+    private var desiredActivity: MotionSourceActivity = .preview
     private var shouldStartWhenAttached = false
     private var hasDetectedBody = false
     private var isSessionActive = false
+    private var previewOverlayFrameCounter = 0
 
     func attach(to view: ARView) {
         attachedView = view
         view.session = session
         session.delegate = self
         overlayRenderer.attach(to: view)
+        overlayRenderer.setDetailLevel(detailLevel(for: desiredActivity))
 
         if shouldStartWhenAttached {
             shouldStartWhenAttached = false
-            activate()
+            activate(for: desiredActivity)
         }
     }
 
-    func activate() {
+    func activate(for activity: MotionSourceActivity) {
+        desiredActivity = activity
+        overlayRenderer.setDetailLevel(detailLevel(for: activity))
+        previewOverlayFrameCounter = 0
+
         guard isSupported else {
             onStatusTextChange?(L10n.statusARUnsupported)
             return
@@ -64,6 +72,7 @@ final class ARKitMotionSource: NSObject, MotionSource {
     }
 
     func deactivate() {
+        previewOverlayFrameCounter = 0
         hasDetectedBody = false
         isSessionActive = false
         session.pause()
@@ -110,8 +119,14 @@ extension ARKitMotionSource: ARSessionDelegate {
                 self.hasDetectedBody = true
                 self.onStatusTextChange?(L10n.statusBodyDetected)
             }
-            self.overlayRenderer.render(frame: frame)
-            self.onFrame?(frame)
+
+            if self.shouldRenderOverlayFrame() {
+                self.overlayRenderer.render(frame: frame)
+            }
+
+            if self.desiredActivity == .recording {
+                self.onFrame?(frame)
+            }
         }
     }
 
@@ -148,6 +163,27 @@ extension ARKitMotionSource: ARSessionDelegate {
             self.hasDetectedBody = false
             self.overlayRenderer.clear()
             self.onStatusTextChange?(L10n.statusARResumed)
+        }
+    }
+}
+
+private extension ARKitMotionSource {
+    func detailLevel(for activity: MotionSourceActivity) -> ARKitCaptureOverlayRenderer.DetailLevel {
+        switch activity {
+        case .preview:
+            .preview
+        case .recording:
+            .recording
+        }
+    }
+
+    func shouldRenderOverlayFrame() -> Bool {
+        switch desiredActivity {
+        case .recording:
+            return true
+        case .preview:
+            previewOverlayFrameCounter = (previewOverlayFrameCounter + 1) % previewOverlayFrameInterval
+            return previewOverlayFrameCounter == 0
         }
     }
 }
