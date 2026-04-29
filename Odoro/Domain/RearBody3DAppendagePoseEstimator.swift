@@ -40,6 +40,11 @@ struct RearBody3DAppendagePoseEstimator: Sendable {
         let minimumDirectionLength: Float = 0.0001
         let footContactHeightTolerance: Float = 0.06
         let footContactSpeedTolerance: Float = 0.18
+        let minimumRotationForwardBodyAlignment: Float = 0.45
+        let footRotationInfluence: Float = 0.18
+        let footForwardPreviousWeightBase: Float = 0.42
+        let footForwardPreviousWeightContactScale: Float = 0.38
+        let minimumFinalBodyForwardAlignment: Float = 0.18
         let highConfidence: Float = 0.85
         let mediumConfidence: Float = 0.55
         let lowConfidence: Float = 0.25
@@ -54,17 +59,35 @@ struct RearBody3DAppendagePoseEstimator: Sendable {
     }
 
     nonisolated func estimatePoses(for clip: MotionClip) -> MotionClipAppendagePoses {
-        MotionClipAppendagePoses(
-            frames: clip.frames.enumerated().map { index, frame in
-                inferFrame(frame, at: index, in: clip.frames)
+        var previousFootPoses: [BodySide: AppendagePose] = [:]
+        var inferredFrames: [MotionFrameAppendagePoses] = []
+        inferredFrames.reserveCapacity(clip.frames.count)
+
+        for (index, frame) in clip.frames.enumerated() {
+            let inferredFrame = inferFrame(
+                frame,
+                at: index,
+                in: clip.frames,
+                previousFootPoses: previousFootPoses
+            )
+            inferredFrames.append(inferredFrame)
+
+            if let left = inferredFrame.feet.left {
+                previousFootPoses[.left] = left
             }
-        )
+            if let right = inferredFrame.feet.right {
+                previousFootPoses[.right] = right
+            }
+        }
+
+        return MotionClipAppendagePoses(frames: inferredFrames)
     }
 
     nonisolated private func inferFrame(
         _ frame: MotionFrame,
         at index: Int,
-        in frames: [MotionFrame]
+        in frames: [MotionFrame],
+        previousFootPoses: [BodySide: AppendagePose]
     ) -> MotionFrameAppendagePoses {
         guard frame.jointPositions.count == OdoroSkeletonDefinition.jointCount else {
             return MotionFrameAppendagePoses(
@@ -75,17 +98,21 @@ struct RearBody3DAppendagePoseEstimator: Sendable {
         }
 
         let bodyForwardHint = self.bodyForwardHint(in: frame)
+        let leftContactWeight = footContactWeight(side: .left, frameIndex: index, frames: frames)
+        let rightContactWeight = footContactWeight(side: .right, frameIndex: index, frames: frames)
         let leftFoot = inferFootPose(
             side: .left,
             in: frame,
             bodyForwardHint: bodyForwardHint,
-            contactWeight: footContactWeight(side: .left, frameIndex: index, frames: frames)
+            contactWeight: leftContactWeight,
+            previousPose: previousFootPoses[.left]
         )
         let rightFoot = inferFootPose(
             side: .right,
             in: frame,
             bodyForwardHint: bodyForwardHint,
-            contactWeight: footContactWeight(side: .right, frameIndex: index, frames: frames)
+            contactWeight: rightContactWeight,
+            previousPose: previousFootPoses[.right]
         )
         let leftHand = inferHandPose(side: .left, in: frame, bodyForwardHint: bodyForwardHint)
         let rightHand = inferHandPose(side: .right, in: frame, bodyForwardHint: bodyForwardHint)
@@ -95,8 +122,8 @@ struct RearBody3DAppendagePoseEstimator: Sendable {
             feet: FootPoses(
                 left: leftFoot,
                 right: rightFoot,
-                leftContactWeight: footContactWeight(side: .left, frameIndex: index, frames: frames),
-                rightContactWeight: footContactWeight(side: .right, frameIndex: index, frames: frames)
+                leftContactWeight: leftContactWeight,
+                rightContactWeight: rightContactWeight
             ),
             hands: HandPoses(left: leftHand, right: rightHand)
         )
@@ -106,7 +133,8 @@ struct RearBody3DAppendagePoseEstimator: Sendable {
         side: BodySide,
         in frame: MotionFrame,
         bodyForwardHint: SIMD3<Float>?,
-        contactWeight: Float
+        contactWeight: Float,
+        previousPose: AppendagePose?
     ) -> AppendagePose? {
         guard
             let foot = canonicalPosition(for: side.footJoint, in: frame),
@@ -125,22 +153,45 @@ struct RearBody3DAppendagePoseEstimator: Sendable {
         }
 
         let resolvedForward: SIMD3<Float>?
-        if let rotationForward {
-            if let bodyForward, simd_dot(rotationForward, bodyForward) < 0 {
-                resolvedForward = -rotationForward
+        if let bodyForward {
+            if let rotationForward {
+                var alignedRotationForward = rotationForward
+                if simd_dot(alignedRotationForward, bodyForward) < 0 {
+                    alignedRotationForward *= -1
+                }
+
+                if simd_dot(alignedRotationForward, bodyForward) >= tuning.minimumRotationForwardBodyAlignment {
+                    resolvedForward = normalizedOrNil(
+                        bodyForward * (1 - tuning.footRotationInfluence)
+                            + alignedRotationForward * tuning.footRotationInfluence
+                    )
+                } else {
+                    resolvedForward = bodyForward
+                }
             } else {
-                resolvedForward = rotationForward
+                resolvedForward = bodyForward
             }
         } else {
-            resolvedForward = bodyForward
+            resolvedForward = rotationForward
         }
 
-        let forward = resolvedForward ?? orthogonalFallbackDirection(to: up)
+        let baseForward = resolvedForward ?? orthogonalFallbackDirection(to: up)
+        let stabilizedForward = stabilizedFootForward(
+            baseForward,
+            previousForward: previousPose?.forward,
+            up: up,
+            contactWeight: contactWeight
+        ) ?? baseForward
+        let forward = correctedFootForward(
+            stabilizedForward,
+            bodyForward: bodyForward,
+            up: up
+        ) ?? stabilizedForward
         let confidenceBase: Float
-        if rotationForward != nil {
+        if bodyForward != nil {
             confidenceBase = tuning.highConfidence
-        } else if bodyForward != nil {
-            confidenceBase = tuning.mediumConfidence
+        } else if rotationForward != nil {
+            confidenceBase = tuning.highConfidence
         } else {
             confidenceBase = tuning.lowConfidence
         }
@@ -209,6 +260,37 @@ struct RearBody3DAppendagePoseEstimator: Sendable {
     }
 
     nonisolated private func bodyForwardHint(in frame: MotionFrame) -> SIMD3<Float>? {
+        guard let bodyRight = bodyRightHint(in: frame) else {
+            return nil
+        }
+
+        let up = SIMD3<Float>(0, 1, 0)
+        guard var forward = normalizedOrNil(simd_cross(bodyRight, up)) else {
+            return nil
+        }
+
+        if let noseForward = noseForwardHint(in: frame),
+           simd_dot(forward, noseForward) < 0 {
+            forward *= -1
+        }
+
+        return forward
+    }
+
+    nonisolated private func bodyRightHint(in frame: MotionFrame) -> SIMD3<Float>? {
+        let candidates = [
+            jointDirection(from: .leftShoulder, to: .rightShoulder, in: frame),
+            jointDirection(from: .leftHip, to: .rightHip, in: frame),
+        ].compactMap { $0 }
+
+        guard !candidates.isEmpty else {
+            return nil
+        }
+
+        return normalizedOrNil(candidates.reduce(.zero, +))
+    }
+
+    nonisolated private func noseForwardHint(in frame: MotionFrame) -> SIMD3<Float>? {
         guard
             let root = canonicalPosition(for: .root, in: frame),
             let nose = canonicalPosition(for: .nose, in: frame) ?? canonicalPosition(for: .head, in: frame)
@@ -220,15 +302,19 @@ struct RearBody3DAppendagePoseEstimator: Sendable {
         return normalizedOrNil(horizontal)
     }
 
-    nonisolated private func bodyRightHint(in frame: MotionFrame) -> SIMD3<Float>? {
+    nonisolated private func jointDirection(
+        from startJoint: OdoroJointName,
+        to endJoint: OdoroJointName,
+        in frame: MotionFrame
+    ) -> SIMD3<Float>? {
         guard
-            let leftShoulder = canonicalPosition(for: .leftShoulder, in: frame),
-            let rightShoulder = canonicalPosition(for: .rightShoulder, in: frame)
+            let start = canonicalPosition(for: startJoint, in: frame),
+            let end = canonicalPosition(for: endJoint, in: frame)
         else {
             return nil
         }
 
-        return normalizedOrNil(rightShoulder - leftShoulder)
+        return normalizedOrNil(end - start)
     }
 
     nonisolated private func canonicalPosition(for joint: OdoroJointName, in frame: MotionFrame) -> SIMD3<Float>? {
@@ -266,6 +352,53 @@ struct RearBody3DAppendagePoseEstimator: Sendable {
         return normalizedOrNil(projected)
     }
 
+    nonisolated private func stabilizedFootForward(
+        _ currentForward: SIMD3<Float>,
+        previousForward: SIMD3<Float>?,
+        up: SIMD3<Float>,
+        contactWeight: Float
+    ) -> SIMD3<Float>? {
+        guard let previousForward = previousForward.flatMap({ projectedDirection($0, planeNormal: up) }) else {
+            return currentForward
+        }
+
+        var alignedCurrentForward = currentForward
+        if simd_dot(alignedCurrentForward, previousForward) < 0 {
+            alignedCurrentForward *= -1
+        }
+
+        let previousWeight = min(
+            0.9,
+            tuning.footForwardPreviousWeightBase + contactWeight * tuning.footForwardPreviousWeightContactScale
+        )
+        return normalizedOrNil(
+            previousForward * previousWeight
+                + alignedCurrentForward * (1 - previousWeight)
+        )
+    }
+
+    nonisolated private func correctedFootForward(
+        _ currentForward: SIMD3<Float>,
+        bodyForward: SIMD3<Float>?,
+        up: SIMD3<Float>
+    ) -> SIMD3<Float>? {
+        guard let bodyForward else {
+            return currentForward
+        }
+
+        let projectedBodyForward = projectedDirection(bodyForward, planeNormal: up) ?? bodyForward
+        let alignment = simd_dot(currentForward, projectedBodyForward)
+        guard alignment < tuning.minimumFinalBodyForwardAlignment else {
+            return currentForward
+        }
+
+        let bodyBlend = max(0.55, 1 - max(alignment, -1) * 0.35)
+        return normalizedOrNil(
+            currentForward * (1 - bodyBlend)
+                + projectedBodyForward * bodyBlend
+        )
+    }
+
     nonisolated private func orthogonalFallbackDirection(to normal: SIMD3<Float>) -> SIMD3<Float> {
         let candidate = simd_cross(normal, SIMD3<Float>(1, 0, 0))
         return normalizedOrNil(candidate)
@@ -283,7 +416,7 @@ struct RearBody3DAppendagePoseEstimator: Sendable {
     }
 }
 
-private enum BodySide {
+private enum BodySide: Hashable {
     case left
     case right
 

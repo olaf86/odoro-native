@@ -617,6 +617,90 @@ struct OdoroTests {
         #expect((inference.frames.first?.feet.leftContactWeight ?? 0) > 0.5)
     }
 
+    @Test func rearBodyInferenceKeepsFootForwardAlignedWithBodyWhenFootRotationIsSideways() throws {
+        let baseFrame = Self.canonicalFrame(time: 0)
+        let leftFootIndex = OdoroSkeletonDefinition.index(of: .leftFoot)
+        let rightFootIndex = OdoroSkeletonDefinition.index(of: .rightFoot)
+        var rotations = Array<MotionJointRotation?>(
+            repeating: nil,
+            count: OdoroSkeletonDefinition.jointCount
+        )
+        let sidewaysRotation = MotionJointRotation(
+            simd_quatf(angle: -.pi / 2, axis: SIMD3<Float>(0, 1, 0))
+        )
+        rotations[leftFootIndex] = sidewaysRotation
+        rotations[rightFootIndex] = sidewaysRotation
+
+        let clip = MotionClip(frames: [
+            MotionFrame(
+                time: 0,
+                jointPositions: baseFrame.jointPositions,
+                jointRotations: rotations
+            )
+        ])
+
+        let inference = RearBody3DAppendagePoseEstimator().estimatePoses(for: clip)
+        let leftFoot = try #require(inference.frames.first?.feet.left)
+        let rightFoot = try #require(inference.frames.first?.feet.right)
+
+        #expect(leftFoot.forward.z > 0.75)
+        #expect(rightFoot.forward.z > 0.75)
+        #expect(abs(leftFoot.forward.x) < 0.35)
+        #expect(abs(rightFoot.forward.x) < 0.35)
+    }
+
+    @Test func rearBodyInferenceSmoothsFootForwardAcrossFrames() throws {
+        let leftFootIndex = OdoroSkeletonDefinition.index(of: .leftFoot)
+        var sidewaysRotations = Array<MotionJointRotation?>(
+            repeating: nil,
+            count: OdoroSkeletonDefinition.jointCount
+        )
+        sidewaysRotations[leftFootIndex] = MotionJointRotation(
+            simd_quatf(angle: -.pi / 2, axis: SIMD3<Float>(0, 1, 0))
+        )
+
+        let clip = MotionClip(frames: [
+            Self.canonicalFrame(time: 0),
+            MotionFrame(
+                time: 1.0 / 30.0,
+                jointPositions: Self.canonicalFrame(time: 1.0 / 30.0).jointPositions,
+                jointRotations: sidewaysRotations
+            ),
+        ])
+
+        let inference = RearBody3DAppendagePoseEstimator().estimatePoses(for: clip)
+        let leftFoot = try #require(inference.frames[1].feet.left)
+
+        #expect(leftFoot.forward.z > 0.8)
+        #expect(abs(leftFoot.forward.x) < 0.3)
+    }
+
+    @Test func rearBodyInferenceDoesNotLetPreviousFootForwardFlipBehindBody() throws {
+        let leftFootIndex = OdoroSkeletonDefinition.index(of: .leftFoot)
+        var backwardRotations = Array<MotionJointRotation?>(
+            repeating: nil,
+            count: OdoroSkeletonDefinition.jointCount
+        )
+        backwardRotations[leftFootIndex] = MotionJointRotation(
+            simd_quatf(angle: .pi, axis: SIMD3<Float>(0, 1, 0))
+        )
+
+        let clip = MotionClip(frames: [
+            MotionFrame(
+                time: 0,
+                jointPositions: Self.canonicalFrame(time: 0).jointPositions,
+                jointRotations: backwardRotations
+            ),
+            Self.canonicalFrame(time: 1.0 / 30.0),
+        ])
+
+        let inference = RearBody3DAppendagePoseEstimator().estimatePoses(for: clip)
+        let leftFoot = try #require(inference.frames[1].feet.left)
+
+        #expect(leftFoot.forward.z > 0.7)
+        #expect(simd_dot(leftFoot.forward, SIMD3<Float>(0, 0, 1)) > 0.7)
+    }
+
     @Test func rearBodyInferenceLeavesUnsupportedSkeletonEmpty() {
         let clip = MotionClip(frames: [
             MotionFrame(
