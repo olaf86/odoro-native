@@ -93,6 +93,12 @@ struct MotionFrameQualityEvaluator: Sendable {
         )
     }
 
+    /// Uses the canonical root when available so playback stabilization follows
+    /// the performer's body anchor instead of a pose-dependent joint median.
+    nonisolated func playbackTrackingCenter(in frame: MotionFrame) -> SIMD3<Float>? {
+        canonicalRoot(in: frame) ?? robustCenter(of: frame.jointPositions)
+    }
+
     /// Filters out placeholder / invalid stage positions before they influence statistics.
     nonisolated func isValidStagePosition(_ position: SIMD3<Float>) -> Bool {
         position.x.isFinite &&
@@ -137,6 +143,19 @@ struct MotionFrameQualityEvaluator: Sendable {
         }
 
         return sorted[middle]
+    }
+
+    nonisolated func canonicalRoot(in frame: MotionFrame) -> SIMD3<Float>? {
+        guard frame.jointPositions.count == OdoroSkeletonDefinition.jointCount else {
+            return nil
+        }
+
+        let root = frame.jointPositions[OdoroSkeletonDefinition.index(of: .root)]
+        guard isValidStagePosition(root) else {
+            return nil
+        }
+
+        return root
     }
 }
 

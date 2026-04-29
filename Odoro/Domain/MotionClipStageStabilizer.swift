@@ -19,6 +19,12 @@ struct MotionClipStageStabilizer: Sendable {
         let centerAlphaScale: Float = 0.72
         let centerAlphaCeiling: Float = 0.92
         let centerVelocityBlendAlpha: Float = 0.35
+        let centerContinuityFullSpeedUpperBound: Float = 1.8
+        let centerContinuityDegradedSpeedUpperBound: Float = 4.2
+        let centerContinuityMinimumPenalty: Float = 0.05
+        let centerContinuityPredictionErrorFullUpperBound: Float = 0.08
+        let centerContinuityPredictionErrorDegradedUpperBound: Float = 0.32
+        let centerContinuityPredictionErrorMinimumPenalty: Float = 0.05
 
         let localDeltaFullPenaltyUpperBound: Float = 0.35
         let localDeltaDegradedPenaltyUpperBound: Float = 1.0
@@ -115,7 +121,7 @@ struct MotionClipStageStabilizer: Sendable {
 
         var state = State(
             time: firstFrame.time,
-            center: qualityEvaluator.robustCenter(of: firstFrame.jointPositions) ?? .zero,
+            center: qualityEvaluator.playbackTrackingCenter(in: firstFrame) ?? .zero,
             centerVelocity: .zero,
             localPositions: Array(repeating: nil, count: firstFrame.jointPositions.count),
             localVelocities: Array(repeating: nil, count: firstFrame.jointPositions.count),
@@ -131,11 +137,22 @@ struct MotionClipStageStabilizer: Sendable {
             let deltaTime = max(frame.time - state.time, tuning.fallbackDeltaTime)
             let interval = Float(deltaTime)
 
-            let observedCenter = assessment.robustCenter ?? state.center
             let predictedCenter = previousCenter + state.centerVelocity * interval
+            let observedCenterRaw = qualityEvaluator.playbackTrackingCenter(in: frame) ?? assessment.robustCenter ?? state.center
+            let centerContinuity = qualityEvaluator.canonicalRoot(in: frame).map { _ in
+                centerObservationContinuity(
+                    observedCenter: observedCenterRaw,
+                    predictedCenter: predictedCenter,
+                    previousCenter: previousCenter,
+                    previousVelocity: state.centerVelocity,
+                    deltaTime: deltaTime
+                )
+            } ?? 1
+            let observedCenter = mix(predictedCenter, observedCenterRaw, alpha: centerContinuity)
+            let localObservationCenter = observedCenterRaw
             let centerAlpha = centerSmoothingAlpha(
-                quality: assessment.score,
-                centerDelta: simd_length(observedCenter - previousCenter),
+                quality: assessment.score * centerContinuity,
+                centerDelta: simd_length(observedCenterRaw - previousCenter),
                 deltaTime: deltaTime
             )
             state.center = mix(predictedCenter, observedCenter, alpha: centerAlpha)
@@ -174,7 +191,7 @@ struct MotionClipStageStabilizer: Sendable {
                     continue
                 }
 
-                let observedLocal = position - observedCenter
+                let observedLocal = position - localObservationCenter
                 let referenceLocal = fallbackLocal ?? previousLocal ?? observedLocal
                 let confidence = jointObservationConfidence(
                     baseConfidence: jointConfidences[index],
@@ -311,6 +328,47 @@ struct MotionClipStageStabilizer: Sendable {
             floor: tuning.centerAlphaFloor,
             ceiling: tuning.centerAlphaCeiling
         )
+    }
+
+    /// Measures how trustworthy a newly observed center is relative to the current
+    /// root trajectory. Large root jumps are treated as likely mistracks and are
+    /// pulled back toward the predicted path instead of being accepted outright.
+    nonisolated func centerObservationContinuity(
+        observedCenter: SIMD3<Float>,
+        predictedCenter: SIMD3<Float>,
+        previousCenter: SIMD3<Float>,
+        previousVelocity: SIMD3<Float>,
+        deltaTime: TimeInterval
+    ) -> Float {
+        let interval = max(Float(deltaTime), Float(tuning.fallbackDeltaTime))
+        let speed = simd_length(observedCenter - previousCenter) / interval
+        let speedPenalty = descendingPenalty(
+            value: speed,
+            fullPenaltyUpperBound: tuning.centerContinuityFullSpeedUpperBound,
+            degradedPenaltyUpperBound: tuning.centerContinuityDegradedSpeedUpperBound,
+            minimumPenalty: tuning.centerContinuityMinimumPenalty
+        )
+
+        let predictionError = simd_length(observedCenter - predictedCenter)
+        let predictionPenalty = descendingPenalty(
+            value: predictionError,
+            fullPenaltyUpperBound: tuning.centerContinuityPredictionErrorFullUpperBound,
+            degradedPenaltyUpperBound: tuning.centerContinuityPredictionErrorDegradedUpperBound,
+            minimumPenalty: tuning.centerContinuityPredictionErrorMinimumPenalty
+        )
+
+        let velocityAlignmentPenalty: Float
+        let observedOffset = observedCenter - previousCenter
+        if simd_length(previousVelocity) > 0.0001, simd_length(observedOffset) > 0.0001 {
+            let normalizedVelocity = simd_normalize(previousVelocity)
+            let observedDirection = simd_normalize(observedOffset)
+            let alignment = max(simd_dot(normalizedVelocity, observedDirection), 0)
+            velocityAlignmentPenalty = 0.35 + alignment * 0.65
+        } else {
+            velocityAlignmentPenalty = 1
+        }
+
+        return min(max(speedPenalty * predictionPenalty * velocityAlignmentPenalty, 0), 1)
     }
 
     /// Computes how aggressively to follow observed joint motion in body-local space.

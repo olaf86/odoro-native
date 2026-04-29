@@ -26,7 +26,7 @@ struct MotionClipStageNormalizer: Sendable {
 
         let stabilizedFrames = stabilizer.stabilize(clip)
         let originFrame = stabilizedFrames.first ?? firstFrame
-        let firstAverage = qualityEvaluator.robustCenter(of: originFrame.jointPositions)
+        let firstAverage = qualityEvaluator.playbackTrackingCenter(in: originFrame)
             ?? originFrame.jointPositions.reduce(SIMD3<Float>.zero, +) / Float(max(originFrame.jointPositions.count, 1))
         let floorHeight = stabilizer.estimatedFloorHeight(in: stabilizedFrames) ?? 0
 

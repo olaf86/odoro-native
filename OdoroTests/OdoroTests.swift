@@ -152,6 +152,22 @@ struct OdoroTests {
         #expect(rebased.frames[0].jointRotations == rotations)
     }
 
+    @Test func motionClipNormalizationUsesCanonicalRootAsOrigin() {
+        let root = SIMD3<Float>(0.32, 1.0, 0.14)
+        let clip = MotionClip(frames: [
+            Self.canonicalFrame(
+                time: 0,
+                overrides: [.root: root]
+            )
+        ])
+
+        let normalized = clip.normalizedForStage()
+        let normalizedRoot = normalized.frames[0].jointPositions[OdoroSkeletonDefinition.index(of: .root)]
+
+        #expect(abs(normalizedRoot.x) < 0.0001)
+        #expect(abs(normalizedRoot.z) < 0.0001)
+    }
+
     @Test func motionFrameQualityEvaluatorScoresSparseInvalidFrameAsLowQuality() {
         let evaluator = MotionFrameQualityEvaluator()
         let frame = MotionFrame(
@@ -310,6 +326,82 @@ struct OdoroTests {
 
         #expect(abs(stabilizedFootX - pinnedX) < 0.08)
         #expect(abs(stabilizedFootX - pinnedX) < abs(clip.frames[1].jointPositions[leftFootIndex].x - pinnedX))
+    }
+
+    @Test func motionClipStageStabilizerTracksCanonicalRootWhenUpperBodyShifts() {
+        let stabilizer = MotionClipStageStabilizer()
+        let baseFrame = Self.canonicalFrame(time: 0)
+        let upperBodyJoints: [OdoroJointName] = [
+            .head,
+            .nose,
+            .leftShoulder,
+            .rightShoulder,
+            .leftUpperArm,
+            .rightUpperArm,
+            .leftElbow,
+            .rightElbow,
+            .leftWrist,
+            .rightWrist,
+        ]
+        let upperBodyShift = SIMD3<Float>(0.9, 0, 0)
+
+        func shiftedUpperBody(overrides: [OdoroJointName: SIMD3<Float>] = [:]) -> [OdoroJointName: SIMD3<Float>] {
+            var resolved = overrides
+            for joint in upperBodyJoints {
+                let basePosition = baseFrame.jointPositions[OdoroSkeletonDefinition.index(of: joint)]
+                resolved[joint] = (resolved[joint] ?? basePosition) + upperBodyShift
+            }
+            return resolved
+        }
+
+        let clip = MotionClip(frames: [
+            baseFrame,
+            Self.canonicalFrame(
+                time: 1.0 / 30.0,
+                overrides: shiftedUpperBody(overrides: [.root: SIMD3<Float>(0.03, 1.0, 0)])
+            ),
+            Self.canonicalFrame(
+                time: 2.0 / 30.0,
+                overrides: [.root: SIMD3<Float>(0.06, 1.0, 0)]
+            ),
+        ])
+
+        let stabilized = stabilizer.stabilize(clip)
+        let rootIndex = OdoroSkeletonDefinition.index(of: .root)
+        let stabilizedRootX = stabilized[1].jointPositions[rootIndex].x
+
+        #expect(abs(stabilizedRootX - 0.03) < 0.08)
+        #expect(abs(stabilizedRootX - clip.frames[1].jointPositions[rootIndex].x) < 0.08)
+    }
+
+    @Test func motionClipStageStabilizerStronglyDampensCanonicalRootMistracks() {
+        let stabilizer = MotionClipStageStabilizer()
+
+        func translatedFrame(time: TimeInterval, xOffset: Float) -> MotionFrame {
+            let baseFrame = Self.canonicalFrame(time: time)
+            let translatedPositions = baseFrame.jointPositions.map { position in
+                SIMD3<Float>(position.x + xOffset, position.y, position.z)
+            }
+            return MotionFrame(
+                time: time,
+                jointPositions: translatedPositions,
+                jointRotations: baseFrame.jointRotations
+            )
+        }
+
+        let clip = MotionClip(frames: [
+            translatedFrame(time: 0, xOffset: 0),
+            translatedFrame(time: 1.0 / 30.0, xOffset: 1.8),
+            translatedFrame(time: 2.0 / 30.0, xOffset: 0.06),
+        ])
+
+        let stabilized = stabilizer.stabilize(clip)
+        let rootIndex = OdoroSkeletonDefinition.index(of: .root)
+        let mistrackedRootX = stabilized[1].jointPositions[rootIndex].x
+        let recoveredRootX = stabilized[2].jointPositions[rootIndex].x
+
+        #expect(mistrackedRootX < 0.2)
+        #expect(abs(recoveredRootX - 0.06) < 0.08)
     }
 
     @Test func canonicalPoseMapperCanonicalizesClipFramesForPlayback() {
