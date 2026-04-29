@@ -33,6 +33,10 @@ final class StagePlaybackRenderer: NSObject {
     }
 
     private let skeletonDefinition = ARSkeletonDefinition.defaultBody3D
+    private let sourceNeutralLocalRotations: [simd_quatf] = {
+        let neutralLocalTransforms = ARSkeletonDefinition.defaultBody3D.neutralBodySkeleton3D?.jointLocalTransforms ?? []
+        return neutralLocalTransforms.map(simd_quaternion)
+    }()
     private let canonicalRenderJointNames: [OdoroJointName] = [
         .root,
         .head,
@@ -800,13 +804,11 @@ final class StagePlaybackRenderer: NSObject {
             guard
                 let targetIndex = modelJointIndices[binding.boneName],
                 jointTransforms.indices.contains(targetIndex),
-                let worldRot = rotation(for: binding.sourceJoint, in: frame)?.simdValue,
                 let worldPos = position(for: binding.sourceJoint, in: frame)
             else {
                 continue
             }
 
-            let resolvedRotation = binding.rotationOffset.map { worldRot * $0.simdValue } ?? worldRot
             let parentWorldRotationAndPosition: (rotation: simd_quatf, position: SIMD3<Float>)?
             if let parentReference = binding.parentSourceJoint,
                let parentWorldRot = rotation(for: parentReference, in: frame)?.simdValue,
@@ -816,17 +818,23 @@ final class StagePlaybackRenderer: NSObject {
                 parentWorldRotationAndPosition = nil
             }
 
-            jointTransforms[targetIndex] = Self.makeRigLocalTransform(
-                preserving: bindPoseTransforms[targetIndex],
-                worldRotation: resolvedRotation,
-                worldPosition: worldPos,
-                parentWorldRotation: parentWorldRotationAndPosition?.rotation,
-                parentWorldPosition: parentWorldRotationAndPosition?.position,
-                floorOffset: rigProfile.floorOffset,
-                translationMode: binding.translationMode,
-                preservesBindPoseRotation: Self.shouldPreserveBindPoseRotation(for: binding),
-                rotationWeight: binding.weight
-            )
+            if let worldRot = rotation(for: binding.sourceJoint, in: frame)?.simdValue {
+                let resolvedRotation = binding.rotationOffset.map { worldRot * $0.simdValue } ?? worldRot
+                jointTransforms[targetIndex] = Self.makeRigLocalTransform(
+                    preserving: bindPoseTransforms[targetIndex],
+                    worldRotation: resolvedRotation,
+                    worldPosition: worldPos,
+                    parentWorldRotation: parentWorldRotationAndPosition?.rotation,
+                    parentWorldPosition: parentWorldRotationAndPosition?.position,
+                    floorOffset: rigProfile.floorOffset,
+                    translationMode: binding.translationMode,
+                    preservesBindPoseRotation: Self.shouldPreserveBindPoseRotation(for: binding),
+                    sourceNeutralLocalRotation: neutralLocalRotation(for: binding.sourceJoint),
+                    rotationWeight: binding.weight
+                )
+            } else {
+                continue
+            }
             resolvedJointCount += 1
         }
 
@@ -855,19 +863,32 @@ final class StagePlaybackRenderer: NSObject {
         floorOffset: Float,
         translationMode: AvatarTranslationMode,
         preservesBindPoseRotation: Bool,
+        sourceNeutralLocalRotation: simd_quatf?,
         rotationWeight: Float
     ) -> Transform {
         var localTransform = baseTransform
 
+        func resolvedLocalRotation(
+            from sourceLocalRotation: simd_quatf,
+            baseRotation: simd_quatf
+        ) -> simd_quatf {
+            if translationMode == .bindPose, let sourceNeutralLocalRotation {
+                let motionDeltaRotation = sourceNeutralLocalRotation.inverse * sourceLocalRotation
+                return baseRotation * weightedRotation(motionDeltaRotation, weight: rotationWeight)
+            }
+
+            let weightedLocalRotation = weightedRotation(sourceLocalRotation, weight: rotationWeight)
+            return preservesBindPoseRotation
+                ? baseRotation * weightedLocalRotation
+                : weightedLocalRotation
+        }
+
         if let parentWorldRotation, let parentWorldPosition {
             let parentRotationInverse = parentWorldRotation.inverse
-            let motionLocalRotation = weightedRotation(
-                parentRotationInverse * worldRotation,
-                weight: rotationWeight
+            localTransform.rotation = resolvedLocalRotation(
+                from: parentRotationInverse * worldRotation,
+                baseRotation: baseTransform.rotation
             )
-            localTransform.rotation = preservesBindPoseRotation
-                ? baseTransform.rotation * motionLocalRotation
-                : motionLocalRotation
 
             if translationMode == .direct {
                 localTransform.translation = simd_act(
@@ -876,10 +897,10 @@ final class StagePlaybackRenderer: NSObject {
                 )
             }
         } else {
-            let weightedWorldRotation = weightedRotation(worldRotation, weight: rotationWeight)
-            localTransform.rotation = preservesBindPoseRotation
-                ? baseTransform.rotation * weightedWorldRotation
-                : weightedWorldRotation
+            localTransform.rotation = resolvedLocalRotation(
+                from: worldRotation,
+                baseRotation: baseTransform.rotation
+            )
 
             if translationMode == .direct {
                 localTransform.translation = worldPosition - SIMD3<Float>(0, floorOffset, 0)
@@ -887,6 +908,65 @@ final class StagePlaybackRenderer: NSObject {
         }
 
         return localTransform
+    }
+
+    private func neutralLocalRotation(for reference: AvatarRigJointReference) -> simd_quatf? {
+        if let rawJointName = reference.rawJointName,
+           let rotation = neutralLocalRotation(for: ARSkeleton.JointName(rawValue: rawJointName)) {
+            return rotation
+        }
+
+        guard let canonicalJoint = reference.canonicalJoint else {
+            return nil
+        }
+
+        return neutralLocalRotation(for: Self.sourceJointName(for: canonicalJoint))
+    }
+
+    private func neutralLocalRotation(for jointName: ARSkeleton.JointName) -> simd_quatf? {
+        let index = skeletonDefinition.index(for: jointName)
+        guard index != NSNotFound, sourceNeutralLocalRotations.indices.contains(index) else {
+            return nil
+        }
+
+        return sourceNeutralLocalRotations[index]
+    }
+
+    nonisolated private static func sourceJointName(for canonicalJoint: OdoroJointName) -> ARSkeleton.JointName {
+        switch canonicalJoint {
+        case .root:
+            return .root
+        case .head, .nose:
+            return .head
+        case .leftShoulder:
+            return .leftShoulder
+        case .rightShoulder:
+            return .rightShoulder
+        case .leftUpperArm:
+            return ARSkeleton.JointName(rawValue: "left_arm_joint")
+        case .rightUpperArm:
+            return ARSkeleton.JointName(rawValue: "right_arm_joint")
+        case .leftElbow:
+            return ARSkeleton.JointName(rawValue: "left_forearm_joint")
+        case .rightElbow:
+            return ARSkeleton.JointName(rawValue: "right_forearm_joint")
+        case .leftWrist:
+            return .leftHand
+        case .rightWrist:
+            return .rightHand
+        case .leftHip:
+            return ARSkeleton.JointName(rawValue: "left_upLeg_joint")
+        case .rightHip:
+            return ARSkeleton.JointName(rawValue: "right_upLeg_joint")
+        case .leftKnee:
+            return ARSkeleton.JointName(rawValue: "left_leg_joint")
+        case .rightKnee:
+            return ARSkeleton.JointName(rawValue: "right_leg_joint")
+        case .leftAnkle, .leftFoot:
+            return .leftFoot
+        case .rightAnkle, .rightFoot:
+            return .rightFoot
+        }
     }
 
     nonisolated static func shouldPreserveBindPoseRotation(for binding: AvatarBoneBinding) -> Bool {

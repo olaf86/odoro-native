@@ -966,6 +966,7 @@ struct OdoroTests {
             floorOffset: 0.977,
             translationMode: .bindPose,
             preservesBindPoseRotation: false,
+            sourceNeutralLocalRotation: nil,
             rotationWeight: 1
         )
 
@@ -990,6 +991,7 @@ struct OdoroTests {
             floorOffset: 0.977,
             translationMode: .bindPose,
             preservesBindPoseRotation: true,
+            sourceNeutralLocalRotation: nil,
             rotationWeight: 1
         )
 
@@ -1009,6 +1011,48 @@ struct OdoroTests {
 
         #expect(Self.rotationAngle(dampedRotation) < Self.rotationAngle(fullRotation))
         #expect(Self.rotationAngle(dampedRotation) > 0)
+    }
+
+    @Test func stageRendererBindPoseNeutralRotationKeepsBindPoseAtSourceRest() {
+        let baseRotation = simd_quatf(angle: .pi / 2, axis: SIMD3<Float>(1, 0, 0))
+        let sourceNeutralLocalRotation = simd_quatf(angle: .pi / 3, axis: SIMD3<Float>(0, 1, 0))
+        let localTransform = StagePlaybackRenderer.makeRigLocalTransform(
+            preserving: Transform(scale: .one, rotation: baseRotation, translation: SIMD3<Float>(0.1, 0.2, 0.3)),
+            worldRotation: sourceNeutralLocalRotation,
+            worldPosition: .zero,
+            parentWorldRotation: nil,
+            parentWorldPosition: nil,
+            floorOffset: 0,
+            translationMode: .bindPose,
+            preservesBindPoseRotation: false,
+            sourceNeutralLocalRotation: sourceNeutralLocalRotation,
+            rotationWeight: 1
+        )
+
+        #expect(Self.rotationAngle(baseRotation.inverse * localTransform.rotation) < 0.0001)
+        #expect(localTransform.translation == SIMD3<Float>(0.1, 0.2, 0.3))
+    }
+
+    @Test func stageRendererBindPoseNeutralRotationAppliesOnlyMotionDeltaOnTopOfBindPose() {
+        let parentWorldRotation = simd_quatf(angle: .pi / 4, axis: SIMD3<Float>(0, 1, 0))
+        let baseRotation = simd_quatf(angle: .pi / 2, axis: SIMD3<Float>(1, 0, 0))
+        let sourceNeutralLocalRotation = simd_quatf(angle: .pi / 6, axis: SIMD3<Float>(0, 0, 1))
+        let motionDelta = simd_quatf(angle: .pi / 5, axis: SIMD3<Float>(1, 0, 0))
+        let localTransform = StagePlaybackRenderer.makeRigLocalTransform(
+            preserving: Transform(scale: .one, rotation: baseRotation, translation: .zero),
+            worldRotation: parentWorldRotation * sourceNeutralLocalRotation * motionDelta,
+            worldPosition: .zero,
+            parentWorldRotation: parentWorldRotation,
+            parentWorldPosition: .zero,
+            floorOffset: 0,
+            translationMode: .bindPose,
+            preservesBindPoseRotation: false,
+            sourceNeutralLocalRotation: sourceNeutralLocalRotation,
+            rotationWeight: 1
+        )
+
+        let expectedRotation = baseRotation * motionDelta
+        #expect(Self.rotationAngle(expectedRotation.inverse * localTransform.rotation) < 0.002)
     }
 
     @Test func stageRendererPreservesBindPoseRotationForTorsoHeadAndSharedCanonicalBindings() {
@@ -1402,7 +1446,7 @@ struct OdoroTests {
             currentTime: { clock }
         )
 
-        source.activate()
+        source.activate(for: .recording)
         interactor.beginRecording()
         source.emitFrame(at: 0, joints: 2)
         source.emitFrame(at: 0.4, joints: 2)
@@ -1600,9 +1644,11 @@ private final class TestMotionSource: MotionSource {
     var onFrame: ((MotionFrame) -> Void)?
     var onStatusTextChange: ((String) -> Void)?
     private(set) var activateCallCount = 0
+    private(set) var lastActivity: MotionSourceActivity?
 
-    func activate() {
+    func activate(for activity: MotionSourceActivity) {
         activateCallCount += 1
+        lastActivity = activity
     }
     func deactivate() {}
 
