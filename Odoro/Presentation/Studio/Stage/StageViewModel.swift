@@ -45,14 +45,6 @@ final class StageViewModel: ObservableObject {
         studio.state.hasClip
     }
 
-    var stageDebugMotionViewMode: StageDebugMotionViewMode {
-        studio.stageDebugMotionViewMode
-    }
-
-    var availableStageDebugMotionViewModes: [StageDebugMotionViewMode] {
-        studio.availableStageDebugMotionViewModes
-    }
-
     func goBack() {
         studio.goBack()
     }
@@ -71,10 +63,6 @@ final class StageViewModel: ObservableObject {
 
     func togglePlayback() {
         studio.togglePlayback()
-    }
-
-    func setStageDebugMotionViewMode(_ mode: StageDebugMotionViewMode) {
-        studio.setStageDebugMotionViewMode(mode)
     }
 
     func saveCurrentClipToArchive() {

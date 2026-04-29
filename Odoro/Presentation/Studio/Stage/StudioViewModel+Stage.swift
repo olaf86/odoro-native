@@ -35,6 +35,9 @@ extension StudioViewModel {
     func prepareStagePlayback() {
         stopAudioPlayback()
         interactor.deactivateSource()
+        if stageDebugMotionViewMode != .stabilized {
+            stageDebugMotionViewMode = .stabilized
+        }
         stageRenderer.setAvatarOption(selectedAvatarOption)
         applyStageDebugPresentation()
         stageRenderer.play()
