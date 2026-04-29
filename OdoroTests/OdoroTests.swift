@@ -404,6 +404,39 @@ struct OdoroTests {
         #expect(abs(recoveredRootX - 0.06) < 0.08)
     }
 
+    @Test func motionClipStageStabilizerDoesNotKeepGlidingAfterCanonicalRootRecovery() {
+        let stabilizer = MotionClipStageStabilizer()
+
+        func translatedFrame(time: TimeInterval, xOffset: Float) -> MotionFrame {
+            let baseFrame = Self.canonicalFrame(time: time)
+            let translatedPositions = baseFrame.jointPositions.map { position in
+                SIMD3<Float>(position.x + xOffset, position.y, position.z)
+            }
+            return MotionFrame(
+                time: time,
+                jointPositions: translatedPositions,
+                jointRotations: baseFrame.jointRotations
+            )
+        }
+
+        let frames = [
+            translatedFrame(time: 0, xOffset: 0),
+            translatedFrame(time: 1.0 / 30.0, xOffset: 1.8),
+            translatedFrame(time: 2.0 / 30.0, xOffset: 0.06),
+            translatedFrame(time: 3.0 / 30.0, xOffset: 0.06),
+            translatedFrame(time: 4.0 / 30.0, xOffset: 0.06),
+            translatedFrame(time: 5.0 / 30.0, xOffset: 0.06),
+            translatedFrame(time: 6.0 / 30.0, xOffset: 0.06),
+        ]
+
+        let stabilized = stabilizer.stabilize(MotionClip(frames: frames))
+        let rootIndex = OdoroSkeletonDefinition.index(of: .root)
+        let recoveredXs = stabilized.dropFirst(2).map { $0.jointPositions[rootIndex].x }
+
+        #expect(recoveredXs.allSatisfy { abs($0 - 0.06) < 0.12 })
+        #expect(abs(recoveredXs.last ?? 0 - 0.06) < 0.08)
+    }
+
     @Test func canonicalPoseMapperCanonicalizesClipFramesForPlayback() {
         let rawClip = MotionClip(frames: [
             MotionFrame(

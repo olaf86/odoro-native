@@ -362,8 +362,16 @@ struct MotionClipStageStabilizer: Sendable {
         if simd_length(previousVelocity) > 0.0001, simd_length(observedOffset) > 0.0001 {
             let normalizedVelocity = simd_normalize(previousVelocity)
             let observedDirection = simd_normalize(observedOffset)
-            let alignment = max(simd_dot(normalizedVelocity, observedDirection), 0)
-            velocityAlignmentPenalty = 0.35 + alignment * 0.65
+            let alignment = simd_dot(normalizedVelocity, observedDirection)
+
+            if alignment <= 0 {
+                // When the observation pulls back against the current predicted drift,
+                // treat it as a recovery signal instead of suppressing it. Otherwise
+                // the center can keep gliding after a one-frame mistrack.
+                velocityAlignmentPenalty = 1
+            } else {
+                velocityAlignmentPenalty = 0.7 + alignment * 0.3
+            }
         } else {
             velocityAlignmentPenalty = 1
         }
