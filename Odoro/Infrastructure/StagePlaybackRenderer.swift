@@ -15,6 +15,8 @@ final class StagePlaybackRenderer: NSObject {
     nonisolated private static let stageCameraNearPlane: Float = 0.1
     nonisolated private static let stageCameraFarPlane: Float = 20
     nonisolated private static let stageCameraFieldOfViewDegrees: Float = 60
+    nonisolated private static let defaultStageLookAt = SIMD3<Float>(0, 0.95, 0)
+    nonisolated private static let defaultStageCameraPosition = SIMD3<Float>(0, 1.35, 3.4)
     enum SkeletonDebugLayout: Equatable {
         case rawARKit
         case canonical
@@ -112,12 +114,14 @@ final class StagePlaybackRenderer: NSObject {
     private weak var view: ARView?
     private var clip: MotionClip?
     private var appendagePoses: MotionClipAppendagePoses?
+    private var stageCameraPreset: StagePlaybackCameraPreset?
     private var playbackTimer: Timer?
     private var playbackStartedAt: Date?
     private var usesProceduralMockPlayback = false
     private var currentAvatarOption = AvatarCatalog.defaultOption
 
     private var stageAnchor = AnchorEntity()
+    private var stageCameraEntity = Entity()
     private var dancerRoot = Entity()
     private var jointEntities: [ModelEntity] = []
     private var limbEntities: [ModelEntity] = []
@@ -158,6 +162,15 @@ final class StagePlaybackRenderer: NSObject {
         } else {
             footDirectionEntities.forEach { $0.isEnabled = false }
         }
+    }
+
+    func setStageCameraPreset(_ preset: StagePlaybackCameraPreset?) {
+        guard stageCameraPreset != preset else {
+            return
+        }
+
+        stageCameraPreset = preset
+        updateStageCameraTransform()
     }
 
     func setUsesProceduralMockPlayback(_ usesProceduralMockPlayback: Bool) {
@@ -306,6 +319,7 @@ final class StagePlaybackRenderer: NSObject {
         view.scene.anchors.removeAll()
 
         stageAnchor = AnchorEntity()
+        stageCameraEntity = Entity()
         dancerRoot = Entity()
         jointEntities.removeAll()
         limbEntities.removeAll()
@@ -328,10 +342,9 @@ final class StagePlaybackRenderer: NSObject {
         buildDancerHierarchy()
         stageAnchor.addChild(dancerRoot)
 
-        let camera = Entity()
-        camera.components.set(Self.makeStageCameraComponent())
-        camera.look(at: [0, 0.95, 0], from: [0, 1.35, 3.4], relativeTo: nil)
-        stageAnchor.addChild(camera)
+        stageCameraEntity.components.set(Self.makeStageCameraComponent())
+        updateStageCameraTransform()
+        stageAnchor.addChild(stageCameraEntity)
 
         view.scene.addAnchor(stageAnchor)
     }
@@ -345,6 +358,12 @@ final class StagePlaybackRenderer: NSObject {
             far: stageCameraFarPlane,
             fieldOfViewInDegrees: stageCameraFieldOfViewDegrees
         )
+    }
+
+    private func updateStageCameraTransform() {
+        let lookAt = stageCameraPreset?.lookAtSIMD ?? Self.defaultStageLookAt
+        let position = stageCameraPreset?.positionSIMD ?? Self.defaultStageCameraPosition
+        stageCameraEntity.look(at: lookAt, from: position, relativeTo: nil)
     }
 
     private var activeRenderLimbs: [RenderLimb] {

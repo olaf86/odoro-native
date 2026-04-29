@@ -6,7 +6,7 @@
 import Foundation
 import simd
 
-struct MotionPayloadVector3: Codable, Sendable {
+struct MotionPayloadVector3: Codable, Sendable, Equatable {
     var x: Float
     var y: Float
     var z: Float

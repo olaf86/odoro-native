@@ -602,6 +602,8 @@ struct OdoroTests {
         #expect(prepared.canonical.clip != nil)
         #expect(prepared.canonical.appendagePoses?.frames.count == prepared.canonical.clip?.frames.count)
         #expect(prepared.stabilized.appendagePoses?.frames.count == prepared.stabilized.clip?.frames.count)
+        #expect(prepared.canonical.cameraPreset != nil)
+        #expect(prepared.stabilized.cameraPreset != nil)
     }
 
     @Test func stagePreparedPlaybackBuilderSkipsInferenceOutsideRearBodyMode() {
@@ -641,6 +643,44 @@ struct OdoroTests {
 
         #expect(prepared.canonical.appendagePoses == storedArtifacts.stagePlayback?.canonical.appendagePoses)
         #expect(prepared.stabilized.appendagePoses == storedArtifacts.stagePlayback?.stabilized.appendagePoses)
+        #expect(prepared.canonical.cameraPreset == storedArtifacts.stagePlayback?.canonical.cameraPreset)
+        #expect(prepared.stabilized.cameraPreset == storedArtifacts.stagePlayback?.stabilized.cameraPreset)
+    }
+
+    @Test func stagePlaybackCameraEstimatorPlacesCameraInFrontOfRepresentativeBodyFacing() throws {
+        let estimator = StagePlaybackCameraEstimator()
+        let clip = MotionClip(frames: [
+            Self.canonicalFrame(
+                time: 0,
+                overrides: [
+                    .root: SIMD3<Float>(0.4, 1.0, 0.1),
+                    .head: SIMD3<Float>(0.4, 1.6, 0.1),
+                    .nose: SIMD3<Float>(0.4, 1.68, 0.16),
+                    .leftShoulder: SIMD3<Float>(0.18, 1.42, 0.1),
+                    .rightShoulder: SIMD3<Float>(0.62, 1.42, 0.1),
+                    .leftHip: SIMD3<Float>(0.28, 0.92, 0.1),
+                    .rightHip: SIMD3<Float>(0.52, 0.92, 0.1),
+                ]
+            ),
+            Self.canonicalFrame(
+                time: 1.0 / 30.0,
+                overrides: [
+                    .root: SIMD3<Float>(0.6, 1.0, 0.12),
+                    .head: SIMD3<Float>(0.6, 1.6, 0.12),
+                    .nose: SIMD3<Float>(0.6, 1.68, 0.18),
+                    .leftShoulder: SIMD3<Float>(0.38, 1.42, 0.12),
+                    .rightShoulder: SIMD3<Float>(0.82, 1.42, 0.12),
+                    .leftHip: SIMD3<Float>(0.48, 0.92, 0.12),
+                    .rightHip: SIMD3<Float>(0.72, 0.92, 0.12),
+                ]
+            ),
+        ])
+
+        let preset = try #require(estimator.estimate(for: clip))
+
+        #expect(abs(preset.lookAtSIMD.x - 0.5) < 0.12)
+        #expect(preset.positionSIMD.z > preset.lookAtSIMD.z + 3.0)
+        #expect(abs(preset.positionSIMD.x - preset.lookAtSIMD.x) < 0.2)
     }
 
     @Test func motionPayloadRoundTripPreservesCanonicalClipWithoutRemapping() {
@@ -1146,7 +1186,7 @@ struct OdoroTests {
 
         #expect(summaries.count == 1)
         #expect(summaries.first?.captureMode == .importedVideo)
-        #expect(storedTake.playbackArtifacts == nil)
+        #expect(storedTake.playbackArtifacts?.stagePlayback?.stabilized.cameraPreset != nil)
     }
 
     @MainActor
