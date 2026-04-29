@@ -829,7 +829,7 @@ final class StagePlaybackRenderer: NSObject {
                     floorOffset: rigProfile.floorOffset,
                     translationMode: binding.translationMode,
                     preservesBindPoseRotation: Self.shouldPreserveBindPoseRotation(for: binding),
-                    sourceNeutralLocalRotation: neutralLocalRotation(for: binding.sourceJoint),
+                    sourceNeutralLocalRotation: neutralLocalRotation(for: binding.sourceJoint, in: frame),
                     rotationWeight: binding.weight
                 )
             } else {
@@ -910,17 +910,28 @@ final class StagePlaybackRenderer: NSObject {
         return localTransform
     }
 
-    private func neutralLocalRotation(for reference: AvatarRigJointReference) -> simd_quatf? {
-        if let rawJointName = reference.rawJointName,
-           let rotation = neutralLocalRotation(for: ARSkeleton.JointName(rawValue: rawJointName)) {
-            return rotation
+    private func neutralLocalRotation(for reference: AvatarRigJointReference, in frame: MotionFrame) -> simd_quatf? {
+        if let rawJointName = reference.rawJointName {
+            let rawReference = ARSkeleton.JointName(rawValue: rawJointName)
+            if rotation(for: rawReference, in: frame) != nil,
+               let rotation = neutralLocalRotation(for: rawReference) {
+                return rotation
+            }
         }
 
         guard let canonicalJoint = reference.canonicalJoint else {
             return nil
         }
 
-        return neutralLocalRotation(for: Self.sourceJointName(for: canonicalJoint))
+        if canonicalRotation(for: canonicalJoint, in: frame) != nil {
+            return neutralLocalRotation(for: Self.sourceJointName(for: canonicalJoint))
+        }
+
+        if let rawJointName = reference.rawJointName {
+            return neutralLocalRotation(for: ARSkeleton.JointName(rawValue: rawJointName))
+        }
+
+        return nil
     }
 
     private func neutralLocalRotation(for jointName: ARSkeleton.JointName) -> simd_quatf? {
