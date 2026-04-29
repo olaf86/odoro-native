@@ -1011,7 +1011,7 @@ struct OdoroTests {
         #expect(Self.rotationAngle(dampedRotation) > 0)
     }
 
-    @Test func stageRendererPreservesBindPoseRotationForBindPoseRigChains() {
+    @Test func stageRendererPreservesBindPoseRotationForTorsoHeadAndSharedCanonicalBindings() {
         #expect(
             StagePlaybackRenderer.shouldPreserveBindPoseRotation(
                 for: AvatarBoneBinding(
@@ -1041,7 +1041,16 @@ struct OdoroTests {
             )
         )
         #expect(
-            StagePlaybackRenderer.shouldPreserveBindPoseRotation(
+            !StagePlaybackRenderer.shouldPreserveBindPoseRotation(
+                for: AvatarBoneBinding(
+                    boneName: "left_shoulder",
+                    sourceJoint: .init(canonicalJoint: .leftShoulder),
+                    translationMode: .bindPose
+                )
+            )
+        )
+        #expect(
+            !StagePlaybackRenderer.shouldPreserveBindPoseRotation(
                 for: AvatarBoneBinding(
                     boneName: "left_arm",
                     sourceJoint: .init(canonicalJoint: .leftElbow),

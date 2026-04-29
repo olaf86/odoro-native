@@ -900,15 +900,7 @@ final class StagePlaybackRenderer: NSObject {
 
         switch binding.sourceJoint.canonicalJoint {
         case .root?,
-             .head?,
-             .leftShoulder?,
-             .rightShoulder?,
-             .leftUpperArm?,
-             .rightUpperArm?,
-             .leftElbow?,
-             .rightElbow?,
-             .leftWrist?,
-             .rightWrist?:
+             .head?:
             return true
         default:
             return false
