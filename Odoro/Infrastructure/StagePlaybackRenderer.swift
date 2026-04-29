@@ -129,6 +129,7 @@ final class StagePlaybackRenderer: NSObject {
 
     private var characterEntity: Entity?
     private var skeletalModelEntity: ModelEntity?
+    private var skeletalBindPoseTransforms: [Transform] = []
     private var activeRigProfile: AvatarRigProfile?
     private var hasStoppedBuiltInAnimation = false
     private var skeletonDebugLayout: SkeletonDebugLayout = .canonical
@@ -217,6 +218,7 @@ final class StagePlaybackRenderer: NSObject {
     private func reloadAvatarAsset() {
         characterEntity = nil
         skeletalModelEntity = nil
+        skeletalBindPoseTransforms = []
         activeRigProfile = nil
 
         guard
@@ -243,6 +245,7 @@ final class StagePlaybackRenderer: NSObject {
 
             characterEntity = entity
             skeletalModelEntity = findSkeletalModelEntity(entity)
+            skeletalBindPoseTransforms = skeletalModelEntity?.jointTransforms ?? []
             activeRigProfile = currentAvatarOption.rigProfile
             let animCount = entity.availableAnimations.count
             let bindingCount = activeRigProfile?.bindings.count ?? 0
@@ -784,6 +787,9 @@ final class StagePlaybackRenderer: NSObject {
             Self.logger.debug("Skipping skeletal avatar pose because the model exposes no joint transforms")
             return false
         }
+        let bindPoseTransforms = skeletalBindPoseTransforms.count == jointTransforms.count
+            ? skeletalBindPoseTransforms
+            : jointTransforms
 
         let modelJointIndices = Dictionary(
             uniqueKeysWithValues: modelEntity.jointNames.enumerated().map { ($0.element, $0.offset) }
@@ -811,7 +817,7 @@ final class StagePlaybackRenderer: NSObject {
             }
 
             jointTransforms[targetIndex] = Self.makeRigLocalTransform(
-                preserving: jointTransforms[targetIndex],
+                preserving: bindPoseTransforms[targetIndex],
                 worldRotation: resolvedRotation,
                 worldPosition: worldPos,
                 parentWorldRotation: parentWorldRotationAndPosition?.rotation,
@@ -893,7 +899,16 @@ final class StagePlaybackRenderer: NSObject {
         }
 
         switch binding.sourceJoint.canonicalJoint {
-        case .root?, .head?:
+        case .root?,
+             .head?,
+             .leftShoulder?,
+             .rightShoulder?,
+             .leftUpperArm?,
+             .rightUpperArm?,
+             .leftElbow?,
+             .rightElbow?,
+             .leftWrist?,
+             .rightWrist?:
             return true
         default:
             return false
