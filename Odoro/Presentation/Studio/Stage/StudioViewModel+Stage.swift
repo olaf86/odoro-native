@@ -35,6 +35,9 @@ extension StudioViewModel {
     func prepareStagePlayback() {
         stopAudioPlayback()
         interactor.deactivateSource()
+        if stageDebugMotionViewMode != .stabilized {
+            stageDebugMotionViewMode = .stabilized
+        }
         stageRenderer.setAvatarOption(selectedAvatarOption)
         applyStageDebugPresentation()
         stageRenderer.play()
@@ -136,6 +139,7 @@ extension StudioViewModel {
         stageRenderer.setSkeletonDebugLayout(stageDebugSkeletonLayout)
         stageRenderer.setClip(stageDebugPresentation.clip)
         stageRenderer.setAppendagePoses(stageDebugPresentation.appendagePoses)
+        stageRenderer.setStageCameraPreset(stageDebugPresentation.cameraPreset)
     }
 
     var stageDebugSkeletonLayout: StagePlaybackRenderer.SkeletonDebugLayout {
@@ -151,13 +155,13 @@ extension StudioViewModel {
         switch stageDebugMotionViewMode {
         case .raw:
             return preparedStagePlayback?.raw
-                ?? PreparedStagePlaybackClip(clip: nil, appendagePoses: nil)
+                ?? PreparedStagePlaybackClip(clip: nil, appendagePoses: nil, cameraPreset: nil)
         case .canonical:
             return preparedStagePlayback?.canonical
-                ?? PreparedStagePlaybackClip(clip: nil, appendagePoses: nil)
+                ?? PreparedStagePlaybackClip(clip: nil, appendagePoses: nil, cameraPreset: nil)
         case .stabilized:
             return preparedStagePlayback?.stabilized
-                ?? PreparedStagePlaybackClip(clip: nil, appendagePoses: nil)
+                ?? PreparedStagePlaybackClip(clip: nil, appendagePoses: nil, cameraPreset: nil)
         }
     }
 

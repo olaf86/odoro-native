@@ -19,6 +19,12 @@ struct MotionClipStageStabilizer: Sendable {
         let centerAlphaScale: Float = 0.72
         let centerAlphaCeiling: Float = 0.92
         let centerVelocityBlendAlpha: Float = 0.35
+        let centerContinuityFullSpeedUpperBound: Float = 1.8
+        let centerContinuityDegradedSpeedUpperBound: Float = 4.2
+        let centerContinuityMinimumPenalty: Float = 0.05
+        let centerContinuityPredictionErrorFullUpperBound: Float = 0.08
+        let centerContinuityPredictionErrorDegradedUpperBound: Float = 0.32
+        let centerContinuityPredictionErrorMinimumPenalty: Float = 0.05
 
         let localDeltaFullPenaltyUpperBound: Float = 0.35
         let localDeltaDegradedPenaltyUpperBound: Float = 1.0
@@ -115,7 +121,7 @@ struct MotionClipStageStabilizer: Sendable {
 
         var state = State(
             time: firstFrame.time,
-            center: qualityEvaluator.robustCenter(of: firstFrame.jointPositions) ?? .zero,
+            center: qualityEvaluator.playbackTrackingCenter(in: firstFrame) ?? .zero,
             centerVelocity: .zero,
             localPositions: Array(repeating: nil, count: firstFrame.jointPositions.count),
             localVelocities: Array(repeating: nil, count: firstFrame.jointPositions.count),
@@ -131,17 +137,53 @@ struct MotionClipStageStabilizer: Sendable {
             let deltaTime = max(frame.time - state.time, tuning.fallbackDeltaTime)
             let interval = Float(deltaTime)
 
-            let observedCenter = assessment.robustCenter ?? state.center
-            let predictedCenter = previousCenter + state.centerVelocity * interval
+            let predictedCenter = previousCenter + SIMD3<Float>(
+                state.centerVelocity.x * interval,
+                0,
+                state.centerVelocity.z * interval
+            )
+            let observedCenterRaw = qualityEvaluator.playbackTrackingCenter(in: frame) ?? assessment.robustCenter ?? state.center
+            let centerContinuity = qualityEvaluator.canonicalRoot(in: frame).map { _ in
+                centerObservationContinuity(
+                    observedCenter: observedCenterRaw,
+                    predictedCenter: predictedCenter,
+                    previousCenter: previousCenter,
+                    previousVelocity: state.centerVelocity,
+                    deltaTime: deltaTime
+                )
+            } ?? 1
+            let observedHorizontalCenter = mix(
+                predictedCenter,
+                SIMD3<Float>(observedCenterRaw.x, previousCenter.y, observedCenterRaw.z),
+                alpha: centerContinuity
+            )
+            let localObservationCenter = observedCenterRaw
             let centerAlpha = centerSmoothingAlpha(
-                quality: assessment.score,
-                centerDelta: simd_length(observedCenter - previousCenter),
+                quality: assessment.score * centerContinuity,
+                centerDelta: horizontalDistance(observedCenterRaw, previousCenter),
                 deltaTime: deltaTime
             )
-            state.center = mix(predictedCenter, observedCenter, alpha: centerAlpha)
-            let resolvedCenterVelocity = (state.center - previousCenter) / interval
+            let smoothedHorizontalCenter = mix(predictedCenter, observedHorizontalCenter, alpha: centerAlpha)
+            let verticalAlpha = clampedAlpha(
+                base: tuning.centerAlphaBase,
+                quality: assessment.score,
+                penalty: 1,
+                scale: tuning.centerAlphaScale,
+                floor: tuning.centerAlphaFloor,
+                ceiling: tuning.centerAlphaCeiling
+            )
+            state.center = SIMD3<Float>(
+                smoothedHorizontalCenter.x,
+                mix(previousCenter, observedCenterRaw, alpha: verticalAlpha).y,
+                smoothedHorizontalCenter.z
+            )
+            let resolvedCenterVelocity = SIMD3<Float>(
+                (state.center.x - previousCenter.x) / interval,
+                0,
+                (state.center.z - previousCenter.z) / interval
+            ) * centerContinuity
             state.centerVelocity = mix(
-                state.centerVelocity,
+                SIMD3<Float>(state.centerVelocity.x, 0, state.centerVelocity.z),
                 resolvedCenterVelocity,
                 alpha: tuning.centerVelocityBlendAlpha
             )
@@ -174,7 +216,7 @@ struct MotionClipStageStabilizer: Sendable {
                     continue
                 }
 
-                let observedLocal = position - observedCenter
+                let observedLocal = position - localObservationCenter
                 let referenceLocal = fallbackLocal ?? previousLocal ?? observedLocal
                 let confidence = jointObservationConfidence(
                     baseConfidence: jointConfidences[index],
@@ -313,6 +355,59 @@ struct MotionClipStageStabilizer: Sendable {
         )
     }
 
+    /// Measures how trustworthy a newly observed center is relative to the current
+    /// root trajectory. Large root jumps are treated as likely mistracks and are
+    /// pulled back toward the predicted path instead of being accepted outright.
+    nonisolated func centerObservationContinuity(
+        observedCenter: SIMD3<Float>,
+        predictedCenter: SIMD3<Float>,
+        previousCenter: SIMD3<Float>,
+        previousVelocity: SIMD3<Float>,
+        deltaTime: TimeInterval
+    ) -> Float {
+        let interval = max(Float(deltaTime), Float(tuning.fallbackDeltaTime))
+        let speed = horizontalDistance(observedCenter, previousCenter) / interval
+        let speedPenalty = descendingPenalty(
+            value: speed,
+            fullPenaltyUpperBound: tuning.centerContinuityFullSpeedUpperBound,
+            degradedPenaltyUpperBound: tuning.centerContinuityDegradedSpeedUpperBound,
+            minimumPenalty: tuning.centerContinuityMinimumPenalty
+        )
+
+        let predictionError = horizontalDistance(observedCenter, predictedCenter)
+        let predictionPenalty = descendingPenalty(
+            value: predictionError,
+            fullPenaltyUpperBound: tuning.centerContinuityPredictionErrorFullUpperBound,
+            degradedPenaltyUpperBound: tuning.centerContinuityPredictionErrorDegradedUpperBound,
+            minimumPenalty: tuning.centerContinuityPredictionErrorMinimumPenalty
+        )
+
+        let velocityAlignmentPenalty: Float
+        let previousHorizontalVelocity = SIMD2<Float>(previousVelocity.x, previousVelocity.z)
+        let observedOffset = SIMD2<Float>(
+            observedCenter.x - previousCenter.x,
+            observedCenter.z - previousCenter.z
+        )
+        if simd_length(previousHorizontalVelocity) > 0.0001, simd_length(observedOffset) > 0.0001 {
+            let normalizedVelocity = simd_normalize(previousHorizontalVelocity)
+            let observedDirection = simd_normalize(observedOffset)
+            let alignment = simd_dot(normalizedVelocity, observedDirection)
+
+            if alignment <= 0 {
+                // When the observation pulls back against the current predicted drift,
+                // treat it as a recovery signal instead of suppressing it. Otherwise
+                // the center can keep gliding after a one-frame mistrack.
+                velocityAlignmentPenalty = 1
+            } else {
+                velocityAlignmentPenalty = 0.7 + alignment * 0.3
+            }
+        } else {
+            velocityAlignmentPenalty = 1
+        }
+
+        return min(max(speedPenalty * predictionPenalty * velocityAlignmentPenalty, 0), 1)
+    }
+
     /// Computes how aggressively to follow observed joint motion in body-local space.
     nonisolated func jointSmoothingAlpha(
         quality: Float,
@@ -407,6 +502,10 @@ struct MotionClipStageStabilizer: Sendable {
     /// Linearly interpolates between two 3D vectors.
     nonisolated func mix(_ lhs: SIMD3<Float>, _ rhs: SIMD3<Float>, alpha: Float) -> SIMD3<Float> {
         lhs + (rhs - lhs) * alpha
+    }
+
+    nonisolated func horizontalDistance(_ lhs: SIMD3<Float>, _ rhs: SIMD3<Float>) -> Float {
+        simd_length(SIMD2<Float>(lhs.x - rhs.x, lhs.z - rhs.z))
     }
 
     /// Converts a quality/penalty pair into a bounded smoothing coefficient.

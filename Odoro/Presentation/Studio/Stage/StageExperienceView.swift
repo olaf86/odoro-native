@@ -41,16 +41,6 @@ struct StageExperienceView: View {
         .onDisappear {
             viewModel.pausePlayback()
         }
-        .simultaneousGesture(stageSwipeGesture)
-    }
-
-    private var stageSwipeGesture: some Gesture {
-        DragGesture(minimumDistance: 36, coordinateSpace: .local)
-            .onEnded { value in
-                if value.translation.height > 70 {
-                    viewModel.openModelSelection()
-                }
-            }
     }
 }
 
@@ -68,22 +58,28 @@ private struct StageHeader: View {
             .buttonStyle(.plain)
             .foregroundStyle(.white)
 
-            VStack(alignment: .leading, spacing: 5) {
+            VStack(alignment: .leading, spacing: 4) {
                 Text(viewModel.currentClipTitle)
                     .font(.headline.weight(.semibold))
                     .foregroundStyle(.white)
+                    .lineLimit(1)
 
                 Text(viewModel.currentClipSubtitle)
-                    .font(.footnote)
+                    .font(.caption)
                     .foregroundStyle(Color.white.opacity(0.72))
+                    .lineLimit(1)
             }
 
             Spacer(minLength: 0)
 
-            CapturePill(text: viewModel.selectedAvatarTitle, systemImage: "cube.transparent")
+            Button(action: viewModel.openModelSelection) {
+                CapturePill(text: viewModel.selectedAvatarTitle, systemImage: "cube.transparent")
+            }
+            .buttonStyle(.plain)
         }
-        .padding(16)
-        .background(Color.black.opacity(0.24), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+        .background(Color.black.opacity(0.2), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
     }
 }
 
@@ -91,23 +87,24 @@ private struct StageBottomBar: View {
     @ObservedObject var viewModel: StageViewModel
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Picker(
-                "Skeleton Debug",
-                selection: Binding(
-                    get: { viewModel.stageDebugMotionViewMode },
-                    set: viewModel.setStageDebugMotionViewMode
-                )
-            ) {
-                ForEach(viewModel.availableStageDebugMotionViewModes) { mode in
-                    Text(mode.title).tag(mode)
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(spacing: 10) {
+                Button {
+                    viewModel.openModelSelection()
+                } label: {
+                    Label("Model", systemImage: "cube.transparent")
+                        .frame(maxWidth: .infinity)
                 }
-            }
-            .pickerStyle(.segmented)
+                .buttonStyle(StageActionButtonStyle(fill: Color.white.opacity(0.12)))
 
-            Text("Swipe down to pick another model view.")
-                .font(.footnote)
-                .foregroundStyle(Color.white.opacity(0.72))
+                Button {
+                    viewModel.returnToCapture()
+                } label: {
+                    Label("Record Again", systemImage: "camera")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(StageActionButtonStyle(fill: Color.white.opacity(0.12)))
+            }
 
             HStack(spacing: 12) {
                 Button {
@@ -128,20 +125,8 @@ private struct StageBottomBar: View {
                 .buttonStyle(StageActionButtonStyle(fill: Color.red.opacity(0.88)))
                 .disabled(!viewModel.hasClip)
             }
-
-            Button {
-                viewModel.returnToCapture()
-            } label: {
-                Text("Record Again")
-                    .font(.footnote.weight(.semibold))
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 10)
-                    .background(Color.white.opacity(0.1), in: Capsule())
-            }
-            .buttonStyle(.plain)
-            .foregroundStyle(.white)
         }
         .padding(18)
-        .background(Color.black.opacity(0.34), in: RoundedRectangle(cornerRadius: 26, style: .continuous))
+        .background(Color.black.opacity(0.28), in: RoundedRectangle(cornerRadius: 26, style: .continuous))
     }
 }

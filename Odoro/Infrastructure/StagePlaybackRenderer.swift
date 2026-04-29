@@ -15,6 +15,8 @@ final class StagePlaybackRenderer: NSObject {
     nonisolated private static let stageCameraNearPlane: Float = 0.1
     nonisolated private static let stageCameraFarPlane: Float = 20
     nonisolated private static let stageCameraFieldOfViewDegrees: Float = 60
+    nonisolated private static let defaultStageLookAt = SIMD3<Float>(0, 0.95, 0)
+    nonisolated private static let defaultStageCameraPosition = SIMD3<Float>(0, 1.35, 3.4)
     enum SkeletonDebugLayout: Equatable {
         case rawARKit
         case canonical
@@ -112,12 +114,14 @@ final class StagePlaybackRenderer: NSObject {
     private weak var view: ARView?
     private var clip: MotionClip?
     private var appendagePoses: MotionClipAppendagePoses?
+    private var stageCameraPreset: StagePlaybackCameraPreset?
     private var playbackTimer: Timer?
     private var playbackStartedAt: Date?
     private var usesProceduralMockPlayback = false
     private var currentAvatarOption = AvatarCatalog.defaultOption
 
     private var stageAnchor = AnchorEntity()
+    private var stageCameraEntity = Entity()
     private var dancerRoot = Entity()
     private var jointEntities: [ModelEntity] = []
     private var limbEntities: [ModelEntity] = []
@@ -125,6 +129,7 @@ final class StagePlaybackRenderer: NSObject {
 
     private var characterEntity: Entity?
     private var skeletalModelEntity: ModelEntity?
+    private var skeletalBindPoseTransforms: [Transform] = []
     private var activeRigProfile: AvatarRigProfile?
     private var hasStoppedBuiltInAnimation = false
     private var skeletonDebugLayout: SkeletonDebugLayout = .canonical
@@ -158,6 +163,15 @@ final class StagePlaybackRenderer: NSObject {
         } else {
             footDirectionEntities.forEach { $0.isEnabled = false }
         }
+    }
+
+    func setStageCameraPreset(_ preset: StagePlaybackCameraPreset?) {
+        guard stageCameraPreset != preset else {
+            return
+        }
+
+        stageCameraPreset = preset
+        updateStageCameraTransform()
     }
 
     func setUsesProceduralMockPlayback(_ usesProceduralMockPlayback: Bool) {
@@ -204,6 +218,7 @@ final class StagePlaybackRenderer: NSObject {
     private func reloadAvatarAsset() {
         characterEntity = nil
         skeletalModelEntity = nil
+        skeletalBindPoseTransforms = []
         activeRigProfile = nil
 
         guard
@@ -230,6 +245,7 @@ final class StagePlaybackRenderer: NSObject {
 
             characterEntity = entity
             skeletalModelEntity = findSkeletalModelEntity(entity)
+            skeletalBindPoseTransforms = skeletalModelEntity?.jointTransforms ?? []
             activeRigProfile = currentAvatarOption.rigProfile
             let animCount = entity.availableAnimations.count
             let bindingCount = activeRigProfile?.bindings.count ?? 0
@@ -306,32 +322,25 @@ final class StagePlaybackRenderer: NSObject {
         view.scene.anchors.removeAll()
 
         stageAnchor = AnchorEntity()
+        stageCameraEntity = Entity()
         dancerRoot = Entity()
         jointEntities.removeAll()
         limbEntities.removeAll()
         footDirectionEntities.removeAll()
 
         let floor = ModelEntity(
-            mesh: .generateBox(size: [2.8, 0.06, 2.8]),
-            materials: [UnlitMaterial(color: UIColor(red: 0.11, green: 0.14, blue: 0.22, alpha: 1))]
+            mesh: .generateBox(size: [8.0, 0.04, 8.0]),
+            materials: [UnlitMaterial(color: UIColor(red: 0.1, green: 0.13, blue: 0.19, alpha: 1))]
         )
-        floor.position = [0, -0.03, 0]
+        floor.position = [0, -0.02, 0]
         stageAnchor.addChild(floor)
-
-        let backdrop = ModelEntity(
-            mesh: .generateBox(size: [3.2, 1.8, 0.05]),
-            materials: [UnlitMaterial(color: UIColor(red: 0.08, green: 0.08, blue: 0.14, alpha: 1))]
-        )
-        backdrop.position = [0, 0.9, -1.1]
-        stageAnchor.addChild(backdrop)
 
         buildDancerHierarchy()
         stageAnchor.addChild(dancerRoot)
 
-        let camera = Entity()
-        camera.components.set(Self.makeStageCameraComponent())
-        camera.look(at: [0, 0.95, 0], from: [0, 1.35, 3.4], relativeTo: nil)
-        stageAnchor.addChild(camera)
+        stageCameraEntity.components.set(Self.makeStageCameraComponent())
+        updateStageCameraTransform()
+        stageAnchor.addChild(stageCameraEntity)
 
         view.scene.addAnchor(stageAnchor)
     }
@@ -345,6 +354,12 @@ final class StagePlaybackRenderer: NSObject {
             far: stageCameraFarPlane,
             fieldOfViewInDegrees: stageCameraFieldOfViewDegrees
         )
+    }
+
+    private func updateStageCameraTransform() {
+        let lookAt = stageCameraPreset?.lookAtSIMD ?? Self.defaultStageLookAt
+        let position = stageCameraPreset?.positionSIMD ?? Self.defaultStageCameraPosition
+        stageCameraEntity.look(at: lookAt, from: position, relativeTo: nil)
     }
 
     private var activeRenderLimbs: [RenderLimb] {
@@ -772,6 +787,9 @@ final class StagePlaybackRenderer: NSObject {
             Self.logger.debug("Skipping skeletal avatar pose because the model exposes no joint transforms")
             return false
         }
+        let bindPoseTransforms = skeletalBindPoseTransforms.count == jointTransforms.count
+            ? skeletalBindPoseTransforms
+            : jointTransforms
 
         let modelJointIndices = Dictionary(
             uniqueKeysWithValues: modelEntity.jointNames.enumerated().map { ($0.element, $0.offset) }
@@ -799,7 +817,7 @@ final class StagePlaybackRenderer: NSObject {
             }
 
             jointTransforms[targetIndex] = Self.makeRigLocalTransform(
-                preserving: jointTransforms[targetIndex],
+                preserving: bindPoseTransforms[targetIndex],
                 worldRotation: resolvedRotation,
                 worldPosition: worldPos,
                 parentWorldRotation: parentWorldRotationAndPosition?.rotation,
@@ -881,7 +899,16 @@ final class StagePlaybackRenderer: NSObject {
         }
 
         switch binding.sourceJoint.canonicalJoint {
-        case .root?, .head?:
+        case .root?,
+             .head?,
+             .leftShoulder?,
+             .rightShoulder?,
+             .leftUpperArm?,
+             .rightUpperArm?,
+             .leftElbow?,
+             .rightElbow?,
+             .leftWrist?,
+             .rightWrist?:
             return true
         default:
             return false

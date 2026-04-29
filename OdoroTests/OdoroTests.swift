@@ -152,6 +152,22 @@ struct OdoroTests {
         #expect(rebased.frames[0].jointRotations == rotations)
     }
 
+    @Test func motionClipNormalizationUsesCanonicalRootAsOrigin() {
+        let root = SIMD3<Float>(0.32, 1.0, 0.14)
+        let clip = MotionClip(frames: [
+            Self.canonicalFrame(
+                time: 0,
+                overrides: [.root: root]
+            )
+        ])
+
+        let normalized = clip.normalizedForStage()
+        let normalizedRoot = normalized.frames[0].jointPositions[OdoroSkeletonDefinition.index(of: .root)]
+
+        #expect(abs(normalizedRoot.x) < 0.0001)
+        #expect(abs(normalizedRoot.z) < 0.0001)
+    }
+
     @Test func motionFrameQualityEvaluatorScoresSparseInvalidFrameAsLowQuality() {
         let evaluator = MotionFrameQualityEvaluator()
         let frame = MotionFrame(
@@ -312,6 +328,143 @@ struct OdoroTests {
         #expect(abs(stabilizedFootX - pinnedX) < abs(clip.frames[1].jointPositions[leftFootIndex].x - pinnedX))
     }
 
+    @Test func motionClipStageStabilizerTracksCanonicalRootWhenUpperBodyShifts() {
+        let stabilizer = MotionClipStageStabilizer()
+        let baseFrame = Self.canonicalFrame(time: 0)
+        let upperBodyJoints: [OdoroJointName] = [
+            .head,
+            .nose,
+            .leftShoulder,
+            .rightShoulder,
+            .leftUpperArm,
+            .rightUpperArm,
+            .leftElbow,
+            .rightElbow,
+            .leftWrist,
+            .rightWrist,
+        ]
+        let upperBodyShift = SIMD3<Float>(0.9, 0, 0)
+
+        func shiftedUpperBody(overrides: [OdoroJointName: SIMD3<Float>] = [:]) -> [OdoroJointName: SIMD3<Float>] {
+            var resolved = overrides
+            for joint in upperBodyJoints {
+                let basePosition = baseFrame.jointPositions[OdoroSkeletonDefinition.index(of: joint)]
+                resolved[joint] = (resolved[joint] ?? basePosition) + upperBodyShift
+            }
+            return resolved
+        }
+
+        let clip = MotionClip(frames: [
+            baseFrame,
+            Self.canonicalFrame(
+                time: 1.0 / 30.0,
+                overrides: shiftedUpperBody(overrides: [.root: SIMD3<Float>(0.03, 1.0, 0)])
+            ),
+            Self.canonicalFrame(
+                time: 2.0 / 30.0,
+                overrides: [.root: SIMD3<Float>(0.06, 1.0, 0)]
+            ),
+        ])
+
+        let stabilized = stabilizer.stabilize(clip)
+        let rootIndex = OdoroSkeletonDefinition.index(of: .root)
+        let stabilizedRootX = stabilized[1].jointPositions[rootIndex].x
+
+        #expect(abs(stabilizedRootX - 0.03) < 0.08)
+        #expect(abs(stabilizedRootX - clip.frames[1].jointPositions[rootIndex].x) < 0.08)
+    }
+
+    @Test func motionClipStageStabilizerStronglyDampensCanonicalRootMistracks() {
+        let stabilizer = MotionClipStageStabilizer()
+
+        func translatedFrame(time: TimeInterval, xOffset: Float) -> MotionFrame {
+            let baseFrame = Self.canonicalFrame(time: time)
+            let translatedPositions = baseFrame.jointPositions.map { position in
+                SIMD3<Float>(position.x + xOffset, position.y, position.z)
+            }
+            return MotionFrame(
+                time: time,
+                jointPositions: translatedPositions,
+                jointRotations: baseFrame.jointRotations
+            )
+        }
+
+        let clip = MotionClip(frames: [
+            translatedFrame(time: 0, xOffset: 0),
+            translatedFrame(time: 1.0 / 30.0, xOffset: 1.8),
+            translatedFrame(time: 2.0 / 30.0, xOffset: 0.06),
+        ])
+
+        let stabilized = stabilizer.stabilize(clip)
+        let rootIndex = OdoroSkeletonDefinition.index(of: .root)
+        let mistrackedRootX = stabilized[1].jointPositions[rootIndex].x
+        let recoveredRootX = stabilized[2].jointPositions[rootIndex].x
+
+        #expect(mistrackedRootX < 0.2)
+        #expect(abs(recoveredRootX - 0.06) < 0.08)
+    }
+
+    @Test func motionClipStageStabilizerDoesNotKeepGlidingAfterCanonicalRootRecovery() {
+        let stabilizer = MotionClipStageStabilizer()
+
+        func translatedFrame(time: TimeInterval, xOffset: Float) -> MotionFrame {
+            let baseFrame = Self.canonicalFrame(time: time)
+            let translatedPositions = baseFrame.jointPositions.map { position in
+                SIMD3<Float>(position.x + xOffset, position.y, position.z)
+            }
+            return MotionFrame(
+                time: time,
+                jointPositions: translatedPositions,
+                jointRotations: baseFrame.jointRotations
+            )
+        }
+
+        let frames = [
+            translatedFrame(time: 0, xOffset: 0),
+            translatedFrame(time: 1.0 / 30.0, xOffset: 1.8),
+            translatedFrame(time: 2.0 / 30.0, xOffset: 0.06),
+            translatedFrame(time: 3.0 / 30.0, xOffset: 0.06),
+            translatedFrame(time: 4.0 / 30.0, xOffset: 0.06),
+            translatedFrame(time: 5.0 / 30.0, xOffset: 0.06),
+            translatedFrame(time: 6.0 / 30.0, xOffset: 0.06),
+        ]
+
+        let stabilized = stabilizer.stabilize(MotionClip(frames: frames))
+        let rootIndex = OdoroSkeletonDefinition.index(of: .root)
+        let recoveredXs = stabilized.dropFirst(2).map { $0.jointPositions[rootIndex].x }
+
+        #expect(recoveredXs.allSatisfy { abs($0 - 0.06) < 0.12 })
+        #expect(abs(recoveredXs.last ?? 0 - 0.06) < 0.08)
+    }
+
+    @Test func motionClipStageStabilizerDoesNotKeepLiftingAfterCanonicalRootHeightSpike() {
+        let stabilizer = MotionClipStageStabilizer()
+
+        func frame(time: TimeInterval, rootY: Float) -> MotionFrame {
+            Self.canonicalFrame(
+                time: time,
+                overrides: [.root: SIMD3<Float>(0, rootY, 0)]
+            )
+        }
+
+        let stabilized = stabilizer.stabilize(
+            MotionClip(frames: [
+                frame(time: 0, rootY: 1.0),
+                frame(time: 1.0 / 30.0, rootY: 1.9),
+                frame(time: 2.0 / 30.0, rootY: 1.0),
+                frame(time: 3.0 / 30.0, rootY: 1.0),
+                frame(time: 4.0 / 30.0, rootY: 1.0),
+                frame(time: 5.0 / 30.0, rootY: 1.0),
+            ])
+        )
+
+        let rootIndex = OdoroSkeletonDefinition.index(of: .root)
+        let recoveredYs = stabilized.dropFirst(2).map { $0.jointPositions[rootIndex].y }
+
+        #expect(recoveredYs.allSatisfy { $0 < 1.2 })
+        #expect(abs(recoveredYs.last ?? 0 - 1.0) < 0.08)
+    }
+
     @Test func canonicalPoseMapperCanonicalizesClipFramesForPlayback() {
         let rawClip = MotionClip(frames: [
             MotionFrame(
@@ -464,6 +617,90 @@ struct OdoroTests {
         #expect((inference.frames.first?.feet.leftContactWeight ?? 0) > 0.5)
     }
 
+    @Test func rearBodyInferenceKeepsFootForwardAlignedWithBodyWhenFootRotationIsSideways() throws {
+        let baseFrame = Self.canonicalFrame(time: 0)
+        let leftFootIndex = OdoroSkeletonDefinition.index(of: .leftFoot)
+        let rightFootIndex = OdoroSkeletonDefinition.index(of: .rightFoot)
+        var rotations = Array<MotionJointRotation?>(
+            repeating: nil,
+            count: OdoroSkeletonDefinition.jointCount
+        )
+        let sidewaysRotation = MotionJointRotation(
+            simd_quatf(angle: -.pi / 2, axis: SIMD3<Float>(0, 1, 0))
+        )
+        rotations[leftFootIndex] = sidewaysRotation
+        rotations[rightFootIndex] = sidewaysRotation
+
+        let clip = MotionClip(frames: [
+            MotionFrame(
+                time: 0,
+                jointPositions: baseFrame.jointPositions,
+                jointRotations: rotations
+            )
+        ])
+
+        let inference = RearBody3DAppendagePoseEstimator().estimatePoses(for: clip)
+        let leftFoot = try #require(inference.frames.first?.feet.left)
+        let rightFoot = try #require(inference.frames.first?.feet.right)
+
+        #expect(leftFoot.forward.z > 0.75)
+        #expect(rightFoot.forward.z > 0.75)
+        #expect(abs(leftFoot.forward.x) < 0.35)
+        #expect(abs(rightFoot.forward.x) < 0.35)
+    }
+
+    @Test func rearBodyInferenceSmoothsFootForwardAcrossFrames() throws {
+        let leftFootIndex = OdoroSkeletonDefinition.index(of: .leftFoot)
+        var sidewaysRotations = Array<MotionJointRotation?>(
+            repeating: nil,
+            count: OdoroSkeletonDefinition.jointCount
+        )
+        sidewaysRotations[leftFootIndex] = MotionJointRotation(
+            simd_quatf(angle: -.pi / 2, axis: SIMD3<Float>(0, 1, 0))
+        )
+
+        let clip = MotionClip(frames: [
+            Self.canonicalFrame(time: 0),
+            MotionFrame(
+                time: 1.0 / 30.0,
+                jointPositions: Self.canonicalFrame(time: 1.0 / 30.0).jointPositions,
+                jointRotations: sidewaysRotations
+            ),
+        ])
+
+        let inference = RearBody3DAppendagePoseEstimator().estimatePoses(for: clip)
+        let leftFoot = try #require(inference.frames[1].feet.left)
+
+        #expect(leftFoot.forward.z > 0.8)
+        #expect(abs(leftFoot.forward.x) < 0.3)
+    }
+
+    @Test func rearBodyInferenceDoesNotLetPreviousFootForwardFlipBehindBody() throws {
+        let leftFootIndex = OdoroSkeletonDefinition.index(of: .leftFoot)
+        var backwardRotations = Array<MotionJointRotation?>(
+            repeating: nil,
+            count: OdoroSkeletonDefinition.jointCount
+        )
+        backwardRotations[leftFootIndex] = MotionJointRotation(
+            simd_quatf(angle: .pi, axis: SIMD3<Float>(0, 1, 0))
+        )
+
+        let clip = MotionClip(frames: [
+            MotionFrame(
+                time: 0,
+                jointPositions: Self.canonicalFrame(time: 0).jointPositions,
+                jointRotations: backwardRotations
+            ),
+            Self.canonicalFrame(time: 1.0 / 30.0),
+        ])
+
+        let inference = RearBody3DAppendagePoseEstimator().estimatePoses(for: clip)
+        let leftFoot = try #require(inference.frames[1].feet.left)
+
+        #expect(leftFoot.forward.z > 0.7)
+        #expect(simd_dot(leftFoot.forward, SIMD3<Float>(0, 0, 1)) > 0.7)
+    }
+
     @Test func rearBodyInferenceLeavesUnsupportedSkeletonEmpty() {
         let clip = MotionClip(frames: [
             MotionFrame(
@@ -510,6 +747,8 @@ struct OdoroTests {
         #expect(prepared.canonical.clip != nil)
         #expect(prepared.canonical.appendagePoses?.frames.count == prepared.canonical.clip?.frames.count)
         #expect(prepared.stabilized.appendagePoses?.frames.count == prepared.stabilized.clip?.frames.count)
+        #expect(prepared.canonical.cameraPreset != nil)
+        #expect(prepared.stabilized.cameraPreset != nil)
     }
 
     @Test func stagePreparedPlaybackBuilderSkipsInferenceOutsideRearBodyMode() {
@@ -549,6 +788,44 @@ struct OdoroTests {
 
         #expect(prepared.canonical.appendagePoses == storedArtifacts.stagePlayback?.canonical.appendagePoses)
         #expect(prepared.stabilized.appendagePoses == storedArtifacts.stagePlayback?.stabilized.appendagePoses)
+        #expect(prepared.canonical.cameraPreset == storedArtifacts.stagePlayback?.canonical.cameraPreset)
+        #expect(prepared.stabilized.cameraPreset == storedArtifacts.stagePlayback?.stabilized.cameraPreset)
+    }
+
+    @Test func stagePlaybackCameraEstimatorPlacesCameraInFrontOfRepresentativeBodyFacing() throws {
+        let estimator = StagePlaybackCameraEstimator()
+        let clip = MotionClip(frames: [
+            Self.canonicalFrame(
+                time: 0,
+                overrides: [
+                    .root: SIMD3<Float>(0.4, 1.0, 0.1),
+                    .head: SIMD3<Float>(0.4, 1.6, 0.1),
+                    .nose: SIMD3<Float>(0.4, 1.68, 0.16),
+                    .leftShoulder: SIMD3<Float>(0.18, 1.42, 0.1),
+                    .rightShoulder: SIMD3<Float>(0.62, 1.42, 0.1),
+                    .leftHip: SIMD3<Float>(0.28, 0.92, 0.1),
+                    .rightHip: SIMD3<Float>(0.52, 0.92, 0.1),
+                ]
+            ),
+            Self.canonicalFrame(
+                time: 1.0 / 30.0,
+                overrides: [
+                    .root: SIMD3<Float>(0.6, 1.0, 0.12),
+                    .head: SIMD3<Float>(0.6, 1.6, 0.12),
+                    .nose: SIMD3<Float>(0.6, 1.68, 0.18),
+                    .leftShoulder: SIMD3<Float>(0.38, 1.42, 0.12),
+                    .rightShoulder: SIMD3<Float>(0.82, 1.42, 0.12),
+                    .leftHip: SIMD3<Float>(0.48, 0.92, 0.12),
+                    .rightHip: SIMD3<Float>(0.72, 0.92, 0.12),
+                ]
+            ),
+        ])
+
+        let preset = try #require(estimator.estimate(for: clip))
+
+        #expect(abs(preset.lookAtSIMD.x - 0.5) < 0.12)
+        #expect(preset.positionSIMD.z > preset.lookAtSIMD.z + 3.0)
+        #expect(abs(preset.positionSIMD.x - preset.lookAtSIMD.x) < 0.2)
     }
 
     @Test func motionPayloadRoundTripPreservesCanonicalClipWithoutRemapping() {
@@ -734,7 +1011,7 @@ struct OdoroTests {
         #expect(Self.rotationAngle(dampedRotation) > 0)
     }
 
-    @Test func stageRendererPreservesBindPoseRotationForTorsoHeadAndSharedCanonicalBindings() {
+    @Test func stageRendererPreservesBindPoseRotationForBindPoseRigChains() {
         #expect(
             StagePlaybackRenderer.shouldPreserveBindPoseRotation(
                 for: AvatarBoneBinding(
@@ -764,7 +1041,7 @@ struct OdoroTests {
             )
         )
         #expect(
-            !StagePlaybackRenderer.shouldPreserveBindPoseRotation(
+            StagePlaybackRenderer.shouldPreserveBindPoseRotation(
                 for: AvatarBoneBinding(
                     boneName: "left_arm",
                     sourceJoint: .init(canonicalJoint: .leftElbow),
@@ -1054,7 +1331,7 @@ struct OdoroTests {
 
         #expect(summaries.count == 1)
         #expect(summaries.first?.captureMode == .importedVideo)
-        #expect(storedTake.playbackArtifacts == nil)
+        #expect(storedTake.playbackArtifacts?.stagePlayback?.stabilized.cameraPreset != nil)
     }
 
     @MainActor

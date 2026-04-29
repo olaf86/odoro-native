@@ -13,7 +13,7 @@ struct ModelSelectionView: View {
     var body: some View {
         NavigationShell(
             title: "Model Selection",
-            subtitle: "Swipe down from playback to switch how the motion is visualized.",
+            subtitle: "Choose how playback is visualized, then return to the stage.",
             trailing: {
                 Button {
                     isAvatarImportPickerPresented = true

@@ -24,7 +24,7 @@ struct MotionClipStageRebaser: Sendable {
             return clip
         }
 
-        let firstAverage = qualityEvaluator.robustCenter(of: firstFrame.jointPositions)
+        let firstAverage = qualityEvaluator.playbackTrackingCenter(in: firstFrame)
             ?? firstFrame.jointPositions.reduce(SIMD3<Float>.zero, +) / Float(max(firstFrame.jointPositions.count, 1))
         let floorHeight = stabilizer.estimatedFloorHeight(in: clip.frames) ?? 0
         let origin = SIMD3<Float>(firstAverage.x, floorHeight, firstAverage.z)

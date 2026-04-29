@@ -73,6 +73,8 @@ final class VisionFrontCameraMotionSource: NSObject, MotionSource {
     func deactivate() {
         poseStatus = nil
         session.stopRunning()
+        previewLayer.session = nil
+        previewLayer.removeFromSuperlayer()
     }
 
     private func ensureAuthorizedAndConfigured() {
