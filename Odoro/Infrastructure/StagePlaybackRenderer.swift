@@ -326,18 +326,11 @@ final class StagePlaybackRenderer: NSObject {
         footDirectionEntities.removeAll()
 
         let floor = ModelEntity(
-            mesh: .generateBox(size: [2.8, 0.06, 2.8]),
-            materials: [UnlitMaterial(color: UIColor(red: 0.11, green: 0.14, blue: 0.22, alpha: 1))]
+            mesh: .generateBox(size: [8.0, 0.04, 8.0]),
+            materials: [UnlitMaterial(color: UIColor(red: 0.1, green: 0.13, blue: 0.19, alpha: 1))]
         )
-        floor.position = [0, -0.03, 0]
+        floor.position = [0, -0.02, 0]
         stageAnchor.addChild(floor)
-
-        let backdrop = ModelEntity(
-            mesh: .generateBox(size: [3.2, 1.8, 0.05]),
-            materials: [UnlitMaterial(color: UIColor(red: 0.08, green: 0.08, blue: 0.14, alpha: 1))]
-        )
-        backdrop.position = [0, 0.9, -1.1]
-        stageAnchor.addChild(backdrop)
 
         buildDancerHierarchy()
         stageAnchor.addChild(dancerRoot)
