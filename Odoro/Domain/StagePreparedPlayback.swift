@@ -142,30 +142,58 @@ struct StagePreparedPlayback: Sendable {
 struct StagePreparedPlaybackBuilder: Sendable {
     private struct VariantBuildContext {
         let sourceClip: MotionClip?
+        let playbackClip: MotionClip?
         let captureMode: CaptureMode
         let playbackArtifacts: MotionPlaybackArtifacts?
-        let rawClip: MotionClip?
-        let canonicalClip: MotionClip?
-        let stabilizedClip: MotionClip?
-        let avatarRigStabilizedClip: MotionClip?
     }
 
-    private enum VariantClipSource {
-        case rawDisplay
-        case canonicalDisplay
-        case stabilizedDisplay
-        case avatarRigStabilized
+    private enum VariantClipSeed {
+        case source
+        case playback
+        case sourceOrPlayback
 
         func resolve(in context: VariantBuildContext) -> MotionClip? {
             return switch self {
-            case .rawDisplay:
-                context.rawClip
-            case .canonicalDisplay:
-                context.canonicalClip
-            case .stabilizedDisplay:
-                context.stabilizedClip
-            case .avatarRigStabilized:
-                context.avatarRigStabilizedClip
+            case .source:
+                context.sourceClip
+            case .playback:
+                context.playbackClip
+            case .sourceOrPlayback:
+                context.sourceClip ?? context.playbackClip
+            }
+        }
+    }
+
+    private enum VariantClipPass {
+        case canonicalizeForPlayback
+        case rebaseForStage
+        case rigNormalizeForStage
+
+        func apply(to clip: MotionClip?) -> MotionClip? {
+            guard let clip else {
+                return nil
+            }
+
+            return switch self {
+            case .canonicalizeForPlayback:
+                clip.frames.first?.jointPositions.count == OdoroSkeletonDefinition.jointCount
+                    ? clip
+                    : OdoroCanonicalPoseMapper.canonicalizedClip(from: clip)
+            case .rebaseForStage:
+                clip.rebasedForStage()
+            case .rigNormalizeForStage:
+                clip.rigNormalizedForStage()
+            }
+        }
+    }
+
+    private struct VariantClipPlan {
+        let seed: VariantClipSeed
+        let passes: [VariantClipPass]
+
+        func resolve(in context: VariantBuildContext) -> MotionClip? {
+            passes.reduce(seed.resolve(in: context)) { clip, pass in
+                pass.apply(to: clip)
             }
         }
     }
@@ -215,7 +243,7 @@ struct StagePreparedPlaybackBuilder: Sendable {
     private struct VariantRecipe {
         let purpose: ClipVariant.Purpose
         let processingStage: ClipVariant.ProcessingStage
-        let clipSource: VariantClipSource
+        let clipPlan: VariantClipPlan
         let skeletonDefinitionStrategy: SkeletonDefinitionStrategy
         let integrityStrategy: IntegrityStrategy
         let stabilizationProfile: MotionClipStageStabilizer.Profile?
@@ -242,12 +270,9 @@ struct StagePreparedPlaybackBuilder: Sendable {
     ) -> StagePreparedPlayback {
         let context = VariantBuildContext(
             sourceClip: sourceClip,
+            playbackClip: playbackClip,
             captureMode: captureMode,
-            playbackArtifacts: playbackArtifacts,
-            rawClip: (sourceClip ?? playbackClip)?.rebasedForStage(),
-            canonicalClip: canonicalPlaybackClip(sourceClip: sourceClip, playbackClip: playbackClip),
-            stabilizedClip: playbackClip,
-            avatarRigStabilizedClip: sourceClip?.rigNormalizedForStage()
+            playbackArtifacts: playbackArtifacts
         )
 
         let variants = variantRecipes.compactMap { recipe in
@@ -262,7 +287,10 @@ struct StagePreparedPlaybackBuilder: Sendable {
             VariantRecipe(
                 purpose: .display,
                 processingStage: .raw,
-                clipSource: .rawDisplay,
+                clipPlan: VariantClipPlan(
+                    seed: .sourceOrPlayback,
+                    passes: [.rebaseForStage]
+                ),
                 skeletonDefinitionStrategy: .rawDisplayFallback,
                 integrityStrategy: .rawDisplayFallback,
                 stabilizationProfile: nil,
@@ -272,7 +300,10 @@ struct StagePreparedPlaybackBuilder: Sendable {
             VariantRecipe(
                 purpose: .display,
                 processingStage: .canonical,
-                clipSource: .canonicalDisplay,
+                clipPlan: VariantClipPlan(
+                    seed: .sourceOrPlayback,
+                    passes: [.canonicalizeForPlayback, .rebaseForStage]
+                ),
                 skeletonDefinitionStrategy: .odoroCanonical,
                 integrityStrategy: .fixed(.displaySafe),
                 stabilizationProfile: nil,
@@ -282,7 +313,10 @@ struct StagePreparedPlaybackBuilder: Sendable {
             VariantRecipe(
                 purpose: .display,
                 processingStage: .stabilized,
-                clipSource: .stabilizedDisplay,
+                clipPlan: VariantClipPlan(
+                    seed: .playback,
+                    passes: []
+                ),
                 skeletonDefinitionStrategy: .deriveFromClip,
                 integrityStrategy: .fixed(.displaySafe),
                 stabilizationProfile: .displaySafe,
@@ -292,7 +326,10 @@ struct StagePreparedPlaybackBuilder: Sendable {
             VariantRecipe(
                 purpose: .avatarRig,
                 processingStage: .stabilized,
-                clipSource: .avatarRigStabilized,
+                clipPlan: VariantClipPlan(
+                    seed: .source,
+                    passes: [.rigNormalizeForStage]
+                ),
                 skeletonDefinitionStrategy: .source,
                 integrityStrategy: .fixed(.rigSafe),
                 stabilizationProfile: .rigSafe,
@@ -306,7 +343,7 @@ struct StagePreparedPlaybackBuilder: Sendable {
         from recipe: VariantRecipe,
         context: VariantBuildContext
     ) -> ClipVariant? {
-        let clip = recipe.clipSource.resolve(in: context)
+        let clip = recipe.clipPlan.resolve(in: context)
         if recipe.purpose == .avatarRig,
            clip == nil {
             return nil
@@ -356,29 +393,6 @@ struct StagePreparedPlaybackBuilder: Sendable {
         case .rawDisplayFallback:
             context.sourceClip == nil ? inferredSkeletonDefinition(for: clip) : .source
         }
-    }
-
-    nonisolated private func canonicalPlaybackClip(
-        sourceClip: MotionClip?,
-        playbackClip: MotionClip?
-    ) -> MotionClip? {
-        if let sourceClip {
-            return OdoroCanonicalPoseMapper
-                .canonicalizedClip(from: sourceClip)
-                .rebasedForStage()
-        }
-
-        guard let playbackClip else {
-            return nil
-        }
-
-        if playbackClip.frames.first?.jointPositions.count == OdoroSkeletonDefinition.jointCount {
-            return playbackClip.rebasedForStage()
-        }
-
-        return OdoroCanonicalPoseMapper
-            .canonicalizedClip(from: playbackClip)
-            .rebasedForStage()
     }
 
     nonisolated private func resolvedAppendagePoses(
