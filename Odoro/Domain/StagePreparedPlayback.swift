@@ -7,42 +7,51 @@ import Foundation
 import simd
 
 struct ClipVariant: Sendable {
-    enum Kind: Sendable {
+    enum Purpose: Sendable, Equatable {
+        case display
+        case avatarRig
+    }
+
+    enum ProcessingStage: Sendable, Equatable {
         case raw
         case canonical
         case stabilized
-        case rigStabilized
     }
 
-    enum SkeletonDefinition: Sendable {
+    enum SkeletonDefinition: Sendable, Equatable {
         case source
         case odoroCanonical
     }
 
-    enum Integrity: Sendable {
+    enum Integrity: Sendable, Equatable {
         case rigSafe
         case displaySafe
     }
 
-    let kind: Kind
+    let purpose: Purpose
+    let processingStage: ProcessingStage
     let clip: MotionClip?
     let appendagePoses: MotionClipAppendagePoses?
     let cameraPreset: StagePlaybackCameraPreset?
     let skeletonDefinition: SkeletonDefinition
     let integrity: Integrity
+    let stabilizationProfile: MotionClipStageStabilizer.Profile?
 
     nonisolated static func empty(
-        kind: Kind,
+        purpose: Purpose,
+        processingStage: ProcessingStage,
         skeletonDefinition: SkeletonDefinition,
         integrity: Integrity
     ) -> Self {
         Self(
-            kind: kind,
+            purpose: purpose,
+            processingStage: processingStage,
             clip: nil,
             appendagePoses: nil,
             cameraPreset: nil,
             skeletonDefinition: skeletonDefinition,
-            integrity: integrity
+            integrity: integrity,
+            stabilizationProfile: nil
         )
     }
 }
@@ -50,28 +59,64 @@ struct ClipVariant: Sendable {
 typealias PreparedStagePlaybackClip = ClipVariant
 
 struct StagePreparedPlayback: Sendable {
-    let raw: ClipVariant
-    let canonical: ClipVariant
-    let stabilized: ClipVariant
-    let rigStabilized: ClipVariant?
+    let variants: [ClipVariant]
 
-    nonisolated var variants: [ClipVariant] {
-        [raw, canonical, stabilized, rigStabilized].compactMap { $0 }
+    nonisolated init(variants: [ClipVariant]) {
+        self.variants = variants
+    }
+
+    nonisolated var raw: ClipVariant {
+        variant(
+            purpose: .display,
+            processingStage: .raw
+        ) ?? .empty(
+            purpose: .display,
+            processingStage: .raw,
+            skeletonDefinition: .source,
+            integrity: .displaySafe
+        )
+    }
+
+    nonisolated var canonical: ClipVariant {
+        variant(
+            purpose: .display,
+            processingStage: .canonical
+        ) ?? .empty(
+            purpose: .display,
+            processingStage: .canonical,
+            skeletonDefinition: .odoroCanonical,
+            integrity: .displaySafe
+        )
+    }
+
+    nonisolated var stabilized: ClipVariant {
+        variant(
+            purpose: .display,
+            processingStage: .stabilized
+        ) ?? .empty(
+            purpose: .display,
+            processingStage: .stabilized,
+            skeletonDefinition: .odoroCanonical,
+            integrity: .displaySafe
+        )
     }
 
     nonisolated var avatarRigVariant: ClipVariant? {
         preferredVariant(
-            for: [.rigStabilized, .raw],
+            for: [
+                (.avatarRig, .stabilized),
+                (.display, .raw),
+            ],
             integrity: .rigSafe
         )
     }
 
     nonisolated private func preferredVariant(
-        for preferredKinds: [ClipVariant.Kind],
+        for preferredSelections: [(ClipVariant.Purpose, ClipVariant.ProcessingStage)],
         integrity: ClipVariant.Integrity
     ) -> ClipVariant? {
-        for kind in preferredKinds {
-            guard let variant = variant(for: kind) else {
+        for (purpose, processingStage) in preferredSelections {
+            guard let variant = variant(purpose: purpose, processingStage: processingStage) else {
                 continue
             }
 
@@ -84,16 +129,12 @@ struct StagePreparedPlayback: Sendable {
         return nil
     }
 
-    nonisolated private func variant(for kind: ClipVariant.Kind) -> ClipVariant? {
-        switch kind {
-        case .raw:
-            raw
-        case .canonical:
-            canonical
-        case .stabilized:
-            stabilized
-        case .rigStabilized:
-            rigStabilized
+    nonisolated func variant(
+        purpose: ClipVariant.Purpose,
+        processingStage: ClipVariant.ProcessingStage
+    ) -> ClipVariant? {
+        variants.first { variant in
+            variant.purpose == purpose && variant.processingStage == processingStage
         }
     }
 }
@@ -122,17 +163,20 @@ struct StagePreparedPlaybackBuilder: Sendable {
         let rigStabilizedClip = sourceClip?.rigNormalizedForStage()
         let rawIntegrity: ClipVariant.Integrity = sourceClip == nil ? .displaySafe : .rigSafe
 
-        return StagePreparedPlayback(
-            raw: buildVariant(
-                kind: .raw,
+        var variants: [ClipVariant] = [
+            buildVariant(
+                purpose: .display,
+                processingStage: .raw,
                 clip: rawClip,
                 appendagePoses: nil,
                 storedPreset: playbackArtifacts?.stagePlayback?.raw.cameraPreset,
                 skeletonDefinition: rawIntegrity == .rigSafe ? .source : inferredSkeletonDefinition(for: rawClip),
-                integrity: rawIntegrity
+                integrity: rawIntegrity,
+                stabilizationProfile: nil
             ),
-            canonical: buildVariant(
-                kind: .canonical,
+            buildVariant(
+                purpose: .display,
+                processingStage: .canonical,
                 clip: canonicalClip,
                 appendagePoses: resolvedAppendagePoses(
                     for: canonicalClip,
@@ -142,10 +186,12 @@ struct StagePreparedPlaybackBuilder: Sendable {
                 ),
                 storedPreset: playbackArtifacts?.stagePlayback?.canonical.cameraPreset,
                 skeletonDefinition: .odoroCanonical,
-                integrity: .displaySafe
+                integrity: .displaySafe,
+                stabilizationProfile: nil
             ),
-            stabilized: buildVariant(
-                kind: .stabilized,
+            buildVariant(
+                purpose: .display,
+                processingStage: .stabilized,
                 clip: stabilizedClip,
                 appendagePoses: resolvedAppendagePoses(
                     for: stabilizedClip,
@@ -155,31 +201,42 @@ struct StagePreparedPlaybackBuilder: Sendable {
                 ),
                 storedPreset: playbackArtifacts?.stagePlayback?.stabilized.cameraPreset,
                 skeletonDefinition: inferredSkeletonDefinition(for: stabilizedClip),
-                integrity: .displaySafe
+                integrity: .displaySafe,
+                stabilizationProfile: .displaySafe
             ),
-            rigStabilized: rigStabilizedClip.map {
+        ]
+
+        if let rigStabilizedClip {
+            variants.append(
                 buildVariant(
-                    kind: .rigStabilized,
-                    clip: $0,
+                    purpose: .avatarRig,
+                    processingStage: .stabilized,
+                    clip: rigStabilizedClip,
                     appendagePoses: nil,
                     storedPreset: nil,
                     skeletonDefinition: .source,
-                    integrity: .rigSafe
+                    integrity: .rigSafe,
+                    stabilizationProfile: .rigSafe
                 )
-            }
-        )
+            )
+        }
+
+        return StagePreparedPlayback(variants: variants)
     }
 
     nonisolated private func buildVariant(
-        kind: ClipVariant.Kind,
+        purpose: ClipVariant.Purpose,
+        processingStage: ClipVariant.ProcessingStage,
         clip: MotionClip?,
         appendagePoses: MotionClipAppendagePoses?,
         storedPreset: StagePlaybackCameraPreset?,
         skeletonDefinition: ClipVariant.SkeletonDefinition,
-        integrity: ClipVariant.Integrity
+        integrity: ClipVariant.Integrity,
+        stabilizationProfile: MotionClipStageStabilizer.Profile?
     ) -> ClipVariant {
         ClipVariant(
-            kind: kind,
+            purpose: purpose,
+            processingStage: processingStage,
             clip: clip,
             appendagePoses: appendagePoses,
             cameraPreset: resolvedCameraPreset(
@@ -187,7 +244,8 @@ struct StagePreparedPlaybackBuilder: Sendable {
                 storedPreset: storedPreset
             ),
             skeletonDefinition: skeletonDefinition,
-            integrity: integrity
+            integrity: integrity,
+            stabilizationProfile: stabilizationProfile
         )
     }
 

@@ -157,13 +157,28 @@ extension StudioViewModel {
         switch stageDebugMotionViewMode {
         case .raw:
             return preparedStagePlayback?.raw
-                ?? .empty(kind: .raw, skeletonDefinition: .source, integrity: .displaySafe)
+                ?? .empty(
+                    purpose: .display,
+                    processingStage: .raw,
+                    skeletonDefinition: .source,
+                    integrity: .displaySafe
+                )
         case .canonical:
             return preparedStagePlayback?.canonical
-                ?? .empty(kind: .canonical, skeletonDefinition: .odoroCanonical, integrity: .displaySafe)
+                ?? .empty(
+                    purpose: .display,
+                    processingStage: .canonical,
+                    skeletonDefinition: .odoroCanonical,
+                    integrity: .displaySafe
+                )
         case .stabilized:
             return preparedStagePlayback?.stabilized
-                ?? .empty(kind: .stabilized, skeletonDefinition: .odoroCanonical, integrity: .displaySafe)
+                ?? .empty(
+                    purpose: .display,
+                    processingStage: .stabilized,
+                    skeletonDefinition: .odoroCanonical,
+                    integrity: .displaySafe
+                )
         }
     }
 

@@ -7,7 +7,7 @@ import Foundation
 import simd
 
 struct MotionClipStageStabilizer: Sendable {
-    enum Profile: Sendable {
+    enum Profile: Sendable, Equatable {
         case displaySafe
         case rigSafe
 

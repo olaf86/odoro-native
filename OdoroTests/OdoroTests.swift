@@ -767,7 +767,7 @@ struct OdoroTests {
         #expect(inference.frames[0].hands.right == nil)
     }
 
-    @Test func stagePreparedPlaybackBuilderCachesRearBodyInferenceOnPreparedVariants() {
+    @Test func stagePreparedPlaybackBuilderCachesRearBodyInferenceOnPreparedVariants() throws {
         let sourceClip = MotionClip(frames: [
             MotionFrame(
                 time: 0,
@@ -790,24 +790,30 @@ struct OdoroTests {
         )
 
         #expect(prepared.raw.appendagePoses == nil)
-        #expect(prepared.raw.kind == .raw)
+        #expect(prepared.raw.purpose == .display)
+        #expect(prepared.raw.processingStage == .raw)
         #expect(prepared.raw.skeletonDefinition == .source)
         #expect(prepared.raw.integrity == .rigSafe)
-        #expect(prepared.rigStabilized?.kind == .rigStabilized)
-        #expect(prepared.rigStabilized?.skeletonDefinition == .source)
-        #expect(prepared.rigStabilized?.integrity == .rigSafe)
+        let rigVariant = try #require(prepared.variant(purpose: .avatarRig, processingStage: .stabilized))
+        #expect(rigVariant.skeletonDefinition == .source)
+        #expect(rigVariant.integrity == .rigSafe)
+        #expect(rigVariant.stabilizationProfile == .rigSafe)
         #expect(prepared.canonical.clip != nil)
-        #expect(prepared.canonical.kind == .canonical)
+        #expect(prepared.canonical.purpose == .display)
+        #expect(prepared.canonical.processingStage == .canonical)
         #expect(prepared.canonical.skeletonDefinition == .odoroCanonical)
         #expect(prepared.canonical.integrity == .displaySafe)
         #expect(prepared.canonical.appendagePoses?.frames.count == prepared.canonical.clip?.frames.count)
-        #expect(prepared.stabilized.kind == .stabilized)
+        #expect(prepared.stabilized.purpose == .display)
+        #expect(prepared.stabilized.processingStage == .stabilized)
         #expect(prepared.stabilized.skeletonDefinition == .odoroCanonical)
         #expect(prepared.stabilized.integrity == .displaySafe)
+        #expect(prepared.stabilized.stabilizationProfile == .displaySafe)
         #expect(prepared.stabilized.appendagePoses?.frames.count == prepared.stabilized.clip?.frames.count)
         #expect(prepared.canonical.cameraPreset != nil)
         #expect(prepared.stabilized.cameraPreset != nil)
-        #expect(prepared.avatarRigVariant?.kind == .rigStabilized)
+        #expect(prepared.avatarRigVariant?.purpose == .avatarRig)
+        #expect(prepared.avatarRigVariant?.processingStage == .stabilized)
         #expect(prepared.avatarRigVariant?.integrity == .rigSafe)
     }
 
@@ -852,7 +858,7 @@ struct OdoroTests {
         #expect(prepared.stabilized.cameraPreset == storedArtifacts.stagePlayback?.stabilized.cameraPreset)
         #expect(prepared.raw.integrity == .displaySafe)
         #expect(prepared.raw.skeletonDefinition == .odoroCanonical)
-        #expect(prepared.rigStabilized == nil)
+        #expect(prepared.variant(purpose: .avatarRig, processingStage: .stabilized) == nil)
         #expect(prepared.avatarRigVariant == nil)
     }
 
