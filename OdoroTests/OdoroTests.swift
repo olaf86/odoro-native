@@ -744,11 +744,22 @@ struct OdoroTests {
         )
 
         #expect(prepared.raw.appendagePoses == nil)
+        #expect(prepared.raw.kind == .raw)
+        #expect(prepared.raw.skeletonDefinition == .source)
+        #expect(prepared.raw.integrity == .rigSafe)
         #expect(prepared.canonical.clip != nil)
+        #expect(prepared.canonical.kind == .canonical)
+        #expect(prepared.canonical.skeletonDefinition == .odoroCanonical)
+        #expect(prepared.canonical.integrity == .displaySafe)
         #expect(prepared.canonical.appendagePoses?.frames.count == prepared.canonical.clip?.frames.count)
+        #expect(prepared.stabilized.kind == .stabilized)
+        #expect(prepared.stabilized.skeletonDefinition == .odoroCanonical)
+        #expect(prepared.stabilized.integrity == .displaySafe)
         #expect(prepared.stabilized.appendagePoses?.frames.count == prepared.stabilized.clip?.frames.count)
         #expect(prepared.canonical.cameraPreset != nil)
         #expect(prepared.stabilized.cameraPreset != nil)
+        #expect(prepared.avatarRigVariant?.kind == .raw)
+        #expect(prepared.avatarRigVariant?.integrity == .rigSafe)
     }
 
     @Test func stagePreparedPlaybackBuilderSkipsInferenceOutsideRearBodyMode() {
@@ -790,6 +801,9 @@ struct OdoroTests {
         #expect(prepared.stabilized.appendagePoses == storedArtifacts.stagePlayback?.stabilized.appendagePoses)
         #expect(prepared.canonical.cameraPreset == storedArtifacts.stagePlayback?.canonical.cameraPreset)
         #expect(prepared.stabilized.cameraPreset == storedArtifacts.stagePlayback?.stabilized.cameraPreset)
+        #expect(prepared.raw.integrity == .displaySafe)
+        #expect(prepared.raw.skeletonDefinition == .odoroCanonical)
+        #expect(prepared.avatarRigVariant == nil)
     }
 
     @Test func stagePlaybackCameraEstimatorPlacesCameraInFrontOfRepresentativeBodyFacing() throws {

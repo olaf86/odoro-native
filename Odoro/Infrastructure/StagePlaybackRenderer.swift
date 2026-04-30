@@ -117,6 +117,7 @@ final class StagePlaybackRenderer: NSObject {
 
     private weak var view: ARView?
     private var clip: MotionClip?
+    private var avatarRigClip: MotionClip?
     private var appendagePoses: MotionClipAppendagePoses?
     private var stageCameraPreset: StagePlaybackCameraPreset?
     private var playbackTimer: Timer?
@@ -155,6 +156,14 @@ final class StagePlaybackRenderer: NSObject {
         self.clip = clip
 
         if let firstFrame = clip?.frames.first, !jointEntities.isEmpty, !limbEntities.isEmpty {
+            render(frame: firstFrame, frameIndex: 0)
+        }
+    }
+
+    func setAvatarRigClip(_ clip: MotionClip?) {
+        avatarRigClip = clip
+
+        if let currentClip = self.clip, let firstFrame = currentClip.frames.first {
             render(frame: firstFrame, frameIndex: 0)
         }
     }
@@ -477,19 +486,20 @@ final class StagePlaybackRenderer: NSObject {
     private func render(frame: MotionFrame, frameIndex: Int) {
         if currentAvatarOption.selection.kind == .avatar, characterEntity != nil {
             renderFootDirections(frameIndex: frameIndex, isVisible: false)
+            let avatarFrame = resolvedAvatarRigFrame(for: frame, frameIndex: frameIndex)
             if let rigProfile = activeRigProfile,
-               Self.hasUsableJointRotations(frame.jointRotations),
-               renderCharacter(frame: frame, rigProfile: rigProfile) {
+               Self.hasUsableJointRotations(avatarFrame.jointRotations),
+               renderCharacter(frame: avatarFrame, rigProfile: rigProfile) {
                 return
             }
 
-            if frame.jointPositions.contains(where: Self.isValidMotionPosition) {
+            if avatarFrame.jointPositions.contains(where: Self.isValidMotionPosition) {
                 // Front-camera or other source: real positions available but no rotations.
-                renderCharacterAtRoot(frame: frame)
+                renderCharacterAtRoot(frame: avatarFrame)
             } else {
                 // Simulator / MockMotionSource: all positions invalid (y = -10).
                 // Drive the skeleton procedurally so the character animates.
-                renderCharacterFallback(frame: frame)
+                renderCharacterFallback(frame: avatarFrame)
             }
             return
         }
@@ -540,6 +550,23 @@ final class StagePlaybackRenderer: NSObject {
         }
 
         renderFootDirections(frameIndex: frameIndex, isVisible: skeletonDebugLayout == .canonical)
+    }
+
+    private func resolvedAvatarRigFrame(for displayFrame: MotionFrame, frameIndex: Int) -> MotionFrame {
+        guard let avatarRigClip else {
+            return displayFrame
+        }
+
+        if avatarRigClip.frames.indices.contains(frameIndex) {
+            return avatarRigClip.frames[frameIndex]
+        }
+
+        let matchedIndex = avatarRigClip.frames.lastIndex(where: { $0.time <= displayFrame.time }) ?? 0
+        guard avatarRigClip.frames.indices.contains(matchedIndex) else {
+            return displayFrame
+        }
+
+        return avatarRigClip.frames[matchedIndex]
     }
 
     private func renderFootDirections(frameIndex: Int, isVisible: Bool) {
