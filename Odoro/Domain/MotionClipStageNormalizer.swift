@@ -9,13 +9,16 @@ import simd
 struct MotionClipStageNormalizer: Sendable {
     let qualityEvaluator: MotionFrameQualityEvaluator
     let stabilizer: MotionClipStageStabilizer
+    let stabilizationProfile: MotionClipStageStabilizer.Profile
 
     nonisolated init(
         qualityEvaluator: MotionFrameQualityEvaluator = .init(),
-        stabilizer: MotionClipStageStabilizer? = nil
+        stabilizer: MotionClipStageStabilizer? = nil,
+        stabilizationProfile: MotionClipStageStabilizer.Profile = .displaySafe
     ) {
         self.qualityEvaluator = qualityEvaluator
         self.stabilizer = stabilizer ?? MotionClipStageStabilizer(qualityEvaluator: qualityEvaluator)
+        self.stabilizationProfile = stabilizationProfile
     }
 
     /// Normalizes a clip for stage playback by stabilizing the motion and rebasing origin/floor.
@@ -24,7 +27,7 @@ struct MotionClipStageNormalizer: Sendable {
             return clip
         }
 
-        let stabilizedFrames = stabilizer.stabilize(clip)
+        let stabilizedFrames = stabilizer.stabilize(clip, profile: stabilizationProfile)
         let originFrame = stabilizedFrames.first ?? firstFrame
         let firstAverage = qualityEvaluator.playbackTrackingCenter(in: originFrame)
             ?? originFrame.jointPositions.reduce(SIMD3<Float>.zero, +) / Float(max(originFrame.jointPositions.count, 1))

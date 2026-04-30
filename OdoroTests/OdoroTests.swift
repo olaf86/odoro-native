@@ -293,6 +293,52 @@ struct OdoroTests {
         #expect(stabilizedSpikeLength < rawSpikeLength)
     }
 
+    @Test func motionClipStageStabilizerRigSafeProfileSkipsCanonicalBoneConstraints() {
+        let stabilizer = MotionClipStageStabilizer()
+        let baselineFrame = Self.canonicalFrame(
+            time: 0,
+            overrides: [
+                .leftFoot: SIMD3<Float>(-0.12, 0.0, 0.18),
+                .rightFoot: SIMD3<Float>(0.12, 0.0, 0.18),
+            ]
+        )
+        let spikedFrame = Self.canonicalFrame(
+            time: 1.0 / 30.0,
+            overrides: [
+                .leftFoot: SIMD3<Float>(0.62, 0.0, 1.18),
+                .rightFoot: SIMD3<Float>(0.12, 0.0, 0.18),
+            ]
+        )
+        let recoveredFrame = Self.canonicalFrame(
+            time: 2.0 / 30.0,
+            overrides: [
+                .leftFoot: SIMD3<Float>(-0.12, 0.0, 0.18),
+                .rightFoot: SIMD3<Float>(0.12, 0.0, 0.18),
+            ]
+        )
+        let clip = MotionClip(frames: [baselineFrame, spikedFrame, recoveredFrame])
+
+        let displaySafe = stabilizer.stabilize(clip, profile: .displaySafe)
+        let rigSafe = stabilizer.stabilize(clip, profile: .rigSafe)
+
+        let leftAnkleIndex = OdoroSkeletonDefinition.index(of: .leftAnkle)
+        let leftFootIndex = OdoroSkeletonDefinition.index(of: .leftFoot)
+        let referenceLength = simd_distance(
+            baselineFrame.jointPositions[leftAnkleIndex],
+            baselineFrame.jointPositions[leftFootIndex]
+        )
+        let displaySafeSpikeLength = simd_distance(
+            displaySafe[1].jointPositions[leftAnkleIndex],
+            displaySafe[1].jointPositions[leftFootIndex]
+        )
+        let rigSafeSpikeLength = simd_distance(
+            rigSafe[1].jointPositions[leftAnkleIndex],
+            rigSafe[1].jointPositions[leftFootIndex]
+        )
+
+        #expect(abs(displaySafeSpikeLength - referenceLength) < abs(rigSafeSpikeLength - referenceLength))
+    }
+
     @Test func motionClipStageStabilizerPinsCanonicalFootWhileContactLooksStable() {
         let stabilizer = MotionClipStageStabilizer()
         let pinnedX: Float = -0.12
@@ -747,6 +793,9 @@ struct OdoroTests {
         #expect(prepared.raw.kind == .raw)
         #expect(prepared.raw.skeletonDefinition == .source)
         #expect(prepared.raw.integrity == .rigSafe)
+        #expect(prepared.rigStabilized?.kind == .rigStabilized)
+        #expect(prepared.rigStabilized?.skeletonDefinition == .source)
+        #expect(prepared.rigStabilized?.integrity == .rigSafe)
         #expect(prepared.canonical.clip != nil)
         #expect(prepared.canonical.kind == .canonical)
         #expect(prepared.canonical.skeletonDefinition == .odoroCanonical)
@@ -758,7 +807,7 @@ struct OdoroTests {
         #expect(prepared.stabilized.appendagePoses?.frames.count == prepared.stabilized.clip?.frames.count)
         #expect(prepared.canonical.cameraPreset != nil)
         #expect(prepared.stabilized.cameraPreset != nil)
-        #expect(prepared.avatarRigVariant?.kind == .raw)
+        #expect(prepared.avatarRigVariant?.kind == .rigStabilized)
         #expect(prepared.avatarRigVariant?.integrity == .rigSafe)
     }
 
@@ -803,6 +852,7 @@ struct OdoroTests {
         #expect(prepared.stabilized.cameraPreset == storedArtifacts.stagePlayback?.stabilized.cameraPreset)
         #expect(prepared.raw.integrity == .displaySafe)
         #expect(prepared.raw.skeletonDefinition == .odoroCanonical)
+        #expect(prepared.rigStabilized == nil)
         #expect(prepared.avatarRigVariant == nil)
     }
 

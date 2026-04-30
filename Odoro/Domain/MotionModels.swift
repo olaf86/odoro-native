@@ -94,6 +94,10 @@ struct MotionClip: Sendable {
         MotionClipStageNormalizer().normalized(clip: self)
     }
 
+    nonisolated func rigNormalizedForStage() -> MotionClip {
+        MotionClipStageNormalizer(stabilizationProfile: .rigSafe).normalized(clip: self)
+    }
+
     nonisolated func rebasedForStage() -> MotionClip {
         MotionClipStageRebaser().rebased(clip: self)
     }

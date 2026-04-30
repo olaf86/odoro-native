@@ -11,6 +11,7 @@ struct ClipVariant: Sendable {
         case raw
         case canonical
         case stabilized
+        case rigStabilized
     }
 
     enum SkeletonDefinition: Sendable {
@@ -52,14 +53,15 @@ struct StagePreparedPlayback: Sendable {
     let raw: ClipVariant
     let canonical: ClipVariant
     let stabilized: ClipVariant
+    let rigStabilized: ClipVariant?
 
     nonisolated var variants: [ClipVariant] {
-        [raw, canonical, stabilized]
+        [raw, canonical, stabilized, rigStabilized].compactMap { $0 }
     }
 
     nonisolated var avatarRigVariant: ClipVariant? {
         preferredVariant(
-            for: [.stabilized, .raw, .canonical],
+            for: [.rigStabilized, .raw],
             integrity: .rigSafe
         )
     }
@@ -69,7 +71,10 @@ struct StagePreparedPlayback: Sendable {
         integrity: ClipVariant.Integrity
     ) -> ClipVariant? {
         for kind in preferredKinds {
-            let variant = variant(for: kind)
+            guard let variant = variant(for: kind) else {
+                continue
+            }
+
             if variant.integrity == integrity,
                variant.clip != nil {
                 return variant
@@ -79,7 +84,7 @@ struct StagePreparedPlayback: Sendable {
         return nil
     }
 
-    nonisolated private func variant(for kind: ClipVariant.Kind) -> ClipVariant {
+    nonisolated private func variant(for kind: ClipVariant.Kind) -> ClipVariant? {
         switch kind {
         case .raw:
             raw
@@ -87,6 +92,8 @@ struct StagePreparedPlayback: Sendable {
             canonical
         case .stabilized:
             stabilized
+        case .rigStabilized:
+            rigStabilized
         }
     }
 }
@@ -112,6 +119,7 @@ struct StagePreparedPlaybackBuilder: Sendable {
         let rawClip = (sourceClip ?? playbackClip)?.rebasedForStage()
         let canonicalClip = canonicalPlaybackClip(sourceClip: sourceClip, playbackClip: playbackClip)
         let stabilizedClip = playbackClip
+        let rigStabilizedClip = sourceClip?.rigNormalizedForStage()
         let rawIntegrity: ClipVariant.Integrity = sourceClip == nil ? .displaySafe : .rigSafe
 
         return StagePreparedPlayback(
@@ -148,7 +156,17 @@ struct StagePreparedPlaybackBuilder: Sendable {
                 storedPreset: playbackArtifacts?.stagePlayback?.stabilized.cameraPreset,
                 skeletonDefinition: inferredSkeletonDefinition(for: stabilizedClip),
                 integrity: .displaySafe
-            )
+            ),
+            rigStabilized: rigStabilizedClip.map {
+                buildVariant(
+                    kind: .rigStabilized,
+                    clip: $0,
+                    appendagePoses: nil,
+                    storedPreset: nil,
+                    skeletonDefinition: .source,
+                    integrity: .rigSafe
+                )
+            }
         )
     }
 
