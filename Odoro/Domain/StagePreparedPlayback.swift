@@ -133,13 +133,96 @@ struct StagePreparedPlayback: Sendable {
         purpose: ClipVariant.Purpose,
         processingStage: ClipVariant.ProcessingStage
     ) -> ClipVariant? {
-        variants.first { variant in
+        return variants.first { variant in
             variant.purpose == purpose && variant.processingStage == processingStage
         }
     }
 }
 
 struct StagePreparedPlaybackBuilder: Sendable {
+    private struct VariantBuildContext {
+        let sourceClip: MotionClip?
+        let captureMode: CaptureMode
+        let playbackArtifacts: MotionPlaybackArtifacts?
+        let rawClip: MotionClip?
+        let canonicalClip: MotionClip?
+        let stabilizedClip: MotionClip?
+        let avatarRigStabilizedClip: MotionClip?
+    }
+
+    private enum VariantClipSource {
+        case rawDisplay
+        case canonicalDisplay
+        case stabilizedDisplay
+        case avatarRigStabilized
+
+        func resolve(in context: VariantBuildContext) -> MotionClip? {
+            return switch self {
+            case .rawDisplay:
+                context.rawClip
+            case .canonicalDisplay:
+                context.canonicalClip
+            case .stabilizedDisplay:
+                context.stabilizedClip
+            case .avatarRigStabilized:
+                context.avatarRigStabilizedClip
+            }
+        }
+    }
+
+    private enum VariantArtifactSlot {
+        case raw
+        case canonical
+        case stabilized
+
+        func storedArtifacts(in context: VariantBuildContext) -> StagePlaybackClipArtifacts? {
+            guard let stagePlayback = context.playbackArtifacts?.stagePlayback else {
+                return nil
+            }
+
+            return switch self {
+            case .raw:
+                stagePlayback.raw
+            case .canonical:
+                stagePlayback.canonical
+            case .stabilized:
+                stagePlayback.stabilized
+            }
+        }
+    }
+
+    private enum SkeletonDefinitionStrategy {
+        case source
+        case odoroCanonical
+        case deriveFromClip
+        case rawDisplayFallback
+    }
+
+    private enum IntegrityStrategy {
+        case fixed(ClipVariant.Integrity)
+        case rawDisplayFallback
+
+        func resolve(in context: VariantBuildContext) -> ClipVariant.Integrity {
+            switch self {
+            case .fixed(let integrity):
+                integrity
+            case .rawDisplayFallback:
+                context.sourceClip == nil ? .displaySafe : .rigSafe
+            }
+        }
+    }
+
+    private struct VariantRecipe {
+        let purpose: ClipVariant.Purpose
+        let processingStage: ClipVariant.ProcessingStage
+        let clipSource: VariantClipSource
+        let skeletonDefinitionStrategy: SkeletonDefinitionStrategy
+        let integrityStrategy: IntegrityStrategy
+        let stabilizationProfile: MotionClipStageStabilizer.Profile?
+        let artifactSlot: VariantArtifactSlot?
+        let includesAppendagePoses: Bool
+    }
+
     let appendagePoseEstimator: RearBody3DAppendagePoseEstimator
     let cameraEstimator: StagePlaybackCameraEstimator
 
@@ -157,96 +240,122 @@ struct StagePreparedPlaybackBuilder: Sendable {
         captureMode: CaptureMode,
         playbackArtifacts: MotionPlaybackArtifacts? = nil
     ) -> StagePreparedPlayback {
-        let rawClip = (sourceClip ?? playbackClip)?.rebasedForStage()
-        let canonicalClip = canonicalPlaybackClip(sourceClip: sourceClip, playbackClip: playbackClip)
-        let stabilizedClip = playbackClip
-        let rigStabilizedClip = sourceClip?.rigNormalizedForStage()
-        let rawIntegrity: ClipVariant.Integrity = sourceClip == nil ? .displaySafe : .rigSafe
+        let context = VariantBuildContext(
+            sourceClip: sourceClip,
+            captureMode: captureMode,
+            playbackArtifacts: playbackArtifacts,
+            rawClip: (sourceClip ?? playbackClip)?.rebasedForStage(),
+            canonicalClip: canonicalPlaybackClip(sourceClip: sourceClip, playbackClip: playbackClip),
+            stabilizedClip: playbackClip,
+            avatarRigStabilizedClip: sourceClip?.rigNormalizedForStage()
+        )
 
-        var variants: [ClipVariant] = [
-            buildVariant(
-                purpose: .display,
-                processingStage: .raw,
-                clip: rawClip,
-                appendagePoses: nil,
-                storedPreset: playbackArtifacts?.stagePlayback?.raw.cameraPreset,
-                skeletonDefinition: rawIntegrity == .rigSafe ? .source : inferredSkeletonDefinition(for: rawClip),
-                integrity: rawIntegrity,
-                stabilizationProfile: nil
-            ),
-            buildVariant(
-                purpose: .display,
-                processingStage: .canonical,
-                clip: canonicalClip,
-                appendagePoses: resolvedAppendagePoses(
-                    for: canonicalClip,
-                    captureMode: captureMode,
-                    sourceClip: sourceClip,
-                    storedPoses: playbackArtifacts?.stagePlayback?.canonical.appendagePoses
-                ),
-                storedPreset: playbackArtifacts?.stagePlayback?.canonical.cameraPreset,
-                skeletonDefinition: .odoroCanonical,
-                integrity: .displaySafe,
-                stabilizationProfile: nil
-            ),
-            buildVariant(
-                purpose: .display,
-                processingStage: .stabilized,
-                clip: stabilizedClip,
-                appendagePoses: resolvedAppendagePoses(
-                    for: stabilizedClip,
-                    captureMode: captureMode,
-                    sourceClip: sourceClip,
-                    storedPoses: playbackArtifacts?.stagePlayback?.stabilized.appendagePoses
-                ),
-                storedPreset: playbackArtifacts?.stagePlayback?.stabilized.cameraPreset,
-                skeletonDefinition: inferredSkeletonDefinition(for: stabilizedClip),
-                integrity: .displaySafe,
-                stabilizationProfile: .displaySafe
-            ),
-        ]
-
-        if let rigStabilizedClip {
-            variants.append(
-                buildVariant(
-                    purpose: .avatarRig,
-                    processingStage: .stabilized,
-                    clip: rigStabilizedClip,
-                    appendagePoses: nil,
-                    storedPreset: nil,
-                    skeletonDefinition: .source,
-                    integrity: .rigSafe,
-                    stabilizationProfile: .rigSafe
-                )
-            )
+        let variants = variantRecipes.compactMap { recipe in
+            buildVariant(from: recipe, context: context)
         }
 
         return StagePreparedPlayback(variants: variants)
     }
 
+    nonisolated private var variantRecipes: [VariantRecipe] {
+        [
+            VariantRecipe(
+                purpose: .display,
+                processingStage: .raw,
+                clipSource: .rawDisplay,
+                skeletonDefinitionStrategy: .rawDisplayFallback,
+                integrityStrategy: .rawDisplayFallback,
+                stabilizationProfile: nil,
+                artifactSlot: .raw,
+                includesAppendagePoses: false
+            ),
+            VariantRecipe(
+                purpose: .display,
+                processingStage: .canonical,
+                clipSource: .canonicalDisplay,
+                skeletonDefinitionStrategy: .odoroCanonical,
+                integrityStrategy: .fixed(.displaySafe),
+                stabilizationProfile: nil,
+                artifactSlot: .canonical,
+                includesAppendagePoses: true
+            ),
+            VariantRecipe(
+                purpose: .display,
+                processingStage: .stabilized,
+                clipSource: .stabilizedDisplay,
+                skeletonDefinitionStrategy: .deriveFromClip,
+                integrityStrategy: .fixed(.displaySafe),
+                stabilizationProfile: .displaySafe,
+                artifactSlot: .stabilized,
+                includesAppendagePoses: true
+            ),
+            VariantRecipe(
+                purpose: .avatarRig,
+                processingStage: .stabilized,
+                clipSource: .avatarRigStabilized,
+                skeletonDefinitionStrategy: .source,
+                integrityStrategy: .fixed(.rigSafe),
+                stabilizationProfile: .rigSafe,
+                artifactSlot: nil,
+                includesAppendagePoses: false
+            ),
+        ]
+    }
+
     nonisolated private func buildVariant(
-        purpose: ClipVariant.Purpose,
-        processingStage: ClipVariant.ProcessingStage,
-        clip: MotionClip?,
-        appendagePoses: MotionClipAppendagePoses?,
-        storedPreset: StagePlaybackCameraPreset?,
-        skeletonDefinition: ClipVariant.SkeletonDefinition,
-        integrity: ClipVariant.Integrity,
-        stabilizationProfile: MotionClipStageStabilizer.Profile?
-    ) -> ClipVariant {
-        ClipVariant(
-            purpose: purpose,
-            processingStage: processingStage,
+        from recipe: VariantRecipe,
+        context: VariantBuildContext
+    ) -> ClipVariant? {
+        let clip = recipe.clipSource.resolve(in: context)
+        if recipe.purpose == .avatarRig,
+           clip == nil {
+            return nil
+        }
+
+        let storedArtifacts = recipe.artifactSlot?.storedArtifacts(in: context)
+        let appendagePoses = recipe.includesAppendagePoses
+            ? resolvedAppendagePoses(
+                for: clip,
+                captureMode: context.captureMode,
+                sourceClip: context.sourceClip,
+                storedPoses: storedArtifacts?.appendagePoses
+            )
+            : nil
+
+        return ClipVariant(
+            purpose: recipe.purpose,
+            processingStage: recipe.processingStage,
             clip: clip,
             appendagePoses: appendagePoses,
             cameraPreset: resolvedCameraPreset(
                 for: clip,
-                storedPreset: storedPreset
+                storedPreset: storedArtifacts?.cameraPreset
             ),
-            skeletonDefinition: skeletonDefinition,
-            integrity: integrity,
-            stabilizationProfile: stabilizationProfile
+            skeletonDefinition: resolvedSkeletonDefinition(
+                using: recipe.skeletonDefinitionStrategy,
+                clip: clip,
+                context: context
+            ),
+            integrity: recipe.integrityStrategy.resolve(in: context),
+            stabilizationProfile: recipe.stabilizationProfile
         )
+    }
+
+    nonisolated private func resolvedSkeletonDefinition(
+        using strategy: SkeletonDefinitionStrategy,
+        clip: MotionClip?,
+        context: VariantBuildContext
+    ) -> ClipVariant.SkeletonDefinition {
+        switch strategy {
+        case .source:
+            .source
+        case .odoroCanonical:
+            .odoroCanonical
+        case .deriveFromClip:
+            inferredSkeletonDefinition(for: clip)
+        case .rawDisplayFallback:
+            context.sourceClip == nil ? inferredSkeletonDefinition(for: clip) : .source
+        }
     }
 
     nonisolated private func canonicalPlaybackClip(
