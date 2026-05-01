@@ -426,6 +426,10 @@ struct StagePreparedPlaybackBuilder: Sendable {
     private struct VariantRecipe {
         let definition: ClipVariantDefinition
         let clipPlan: VariantClipPlan
+        let outputPolicy: VariantOutputPolicy
+    }
+
+    private struct VariantOutputPolicy {
         let skeletonDefinitionPolicy: SkeletonDefinitionPolicy
         let integrityPolicy: IntegrityPolicy
         let stabilizationProfile: MotionClipStageStabilizer.Profile?
@@ -472,12 +476,14 @@ struct StagePreparedPlaybackBuilder: Sendable {
                 seed: .sourceOrPlayback,
                 passes: [.rebaseForStage]
             ),
-            skeletonDefinitionPolicy: .rawDisplayFallback,
-            integrityPolicy: .rawDisplayFallback,
-            stabilizationProfile: nil,
-            artifactSlot: .raw,
-            appendagePoseStrategy: .none,
-            cameraPresetStrategy: .storedArtifactOrEstimate
+            outputPolicy: VariantOutputPolicy(
+                skeletonDefinitionPolicy: .rawDisplayFallback,
+                integrityPolicy: .rawDisplayFallback,
+                stabilizationProfile: nil,
+                artifactSlot: .raw,
+                appendagePoseStrategy: .none,
+                cameraPresetStrategy: .storedArtifactOrEstimate
+            )
         ),
         VariantRecipe(
             definition: StagePreparedPlaybackVariantCatalog.displayCanonical,
@@ -485,12 +491,14 @@ struct StagePreparedPlaybackBuilder: Sendable {
                 seed: .sourceOrPlayback,
                 passes: [.canonicalizeForPlayback, .rebaseForStage]
             ),
-            skeletonDefinitionPolicy: .odoroCanonical,
-            integrityPolicy: .fixed(.displaySafe),
-            stabilizationProfile: nil,
-            artifactSlot: .canonical,
-            appendagePoseStrategy: .rearBodyEstimateOrStoredArtifact,
-            cameraPresetStrategy: .storedArtifactOrEstimate
+            outputPolicy: VariantOutputPolicy(
+                skeletonDefinitionPolicy: .odoroCanonical,
+                integrityPolicy: .fixed(.displaySafe),
+                stabilizationProfile: nil,
+                artifactSlot: .canonical,
+                appendagePoseStrategy: .rearBodyEstimateOrStoredArtifact,
+                cameraPresetStrategy: .storedArtifactOrEstimate
+            )
         ),
         VariantRecipe(
             definition: StagePreparedPlaybackVariantCatalog.displayStabilized,
@@ -498,12 +506,14 @@ struct StagePreparedPlaybackBuilder: Sendable {
                 seed: .playback,
                 passes: []
             ),
-            skeletonDefinitionPolicy: .deriveFromClip,
-            integrityPolicy: .fixed(.displaySafe),
-            stabilizationProfile: .displaySafe,
-            artifactSlot: .stabilized,
-            appendagePoseStrategy: .rearBodyEstimateOrStoredArtifact,
-            cameraPresetStrategy: .storedArtifactOrEstimate
+            outputPolicy: VariantOutputPolicy(
+                skeletonDefinitionPolicy: .deriveFromClip,
+                integrityPolicy: .fixed(.displaySafe),
+                stabilizationProfile: .displaySafe,
+                artifactSlot: .stabilized,
+                appendagePoseStrategy: .rearBodyEstimateOrStoredArtifact,
+                cameraPresetStrategy: .storedArtifactOrEstimate
+            )
         ),
         VariantRecipe(
             definition: StagePreparedPlaybackVariantCatalog.avatarRigStabilized,
@@ -511,12 +521,14 @@ struct StagePreparedPlaybackBuilder: Sendable {
                 seed: .source,
                 passes: [.rigNormalizeForStage]
             ),
-            skeletonDefinitionPolicy: .source,
-            integrityPolicy: .fixed(.rigSafe),
-            stabilizationProfile: .rigSafe,
-            artifactSlot: nil,
-            appendagePoseStrategy: .none,
-            cameraPresetStrategy: .estimate
+            outputPolicy: VariantOutputPolicy(
+                skeletonDefinitionPolicy: .source,
+                integrityPolicy: .fixed(.rigSafe),
+                stabilizationProfile: .rigSafe,
+                artifactSlot: nil,
+                appendagePoseStrategy: .none,
+                cameraPresetStrategy: .estimate
+            )
         ),
     ]
 
@@ -530,8 +542,8 @@ struct StagePreparedPlaybackBuilder: Sendable {
             return nil
         }
 
-        let storedArtifacts = recipe.artifactSlot?.storedArtifacts(in: context)
-        let appendagePoses = recipe.appendagePoseStrategy.resolve(
+        let storedArtifacts = recipe.outputPolicy.artifactSlot?.storedArtifacts(in: context)
+        let appendagePoses = recipe.outputPolicy.appendagePoseStrategy.resolve(
             clip: clip,
             storedPoses: storedArtifacts?.appendagePoses,
             context: context,
@@ -543,18 +555,18 @@ struct StagePreparedPlaybackBuilder: Sendable {
             processingStage: recipe.definition.key.processingStage,
             clip: clip,
             appendagePoses: appendagePoses,
-            cameraPreset: recipe.cameraPresetStrategy.resolve(
+            cameraPreset: recipe.outputPolicy.cameraPresetStrategy.resolve(
                 clip: clip,
                 storedPreset: storedArtifacts?.cameraPreset,
                 cameraEstimator: cameraEstimator
             ),
-            skeletonDefinition: recipe.skeletonDefinitionPolicy.resolve(
+            skeletonDefinition: recipe.outputPolicy.skeletonDefinitionPolicy.resolve(
                 clip: clip,
                 context: context,
                 inferredSkeletonDefinition: inferredSkeletonDefinition(for:)
             ),
-            integrity: recipe.integrityPolicy.resolve(in: context),
-            stabilizationProfile: recipe.stabilizationProfile
+            integrity: recipe.outputPolicy.integrityPolicy.resolve(in: context),
+            stabilizationProfile: recipe.outputPolicy.stabilizationProfile
         )
     }
 
