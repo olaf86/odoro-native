@@ -95,6 +95,16 @@ struct ClipVariant: Sendable {
 typealias PreparedStagePlaybackClip = ClipVariant
 
 struct StagePreparedPlayback: Sendable {
+    private struct VariantKey: Sendable {
+        let purpose: ClipVariant.Purpose
+        let processingStage: ClipVariant.ProcessingStage
+    }
+
+    private struct PreferredVariantPolicy: Sendable {
+        let preferredKeys: [VariantKey]
+        let requiredIntegrity: ClipVariant.Integrity
+    }
+
     let variants: [ClipVariant]
 
     nonisolated init(variants: [ClipVariant]) {
@@ -102,10 +112,7 @@ struct StagePreparedPlayback: Sendable {
     }
 
     nonisolated var raw: ClipVariant {
-        variant(
-            purpose: .display,
-            processingStage: .raw
-        ) ?? .empty(
+        displayVariant(for: .raw) ?? .empty(
             purpose: .display,
             processingStage: .raw,
             skeletonDefinition: .source,
@@ -114,10 +121,7 @@ struct StagePreparedPlayback: Sendable {
     }
 
     nonisolated var canonical: ClipVariant {
-        variant(
-            purpose: .display,
-            processingStage: .canonical
-        ) ?? .empty(
+        displayVariant(for: .canonical) ?? .empty(
             purpose: .display,
             processingStage: .canonical,
             skeletonDefinition: .odoroCanonical,
@@ -126,10 +130,7 @@ struct StagePreparedPlayback: Sendable {
     }
 
     nonisolated var stabilized: ClipVariant {
-        variant(
-            purpose: .display,
-            processingStage: .stabilized
-        ) ?? .empty(
+        displayVariant(for: .stabilized) ?? .empty(
             purpose: .display,
             processingStage: .stabilized,
             skeletonDefinition: .odoroCanonical,
@@ -139,24 +140,31 @@ struct StagePreparedPlayback: Sendable {
 
     nonisolated var avatarRigVariant: ClipVariant? {
         preferredVariant(
-            for: [
-                (.avatarRig, .stabilized),
-                (.display, .raw),
-            ],
-            integrity: .rigSafe
+            using: PreferredVariantPolicy(
+                preferredKeys: [
+                    VariantKey(purpose: .avatarRig, processingStage: .stabilized),
+                    VariantKey(purpose: .display, processingStage: .raw),
+                ],
+                requiredIntegrity: .rigSafe
+            )
         )
     }
 
-    nonisolated private func preferredVariant(
-        for preferredSelections: [(ClipVariant.Purpose, ClipVariant.ProcessingStage)],
-        integrity: ClipVariant.Integrity
+    nonisolated private func displayVariant(
+        for processingStage: ClipVariant.ProcessingStage
     ) -> ClipVariant? {
-        for (purpose, processingStage) in preferredSelections {
-            guard let variant = variant(purpose: purpose, processingStage: processingStage) else {
+        variant(matching: VariantKey(purpose: .display, processingStage: processingStage))
+    }
+
+    nonisolated private func preferredVariant(
+        using policy: PreferredVariantPolicy
+    ) -> ClipVariant? {
+        for key in policy.preferredKeys {
+            guard let variant = variant(matching: key) else {
                 continue
             }
 
-            if variant.integrity == integrity,
+            if variant.integrity == policy.requiredIntegrity,
                variant.clip != nil {
                 return variant
             }
@@ -169,8 +177,12 @@ struct StagePreparedPlayback: Sendable {
         purpose: ClipVariant.Purpose,
         processingStage: ClipVariant.ProcessingStage
     ) -> ClipVariant? {
+        variant(matching: VariantKey(purpose: purpose, processingStage: processingStage))
+    }
+
+    nonisolated private func variant(matching key: VariantKey) -> ClipVariant? {
         return variants.first { variant in
-            variant.purpose == purpose && variant.processingStage == processingStage
+            variant.purpose == key.purpose && variant.processingStage == key.processingStage
         }
     }
 }
