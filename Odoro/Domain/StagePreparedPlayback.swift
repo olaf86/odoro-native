@@ -120,6 +120,10 @@ private struct ClipVariantDefinition: Sendable {
     let fallbackSkeletonDefinition: ClipVariant.SkeletonDefinition
     let fallbackIntegrity: ClipVariant.Integrity
 
+    nonisolated func resolve(in variants: [ClipVariant]) -> ClipVariant {
+        key.resolve(in: variants) ?? emptyVariant()
+    }
+
     nonisolated func emptyVariant() -> ClipVariant {
         .empty(
             purpose: key.purpose,
@@ -161,45 +165,20 @@ private enum StagePreparedPlaybackVariantCatalog {
         displayStabilized,
     ]
 
-    static let avatarRigPreferredKeys = [
-        avatarRigStabilized.key,
-        displayRaw.key,
+    static let avatarRigPreferredDefinitions = [
+        avatarRigStabilized,
+        displayRaw,
     ]
-
-    static func displayDefinition(
-        for processingStage: ClipVariant.ProcessingStage
-    ) -> ClipVariantDefinition {
-        displayDefinitions.first { $0.key.processingStage == processingStage }
-            ?? ClipVariantDefinition(
-                key: .display(processingStage),
-                fallbackSkeletonDefinition: .source,
-                fallbackIntegrity: .displaySafe
-            )
-    }
 }
 
 struct StagePreparedPlayback: Sendable {
-    private struct DisplayVariantPolicy: Sendable {
-        let definition: ClipVariantDefinition
-
-        nonisolated func resolve(in variants: [ClipVariant]) -> ClipVariant {
-            definition.key.resolve(in: variants) ?? fallbackVariant()
-        }
-
-        nonisolated func fallbackVariant() -> ClipVariant {
-            definition.emptyVariant()
-        }
-    }
-
     private struct PreferredVariantPolicy: Sendable {
-        let preferredKeys: [ClipVariantKey]
+        let preferredDefinitions: [ClipVariantDefinition]
         let requiredIntegrity: ClipVariant.Integrity
 
         nonisolated func resolve(in variants: [ClipVariant]) -> ClipVariant? {
-            for key in preferredKeys {
-                guard let variant = key.resolve(in: variants) else {
-                    continue
-                }
+            for definition in preferredDefinitions {
+                let variant = definition.resolve(in: variants)
 
                 if variant.integrity == requiredIntegrity,
                    variant.clip != nil {
@@ -218,40 +197,25 @@ struct StagePreparedPlayback: Sendable {
     }
 
     nonisolated var raw: ClipVariant {
-        displayVariantPolicy(for: .raw).resolve(in: variants)
+        StagePreparedPlaybackVariantCatalog.displayRaw.resolve(in: variants)
     }
 
     nonisolated var canonical: ClipVariant {
-        displayVariantPolicy(for: .canonical).resolve(in: variants)
+        StagePreparedPlaybackVariantCatalog.displayCanonical.resolve(in: variants)
     }
 
     nonisolated var stabilized: ClipVariant {
-        displayVariantPolicy(for: .stabilized).resolve(in: variants)
+        StagePreparedPlaybackVariantCatalog.displayStabilized.resolve(in: variants)
     }
 
     nonisolated var avatarRigVariant: ClipVariant? {
         Self.avatarRigSelectionPolicy.resolve(in: variants)
     }
 
-    nonisolated private static let displayVariantPolicies: [DisplayVariantPolicy] =
-        StagePreparedPlaybackVariantCatalog.displayDefinitions.map(DisplayVariantPolicy.init)
-
     nonisolated private static let avatarRigSelectionPolicy = PreferredVariantPolicy(
-        preferredKeys: StagePreparedPlaybackVariantCatalog.avatarRigPreferredKeys,
+        preferredDefinitions: StagePreparedPlaybackVariantCatalog.avatarRigPreferredDefinitions,
         requiredIntegrity: .rigSafe
     )
-
-    nonisolated private func displayVariantPolicy(
-        for processingStage: ClipVariant.ProcessingStage
-    ) -> DisplayVariantPolicy {
-        Self.displayVariantPolicies.first {
-            $0.definition.key.processingStage == processingStage
-        } ?? DisplayVariantPolicy(
-            definition: StagePreparedPlaybackVariantCatalog.displayDefinition(
-                for: processingStage
-            )
-        )
-    }
 
     nonisolated func variant(
         purpose: ClipVariant.Purpose,
