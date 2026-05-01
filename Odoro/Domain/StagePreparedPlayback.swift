@@ -113,6 +113,12 @@ struct StagePreparedPlayback: Sendable {
         let fallbackSkeletonDefinition: ClipVariant.SkeletonDefinition
         let fallbackIntegrity: ClipVariant.Integrity
 
+        nonisolated func resolve(in variants: [ClipVariant]) -> ClipVariant {
+            variants.first { variant in
+                variant.purpose == key.purpose && variant.processingStage == key.processingStage
+            } ?? fallbackVariant()
+        }
+
         nonisolated func fallbackVariant() -> ClipVariant {
             .empty(
                 purpose: key.purpose,
@@ -126,6 +132,23 @@ struct StagePreparedPlayback: Sendable {
     private struct PreferredVariantPolicy: Sendable {
         let preferredKeys: [ClipVariantKey]
         let requiredIntegrity: ClipVariant.Integrity
+
+        nonisolated func resolve(in variants: [ClipVariant]) -> ClipVariant? {
+            for key in preferredKeys {
+                guard let variant = variants.first(where: { variant in
+                    variant.purpose == key.purpose && variant.processingStage == key.processingStage
+                }) else {
+                    continue
+                }
+
+                if variant.integrity == requiredIntegrity,
+                   variant.clip != nil {
+                    return variant
+                }
+            }
+
+            return nil
+        }
     }
 
     let variants: [ClipVariant]
@@ -135,21 +158,19 @@ struct StagePreparedPlayback: Sendable {
     }
 
     nonisolated var raw: ClipVariant {
-        displayVariant(using: .raw)
+        displayVariantPolicy(for: .raw).resolve(in: variants)
     }
 
     nonisolated var canonical: ClipVariant {
-        displayVariant(using: .canonical)
+        displayVariantPolicy(for: .canonical).resolve(in: variants)
     }
 
     nonisolated var stabilized: ClipVariant {
-        displayVariant(using: .stabilized)
+        displayVariantPolicy(for: .stabilized).resolve(in: variants)
     }
 
     nonisolated var avatarRigVariant: ClipVariant? {
-        preferredVariant(
-            using: avatarRigSelectionPolicy
-        )
+        avatarRigSelectionPolicy.resolve(in: variants)
     }
 
     nonisolated private var displayVariantPolicies: [DisplayVariantPolicy] {
@@ -191,30 +212,6 @@ struct StagePreparedPlayback: Sendable {
                 fallbackSkeletonDefinition: .source,
                 fallbackIntegrity: .displaySafe
             )
-    }
-
-    nonisolated private func displayVariant(
-        using processingStage: ClipVariant.ProcessingStage
-    ) -> ClipVariant {
-        let policy = displayVariantPolicy(for: processingStage)
-        return variant(matching: policy.key) ?? policy.fallbackVariant()
-    }
-
-    nonisolated private func preferredVariant(
-        using policy: PreferredVariantPolicy
-    ) -> ClipVariant? {
-        for key in policy.preferredKeys {
-            guard let variant = variant(matching: key) else {
-                continue
-            }
-
-            if variant.integrity == policy.requiredIntegrity,
-               variant.clip != nil {
-                return variant
-            }
-        }
-
-        return nil
     }
 
     nonisolated func variant(
