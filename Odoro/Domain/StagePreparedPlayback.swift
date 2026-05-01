@@ -152,6 +152,7 @@ struct StagePreparedPlaybackBuilder: Sendable {
         case playback
         case sourceOrPlayback
 
+        nonisolated
         func resolve(in context: VariantBuildContext) -> MotionClip? {
             return switch self {
             case .source:
@@ -169,6 +170,7 @@ struct StagePreparedPlaybackBuilder: Sendable {
         case rebaseForStage
         case rigNormalizeForStage
 
+        nonisolated
         func apply(to clip: MotionClip?) -> MotionClip? {
             guard let clip else {
                 return nil
@@ -191,6 +193,7 @@ struct StagePreparedPlaybackBuilder: Sendable {
         let seed: VariantClipSeed
         let passes: [VariantClipPass]
 
+        nonisolated
         func resolve(in context: VariantBuildContext) -> MotionClip? {
             passes.reduce(seed.resolve(in: context)) { clip, pass in
                 pass.apply(to: clip)
@@ -203,6 +206,7 @@ struct StagePreparedPlaybackBuilder: Sendable {
         case canonical
         case stabilized
 
+        nonisolated
         func storedArtifacts(in context: VariantBuildContext) -> StagePlaybackClipArtifacts? {
             guard let stagePlayback = context.playbackArtifacts?.stagePlayback else {
                 return nil
@@ -230,12 +234,84 @@ struct StagePreparedPlaybackBuilder: Sendable {
         case fixed(ClipVariant.Integrity)
         case rawDisplayFallback
 
+        nonisolated
         func resolve(in context: VariantBuildContext) -> ClipVariant.Integrity {
             switch self {
             case .fixed(let integrity):
                 integrity
             case .rawDisplayFallback:
                 context.sourceClip == nil ? .displaySafe : .rigSafe
+            }
+        }
+    }
+
+    private enum AppendagePoseStrategy {
+        case none
+        case rearBodyEstimateOrStoredArtifact
+
+        nonisolated
+        func resolve(
+            clip: MotionClip?,
+            storedPoses: MotionClipAppendagePoses?,
+            context: VariantBuildContext,
+            appendagePoseEstimator: RearBody3DAppendagePoseEstimator
+        ) -> MotionClipAppendagePoses? {
+            switch self {
+            case .none:
+                return nil
+            case .rearBodyEstimateOrStoredArtifact:
+                guard
+                    context.captureMode == .rearBody3D,
+                    let clip
+                else {
+                    return nil
+                }
+
+                if context.sourceClip == nil,
+                   let storedPoses,
+                   storedPoses.frames.count == clip.frames.count {
+                    return storedPoses
+                }
+
+                guard clip.frames.first?.jointPositions.count == OdoroSkeletonDefinition.jointCount else {
+                    return nil
+                }
+
+                return appendagePoseEstimator.estimatePoses(for: clip)
+            }
+        }
+    }
+
+    private enum CameraPresetStrategy {
+        case none
+        case estimate
+        case storedArtifactOrEstimate
+
+        nonisolated
+        func resolve(
+            clip: MotionClip?,
+            storedPreset: StagePlaybackCameraPreset?,
+            cameraEstimator: StagePlaybackCameraEstimator
+        ) -> StagePlaybackCameraPreset? {
+            switch self {
+            case .none:
+                return nil
+            case .estimate:
+                guard let clip else {
+                    return nil
+                }
+
+                return cameraEstimator.estimate(for: clip)
+            case .storedArtifactOrEstimate:
+                if let storedPreset {
+                    return storedPreset
+                }
+
+                guard let clip else {
+                    return nil
+                }
+
+                return cameraEstimator.estimate(for: clip)
             }
         }
     }
@@ -248,7 +324,8 @@ struct StagePreparedPlaybackBuilder: Sendable {
         let integrityStrategy: IntegrityStrategy
         let stabilizationProfile: MotionClipStageStabilizer.Profile?
         let artifactSlot: VariantArtifactSlot?
-        let includesAppendagePoses: Bool
+        let appendagePoseStrategy: AppendagePoseStrategy
+        let cameraPresetStrategy: CameraPresetStrategy
     }
 
     let appendagePoseEstimator: RearBody3DAppendagePoseEstimator
@@ -295,7 +372,8 @@ struct StagePreparedPlaybackBuilder: Sendable {
                 integrityStrategy: .rawDisplayFallback,
                 stabilizationProfile: nil,
                 artifactSlot: .raw,
-                includesAppendagePoses: false
+                appendagePoseStrategy: .none,
+                cameraPresetStrategy: .storedArtifactOrEstimate
             ),
             VariantRecipe(
                 purpose: .display,
@@ -308,7 +386,8 @@ struct StagePreparedPlaybackBuilder: Sendable {
                 integrityStrategy: .fixed(.displaySafe),
                 stabilizationProfile: nil,
                 artifactSlot: .canonical,
-                includesAppendagePoses: true
+                appendagePoseStrategy: .rearBodyEstimateOrStoredArtifact,
+                cameraPresetStrategy: .storedArtifactOrEstimate
             ),
             VariantRecipe(
                 purpose: .display,
@@ -321,7 +400,8 @@ struct StagePreparedPlaybackBuilder: Sendable {
                 integrityStrategy: .fixed(.displaySafe),
                 stabilizationProfile: .displaySafe,
                 artifactSlot: .stabilized,
-                includesAppendagePoses: true
+                appendagePoseStrategy: .rearBodyEstimateOrStoredArtifact,
+                cameraPresetStrategy: .storedArtifactOrEstimate
             ),
             VariantRecipe(
                 purpose: .avatarRig,
@@ -334,7 +414,8 @@ struct StagePreparedPlaybackBuilder: Sendable {
                 integrityStrategy: .fixed(.rigSafe),
                 stabilizationProfile: .rigSafe,
                 artifactSlot: nil,
-                includesAppendagePoses: false
+                appendagePoseStrategy: .none,
+                cameraPresetStrategy: .estimate
             ),
         ]
     }
@@ -350,23 +431,22 @@ struct StagePreparedPlaybackBuilder: Sendable {
         }
 
         let storedArtifacts = recipe.artifactSlot?.storedArtifacts(in: context)
-        let appendagePoses = recipe.includesAppendagePoses
-            ? resolvedAppendagePoses(
-                for: clip,
-                captureMode: context.captureMode,
-                sourceClip: context.sourceClip,
-                storedPoses: storedArtifacts?.appendagePoses
-            )
-            : nil
+        let appendagePoses = recipe.appendagePoseStrategy.resolve(
+            clip: clip,
+            storedPoses: storedArtifacts?.appendagePoses,
+            context: context,
+            appendagePoseEstimator: appendagePoseEstimator
+        )
 
         return ClipVariant(
             purpose: recipe.purpose,
             processingStage: recipe.processingStage,
             clip: clip,
             appendagePoses: appendagePoses,
-            cameraPreset: resolvedCameraPreset(
-                for: clip,
-                storedPreset: storedArtifacts?.cameraPreset
+            cameraPreset: recipe.cameraPresetStrategy.resolve(
+                clip: clip,
+                storedPreset: storedArtifacts?.cameraPreset,
+                cameraEstimator: cameraEstimator
             ),
             skeletonDefinition: resolvedSkeletonDefinition(
                 using: recipe.skeletonDefinitionStrategy,
@@ -393,47 +473,6 @@ struct StagePreparedPlaybackBuilder: Sendable {
         case .rawDisplayFallback:
             context.sourceClip == nil ? inferredSkeletonDefinition(for: clip) : .source
         }
-    }
-
-    nonisolated private func resolvedAppendagePoses(
-        for clip: MotionClip?,
-        captureMode: CaptureMode,
-        sourceClip: MotionClip?,
-        storedPoses: MotionClipAppendagePoses?
-    ) -> MotionClipAppendagePoses? {
-        guard
-            captureMode == .rearBody3D,
-            let clip
-        else {
-            return nil
-        }
-
-        if sourceClip == nil,
-           let storedPoses,
-           storedPoses.frames.count == clip.frames.count {
-            return storedPoses
-        }
-
-        guard clip.frames.first?.jointPositions.count == OdoroSkeletonDefinition.jointCount else {
-            return nil
-        }
-
-        return appendagePoseEstimator.estimatePoses(for: clip)
-    }
-
-    nonisolated private func resolvedCameraPreset(
-        for clip: MotionClip?,
-        storedPreset: StagePlaybackCameraPreset?
-    ) -> StagePlaybackCameraPreset? {
-        if let storedPreset {
-            return storedPreset
-        }
-
-        guard let clip else {
-            return nil
-        }
-
-        return cameraEstimator.estimate(for: clip)
     }
 
     nonisolated private func inferredSkeletonDefinition(for clip: MotionClip?) -> ClipVariant.SkeletonDefinition {
