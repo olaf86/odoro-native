@@ -100,6 +100,21 @@ struct StagePreparedPlayback: Sendable {
         let processingStage: ClipVariant.ProcessingStage
     }
 
+    private struct DisplayVariantPolicy: Sendable {
+        let key: VariantKey
+        let fallbackSkeletonDefinition: ClipVariant.SkeletonDefinition
+        let fallbackIntegrity: ClipVariant.Integrity
+
+        nonisolated func fallbackVariant() -> ClipVariant {
+            .empty(
+                purpose: key.purpose,
+                processingStage: key.processingStage,
+                skeletonDefinition: fallbackSkeletonDefinition,
+                integrity: fallbackIntegrity
+            )
+        }
+    }
+
     private struct PreferredVariantPolicy: Sendable {
         let preferredKeys: [VariantKey]
         let requiredIntegrity: ClipVariant.Integrity
@@ -112,48 +127,70 @@ struct StagePreparedPlayback: Sendable {
     }
 
     nonisolated var raw: ClipVariant {
-        displayVariant(for: .raw) ?? .empty(
-            purpose: .display,
-            processingStage: .raw,
-            skeletonDefinition: .source,
-            integrity: .displaySafe
-        )
+        displayVariant(using: .raw)
     }
 
     nonisolated var canonical: ClipVariant {
-        displayVariant(for: .canonical) ?? .empty(
-            purpose: .display,
-            processingStage: .canonical,
-            skeletonDefinition: .odoroCanonical,
-            integrity: .displaySafe
-        )
+        displayVariant(using: .canonical)
     }
 
     nonisolated var stabilized: ClipVariant {
-        displayVariant(for: .stabilized) ?? .empty(
-            purpose: .display,
-            processingStage: .stabilized,
-            skeletonDefinition: .odoroCanonical,
-            integrity: .displaySafe
-        )
+        displayVariant(using: .stabilized)
     }
 
     nonisolated var avatarRigVariant: ClipVariant? {
         preferredVariant(
-            using: PreferredVariantPolicy(
-                preferredKeys: [
-                    VariantKey(purpose: .avatarRig, processingStage: .stabilized),
-                    VariantKey(purpose: .display, processingStage: .raw),
-                ],
-                requiredIntegrity: .rigSafe
-            )
+            using: avatarRigSelectionPolicy
+        )
+    }
+
+    nonisolated private var rawDisplayPolicy: DisplayVariantPolicy {
+        DisplayVariantPolicy(
+            key: VariantKey(purpose: .display, processingStage: .raw),
+            fallbackSkeletonDefinition: .source,
+            fallbackIntegrity: .displaySafe
+        )
+    }
+
+    nonisolated private var canonicalDisplayPolicy: DisplayVariantPolicy {
+        DisplayVariantPolicy(
+            key: VariantKey(purpose: .display, processingStage: .canonical),
+            fallbackSkeletonDefinition: .odoroCanonical,
+            fallbackIntegrity: .displaySafe
+        )
+    }
+
+    nonisolated private var stabilizedDisplayPolicy: DisplayVariantPolicy {
+        DisplayVariantPolicy(
+            key: VariantKey(purpose: .display, processingStage: .stabilized),
+            fallbackSkeletonDefinition: .odoroCanonical,
+            fallbackIntegrity: .displaySafe
+        )
+    }
+
+    nonisolated private var avatarRigSelectionPolicy: PreferredVariantPolicy {
+        PreferredVariantPolicy(
+            preferredKeys: [
+                VariantKey(purpose: .avatarRig, processingStage: .stabilized),
+                rawDisplayPolicy.key,
+            ],
+            requiredIntegrity: .rigSafe
         )
     }
 
     nonisolated private func displayVariant(
-        for processingStage: ClipVariant.ProcessingStage
-    ) -> ClipVariant? {
-        variant(matching: VariantKey(purpose: .display, processingStage: processingStage))
+        using processingStage: ClipVariant.ProcessingStage
+    ) -> ClipVariant {
+        let policy = switch processingStage {
+        case .raw:
+            rawDisplayPolicy
+        case .canonical:
+            canonicalDisplayPolicy
+        case .stabilized:
+            stabilizedDisplayPolicy
+        }
+
+        return variant(matching: policy.key) ?? policy.fallbackVariant()
     }
 
     nonisolated private func preferredVariant(
