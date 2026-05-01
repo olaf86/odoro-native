@@ -293,6 +293,52 @@ struct OdoroTests {
         #expect(stabilizedSpikeLength < rawSpikeLength)
     }
 
+    @Test func motionClipStageStabilizerRigSafeProfileSkipsCanonicalBoneConstraints() {
+        let stabilizer = MotionClipStageStabilizer()
+        let baselineFrame = Self.canonicalFrame(
+            time: 0,
+            overrides: [
+                .leftFoot: SIMD3<Float>(-0.12, 0.0, 0.18),
+                .rightFoot: SIMD3<Float>(0.12, 0.0, 0.18),
+            ]
+        )
+        let spikedFrame = Self.canonicalFrame(
+            time: 1.0 / 30.0,
+            overrides: [
+                .leftFoot: SIMD3<Float>(0.62, 0.0, 1.18),
+                .rightFoot: SIMD3<Float>(0.12, 0.0, 0.18),
+            ]
+        )
+        let recoveredFrame = Self.canonicalFrame(
+            time: 2.0 / 30.0,
+            overrides: [
+                .leftFoot: SIMD3<Float>(-0.12, 0.0, 0.18),
+                .rightFoot: SIMD3<Float>(0.12, 0.0, 0.18),
+            ]
+        )
+        let clip = MotionClip(frames: [baselineFrame, spikedFrame, recoveredFrame])
+
+        let displaySafe = stabilizer.stabilize(clip, profile: .displaySafe)
+        let rigSafe = stabilizer.stabilize(clip, profile: .rigSafe)
+
+        let leftAnkleIndex = OdoroSkeletonDefinition.index(of: .leftAnkle)
+        let leftFootIndex = OdoroSkeletonDefinition.index(of: .leftFoot)
+        let referenceLength = simd_distance(
+            baselineFrame.jointPositions[leftAnkleIndex],
+            baselineFrame.jointPositions[leftFootIndex]
+        )
+        let displaySafeSpikeLength = simd_distance(
+            displaySafe[1].jointPositions[leftAnkleIndex],
+            displaySafe[1].jointPositions[leftFootIndex]
+        )
+        let rigSafeSpikeLength = simd_distance(
+            rigSafe[1].jointPositions[leftAnkleIndex],
+            rigSafe[1].jointPositions[leftFootIndex]
+        )
+
+        #expect(abs(displaySafeSpikeLength - referenceLength) < abs(rigSafeSpikeLength - referenceLength))
+    }
+
     @Test func motionClipStageStabilizerPinsCanonicalFootWhileContactLooksStable() {
         let stabilizer = MotionClipStageStabilizer()
         let pinnedX: Float = -0.12
@@ -460,9 +506,8 @@ struct OdoroTests {
 
         let rootIndex = OdoroSkeletonDefinition.index(of: .root)
         let recoveredYs = stabilized.dropFirst(2).map { $0.jointPositions[rootIndex].y }
-
         #expect(recoveredYs.allSatisfy { $0 < 1.2 })
-        #expect(abs(recoveredYs.last ?? 0 - 1.0) < 0.08)
+        #expect(abs((recoveredYs.last ?? 0) - 1.0) < 0.08)
     }
 
     @Test func canonicalPoseMapperCanonicalizesClipFramesForPlayback() {
@@ -721,7 +766,7 @@ struct OdoroTests {
         #expect(inference.frames[0].hands.right == nil)
     }
 
-    @Test func stagePreparedPlaybackBuilderCachesRearBodyInferenceOnPreparedVariants() {
+    @Test func stagePreparedPlaybackBuilderCachesRearBodyInferenceOnPreparedVariants() throws {
         let sourceClip = MotionClip(frames: [
             MotionFrame(
                 time: 0,
@@ -744,11 +789,31 @@ struct OdoroTests {
         )
 
         #expect(prepared.raw.appendagePoses == nil)
+        #expect(prepared.raw.purpose == .display)
+        #expect(prepared.raw.processingStage == .raw)
+        #expect(prepared.raw.skeletonDefinition == .source)
+        #expect(prepared.raw.integrity == .rigSafe)
+        let rigVariant = try #require(prepared.variant(purpose: .avatarRig, processingStage: .stabilized))
+        #expect(rigVariant.skeletonDefinition == .source)
+        #expect(rigVariant.integrity == .rigSafe)
+        #expect(rigVariant.stabilizationProfile == .rigSafe)
         #expect(prepared.canonical.clip != nil)
+        #expect(prepared.canonical.purpose == .display)
+        #expect(prepared.canonical.processingStage == .canonical)
+        #expect(prepared.canonical.skeletonDefinition == .odoroCanonical)
+        #expect(prepared.canonical.integrity == .displaySafe)
         #expect(prepared.canonical.appendagePoses?.frames.count == prepared.canonical.clip?.frames.count)
+        #expect(prepared.stabilized.purpose == .display)
+        #expect(prepared.stabilized.processingStage == .stabilized)
+        #expect(prepared.stabilized.skeletonDefinition == .odoroCanonical)
+        #expect(prepared.stabilized.integrity == .displaySafe)
+        #expect(prepared.stabilized.stabilizationProfile == .displaySafe)
         #expect(prepared.stabilized.appendagePoses?.frames.count == prepared.stabilized.clip?.frames.count)
         #expect(prepared.canonical.cameraPreset != nil)
         #expect(prepared.stabilized.cameraPreset != nil)
+        #expect(prepared.avatarRigVariant?.purpose == .avatarRig)
+        #expect(prepared.avatarRigVariant?.processingStage == .stabilized)
+        #expect(prepared.avatarRigVariant?.integrity == .rigSafe)
     }
 
     @Test func stagePreparedPlaybackBuilderSkipsInferenceOutsideRearBodyMode() {
@@ -790,6 +855,10 @@ struct OdoroTests {
         #expect(prepared.stabilized.appendagePoses == storedArtifacts.stagePlayback?.stabilized.appendagePoses)
         #expect(prepared.canonical.cameraPreset == storedArtifacts.stagePlayback?.canonical.cameraPreset)
         #expect(prepared.stabilized.cameraPreset == storedArtifacts.stagePlayback?.stabilized.cameraPreset)
+        #expect(prepared.raw.integrity == .displaySafe)
+        #expect(prepared.raw.skeletonDefinition == .odoroCanonical)
+        #expect(prepared.variant(purpose: .avatarRig, processingStage: .stabilized) == nil)
+        #expect(prepared.avatarRigVariant == nil)
     }
 
     @Test func stagePlaybackCameraEstimatorPlacesCameraInFrontOfRepresentativeBodyFacing() throws {
@@ -966,6 +1035,7 @@ struct OdoroTests {
             floorOffset: 0.977,
             translationMode: .bindPose,
             preservesBindPoseRotation: false,
+            sourceNeutralLocalRotation: nil,
             rotationWeight: 1
         )
 
@@ -990,6 +1060,7 @@ struct OdoroTests {
             floorOffset: 0.977,
             translationMode: .bindPose,
             preservesBindPoseRotation: true,
+            sourceNeutralLocalRotation: nil,
             rotationWeight: 1
         )
 
@@ -1009,6 +1080,48 @@ struct OdoroTests {
 
         #expect(Self.rotationAngle(dampedRotation) < Self.rotationAngle(fullRotation))
         #expect(Self.rotationAngle(dampedRotation) > 0)
+    }
+
+    @Test func stageRendererBindPoseNeutralRotationKeepsBindPoseAtSourceRest() {
+        let baseRotation = simd_quatf(angle: .pi / 2, axis: SIMD3<Float>(1, 0, 0))
+        let sourceNeutralLocalRotation = simd_quatf(angle: .pi / 3, axis: SIMD3<Float>(0, 1, 0))
+        let localTransform = StagePlaybackRenderer.makeRigLocalTransform(
+            preserving: Transform(scale: .one, rotation: baseRotation, translation: SIMD3<Float>(0.1, 0.2, 0.3)),
+            worldRotation: sourceNeutralLocalRotation,
+            worldPosition: .zero,
+            parentWorldRotation: nil,
+            parentWorldPosition: nil,
+            floorOffset: 0,
+            translationMode: .bindPose,
+            preservesBindPoseRotation: false,
+            sourceNeutralLocalRotation: sourceNeutralLocalRotation,
+            rotationWeight: 1
+        )
+
+        #expect(Self.rotationAngle(baseRotation.inverse * localTransform.rotation) < 0.0001)
+        #expect(localTransform.translation == SIMD3<Float>(0.1, 0.2, 0.3))
+    }
+
+    @Test func stageRendererBindPoseNeutralRotationAppliesOnlyMotionDeltaOnTopOfBindPose() {
+        let parentWorldRotation = simd_quatf(angle: .pi / 4, axis: SIMD3<Float>(0, 1, 0))
+        let baseRotation = simd_quatf(angle: .pi / 2, axis: SIMD3<Float>(1, 0, 0))
+        let sourceNeutralLocalRotation = simd_quatf(angle: .pi / 6, axis: SIMD3<Float>(0, 0, 1))
+        let motionDelta = simd_quatf(angle: .pi / 5, axis: SIMD3<Float>(1, 0, 0))
+        let localTransform = StagePlaybackRenderer.makeRigLocalTransform(
+            preserving: Transform(scale: .one, rotation: baseRotation, translation: .zero),
+            worldRotation: parentWorldRotation * sourceNeutralLocalRotation * motionDelta,
+            worldPosition: .zero,
+            parentWorldRotation: parentWorldRotation,
+            parentWorldPosition: .zero,
+            floorOffset: 0,
+            translationMode: .bindPose,
+            preservesBindPoseRotation: false,
+            sourceNeutralLocalRotation: sourceNeutralLocalRotation,
+            rotationWeight: 1
+        )
+
+        let expectedRotation = baseRotation * motionDelta
+        #expect(Self.rotationAngle(expectedRotation.inverse * localTransform.rotation) < 0.002)
     }
 
     @Test func stageRendererPreservesBindPoseRotationForTorsoHeadAndSharedCanonicalBindings() {
@@ -1402,7 +1515,7 @@ struct OdoroTests {
             currentTime: { clock }
         )
 
-        source.activate()
+        source.activate(for: .recording)
         interactor.beginRecording()
         source.emitFrame(at: 0, joints: 2)
         source.emitFrame(at: 0.4, joints: 2)
@@ -1600,9 +1713,11 @@ private final class TestMotionSource: MotionSource {
     var onFrame: ((MotionFrame) -> Void)?
     var onStatusTextChange: ((String) -> Void)?
     private(set) var activateCallCount = 0
+    private(set) var lastActivity: MotionSourceActivity?
 
-    func activate() {
+    func activate(for activity: MotionSourceActivity) {
         activateCallCount += 1
+        lastActivity = activity
     }
     func deactivate() {}
 

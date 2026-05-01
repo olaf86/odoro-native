@@ -7,6 +7,38 @@ import Foundation
 import simd
 
 struct MotionClipStageStabilizer: Sendable {
+    enum Profile: Sendable, Equatable {
+        case displaySafe
+        case rigSafe
+
+        nonisolated static func == (lhs: Self, rhs: Self) -> Bool {
+            switch (lhs, rhs) {
+            case (.displaySafe, .displaySafe), (.rigSafe, .rigSafe):
+                true
+            default:
+                false
+            }
+        }
+
+        nonisolated var appliesCanonicalConstraints: Bool {
+            switch self {
+            case .displaySafe:
+                true
+            case .rigSafe:
+                false
+            }
+        }
+
+        nonisolated var appliesFootContactPinning: Bool {
+            switch self {
+            case .displaySafe:
+                true
+            case .rigSafe:
+                false
+            }
+        }
+    }
+
     struct Tuning: Sendable {
         let minimumFrameCount = 3
         let fallbackDeltaTime: TimeInterval = 1.0 / 30.0
@@ -110,12 +142,17 @@ struct MotionClipStageStabilizer: Sendable {
     /// - predictive temporal smoothing,
     /// - canonical bone-length constraints when available,
     /// - foot contact pinning near the floor.
-    nonisolated func stabilize(_ clip: MotionClip) -> [MotionFrame] {
+    nonisolated func stabilize(
+        _ clip: MotionClip,
+        profile: Profile = .displaySafe
+    ) -> [MotionFrame] {
         guard clip.frames.count >= tuning.minimumFrameCount, let firstFrame = clip.frames.first else {
             return clip.frames
         }
 
-        let canonicalRig = canonicalRig(forJointCount: firstFrame.jointPositions.count)
+        let canonicalRig = profile.appliesCanonicalConstraints
+            ? canonicalRig(forJointCount: firstFrame.jointPositions.count)
+            : nil
         let canonicalReferenceBoneLengths = canonicalRig.map { referenceBoneLengths(for: $0, frames: clip.frames) } ?? [:]
         let initialFloorHeight = estimatedFloorHeight(in: Array(clip.frames.prefix(8)))
 
@@ -261,7 +298,8 @@ struct MotionClipStageStabilizer: Sendable {
                     rig: canonicalRig
                 )
 
-                if let floorHeight = state.floorHeight {
+                if profile.appliesFootContactPinning,
+                   let floorHeight = state.floorHeight {
                     let contactResult = footContactAdjustedPositions(
                         positions: jointPositions,
                         confidences: jointConfidences,

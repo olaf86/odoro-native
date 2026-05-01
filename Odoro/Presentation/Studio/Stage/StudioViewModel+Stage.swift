@@ -24,6 +24,7 @@ extension StudioViewModel {
         stageRenderer.pause()
         interactor.setPlaybackActive(false)
         stageRenderer.setClip(nil)
+        stageRenderer.setAvatarRigClip(nil)
         stageRenderer.setAppendagePoses(nil)
         interactor.resetClip()
         currentTakeID = nil
@@ -137,6 +138,7 @@ extension StudioViewModel {
         }
 
         stageRenderer.setSkeletonDebugLayout(stageDebugSkeletonLayout)
+        stageRenderer.setAvatarRigClip(preparedStagePlayback?.avatarRigVariant?.clip)
         stageRenderer.setClip(stageDebugPresentation.clip)
         stageRenderer.setAppendagePoses(stageDebugPresentation.appendagePoses)
         stageRenderer.setStageCameraPreset(stageDebugPresentation.cameraPreset)
@@ -155,13 +157,28 @@ extension StudioViewModel {
         switch stageDebugMotionViewMode {
         case .raw:
             return preparedStagePlayback?.raw
-                ?? PreparedStagePlaybackClip(clip: nil, appendagePoses: nil, cameraPreset: nil)
+                ?? .empty(
+                    purpose: .display,
+                    processingStage: .raw,
+                    skeletonDefinition: .source,
+                    integrity: .displaySafe
+                )
         case .canonical:
             return preparedStagePlayback?.canonical
-                ?? PreparedStagePlaybackClip(clip: nil, appendagePoses: nil, cameraPreset: nil)
+                ?? .empty(
+                    purpose: .display,
+                    processingStage: .canonical,
+                    skeletonDefinition: .odoroCanonical,
+                    integrity: .displaySafe
+                )
         case .stabilized:
             return preparedStagePlayback?.stabilized
-                ?? PreparedStagePlaybackClip(clip: nil, appendagePoses: nil, cameraPreset: nil)
+                ?? .empty(
+                    purpose: .display,
+                    processingStage: .stabilized,
+                    skeletonDefinition: .odoroCanonical,
+                    integrity: .displaySafe
+                )
         }
     }
 

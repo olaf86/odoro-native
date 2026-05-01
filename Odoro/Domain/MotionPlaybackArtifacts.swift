@@ -10,6 +10,10 @@ struct StagePlaybackCameraPreset: Codable, Sendable, Equatable {
     let lookAt: MotionPayloadVector3
     let position: MotionPayloadVector3
 
+    nonisolated static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.lookAt == rhs.lookAt && lhs.position == rhs.position
+    }
+
     nonisolated init(lookAt: SIMD3<Float>, position: SIMD3<Float>) {
         self.lookAt = MotionPayloadVector3(lookAt)
         self.position = MotionPayloadVector3(position)
