@@ -105,6 +105,14 @@ private struct ClipVariantKey: Sendable {
     nonisolated static func avatarRig(_ processingStage: ClipVariant.ProcessingStage) -> Self {
         Self(purpose: .avatarRig, processingStage: processingStage)
     }
+
+    nonisolated func matches(_ variant: ClipVariant) -> Bool {
+        variant.purpose == purpose && variant.processingStage == processingStage
+    }
+
+    nonisolated func resolve(in variants: [ClipVariant]) -> ClipVariant? {
+        variants.first(where: matches(_:))
+    }
 }
 
 struct StagePreparedPlayback: Sendable {
@@ -114,9 +122,7 @@ struct StagePreparedPlayback: Sendable {
         let fallbackIntegrity: ClipVariant.Integrity
 
         nonisolated func resolve(in variants: [ClipVariant]) -> ClipVariant {
-            variants.first { variant in
-                variant.purpose == key.purpose && variant.processingStage == key.processingStage
-            } ?? fallbackVariant()
+            key.resolve(in: variants) ?? fallbackVariant()
         }
 
         nonisolated func fallbackVariant() -> ClipVariant {
@@ -135,9 +141,7 @@ struct StagePreparedPlayback: Sendable {
 
         nonisolated func resolve(in variants: [ClipVariant]) -> ClipVariant? {
             for key in preferredKeys {
-                guard let variant = variants.first(where: { variant in
-                    variant.purpose == key.purpose && variant.processingStage == key.processingStage
-                }) else {
+                guard let variant = key.resolve(in: variants) else {
                     continue
                 }
 
@@ -170,43 +174,39 @@ struct StagePreparedPlayback: Sendable {
     }
 
     nonisolated var avatarRigVariant: ClipVariant? {
-        avatarRigSelectionPolicy.resolve(in: variants)
+        Self.avatarRigSelectionPolicy.resolve(in: variants)
     }
 
-    nonisolated private var displayVariantPolicies: [DisplayVariantPolicy] {
-        [
-            DisplayVariantPolicy(
-                key: .display(.raw),
-                fallbackSkeletonDefinition: .source,
-                fallbackIntegrity: .displaySafe
-            ),
-            DisplayVariantPolicy(
-                key: .display(.canonical),
-                fallbackSkeletonDefinition: .odoroCanonical,
-                fallbackIntegrity: .displaySafe
-            ),
-            DisplayVariantPolicy(
-                key: .display(.stabilized),
-                fallbackSkeletonDefinition: .odoroCanonical,
-                fallbackIntegrity: .displaySafe
-            ),
-        ]
-    }
+    nonisolated private static let displayVariantPolicies: [DisplayVariantPolicy] = [
+        DisplayVariantPolicy(
+            key: .display(.raw),
+            fallbackSkeletonDefinition: .source,
+            fallbackIntegrity: .displaySafe
+        ),
+        DisplayVariantPolicy(
+            key: .display(.canonical),
+            fallbackSkeletonDefinition: .odoroCanonical,
+            fallbackIntegrity: .displaySafe
+        ),
+        DisplayVariantPolicy(
+            key: .display(.stabilized),
+            fallbackSkeletonDefinition: .odoroCanonical,
+            fallbackIntegrity: .displaySafe
+        ),
+    ]
 
-    nonisolated private var avatarRigSelectionPolicy: PreferredVariantPolicy {
-        PreferredVariantPolicy(
-            preferredKeys: [
-                .avatarRig(.stabilized),
-                .display(.raw),
-            ],
-            requiredIntegrity: .rigSafe
-        )
-    }
+    nonisolated private static let avatarRigSelectionPolicy = PreferredVariantPolicy(
+        preferredKeys: [
+            .avatarRig(.stabilized),
+            .display(.raw),
+        ],
+        requiredIntegrity: .rigSafe
+    )
 
     nonisolated private func displayVariantPolicy(
         for processingStage: ClipVariant.ProcessingStage
     ) -> DisplayVariantPolicy {
-        displayVariantPolicies.first { $0.key.processingStage == processingStage }
+        Self.displayVariantPolicies.first { $0.key.processingStage == processingStage }
             ?? DisplayVariantPolicy(
                 key: .display(processingStage),
                 fallbackSkeletonDefinition: .source,
@@ -218,13 +218,10 @@ struct StagePreparedPlayback: Sendable {
         purpose: ClipVariant.Purpose,
         processingStage: ClipVariant.ProcessingStage
     ) -> ClipVariant? {
-        variant(matching: ClipVariantKey(purpose: purpose, processingStage: processingStage))
-    }
-
-    nonisolated private func variant(matching key: ClipVariantKey) -> ClipVariant? {
-        return variants.first { variant in
-            variant.purpose == key.purpose && variant.processingStage == key.processingStage
-        }
+        ClipVariantKey(
+            purpose: purpose,
+            processingStage: processingStage
+        ).resolve(in: variants)
     }
 }
 
