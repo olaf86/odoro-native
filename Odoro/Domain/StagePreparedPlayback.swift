@@ -282,6 +282,22 @@ struct StagePreparedPlaybackBuilder: Sendable {
         let seed: VariantClipSeed
         let passes: [VariantClipPass]
 
+        nonisolated static func source(_ passes: [VariantClipPass]) -> Self {
+            Self(seed: .source, passes: passes)
+        }
+
+        nonisolated static func playback() -> Self {
+            Self(seed: .playback, passes: [])
+        }
+
+        nonisolated static func playback(_ passes: [VariantClipPass]) -> Self {
+            Self(seed: .playback, passes: passes)
+        }
+
+        nonisolated static func sourceOrPlayback(_ passes: [VariantClipPass]) -> Self {
+            Self(seed: .sourceOrPlayback, passes: passes)
+        }
+
         nonisolated
         func resolve(in context: VariantBuildContext) -> MotionClip? {
             passes.reduce(seed.resolve(in: context)) { clip, pass in
@@ -427,6 +443,30 @@ struct StagePreparedPlaybackBuilder: Sendable {
         let definition: ClipVariantDefinition
         let clipPlan: VariantClipPlan
         let outputPolicy: VariantOutputPolicy
+
+        nonisolated static func display(
+            _ definition: ClipVariantDefinition,
+            clipPlan: VariantClipPlan,
+            outputPolicy: VariantOutputPolicy
+        ) -> Self {
+            Self(
+                definition: definition,
+                clipPlan: clipPlan,
+                outputPolicy: outputPolicy
+            )
+        }
+
+        nonisolated static func avatarRig(
+            _ definition: ClipVariantDefinition,
+            clipPlan: VariantClipPlan,
+            outputPolicy: VariantOutputPolicy
+        ) -> Self {
+            Self(
+                definition: definition,
+                clipPlan: clipPlan,
+                outputPolicy: outputPolicy
+            )
+        }
     }
 
     private struct VariantOutputPolicy {
@@ -436,6 +476,42 @@ struct StagePreparedPlaybackBuilder: Sendable {
         let artifactSlot: VariantArtifactSlot?
         let appendagePoseStrategy: AppendagePoseStrategy
         let cameraPresetStrategy: CameraPresetStrategy
+
+        nonisolated static let rawDisplay = Self(
+            skeletonDefinitionPolicy: .rawDisplayFallback,
+            integrityPolicy: .rawDisplayFallback,
+            stabilizationProfile: nil,
+            artifactSlot: .raw,
+            appendagePoseStrategy: .none,
+            cameraPresetStrategy: .storedArtifactOrEstimate
+        )
+
+        nonisolated static let canonicalDisplay = Self(
+            skeletonDefinitionPolicy: .odoroCanonical,
+            integrityPolicy: .fixed(.displaySafe),
+            stabilizationProfile: nil,
+            artifactSlot: .canonical,
+            appendagePoseStrategy: .rearBodyEstimateOrStoredArtifact,
+            cameraPresetStrategy: .storedArtifactOrEstimate
+        )
+
+        nonisolated static let stabilizedDisplay = Self(
+            skeletonDefinitionPolicy: .deriveFromClip,
+            integrityPolicy: .fixed(.displaySafe),
+            stabilizationProfile: .displaySafe,
+            artifactSlot: .stabilized,
+            appendagePoseStrategy: .rearBodyEstimateOrStoredArtifact,
+            cameraPresetStrategy: .storedArtifactOrEstimate
+        )
+
+        nonisolated static let avatarRigStabilized = Self(
+            skeletonDefinitionPolicy: .source,
+            integrityPolicy: .fixed(.rigSafe),
+            stabilizationProfile: .rigSafe,
+            artifactSlot: nil,
+            appendagePoseStrategy: .none,
+            cameraPresetStrategy: .estimate
+        )
     }
 
     let appendagePoseEstimator: RearBody3DAppendagePoseEstimator
@@ -469,66 +545,32 @@ struct StagePreparedPlaybackBuilder: Sendable {
         return StagePreparedPlayback(variants: variants)
     }
 
-    nonisolated private static let variantRecipes: [VariantRecipe] = [
-        VariantRecipe(
-            definition: StagePreparedPlaybackVariantCatalog.displayRaw,
-            clipPlan: VariantClipPlan(
-                seed: .sourceOrPlayback,
-                passes: [.rebaseForStage]
-            ),
-            outputPolicy: VariantOutputPolicy(
-                skeletonDefinitionPolicy: .rawDisplayFallback,
-                integrityPolicy: .rawDisplayFallback,
-                stabilizationProfile: nil,
-                artifactSlot: .raw,
-                appendagePoseStrategy: .none,
-                cameraPresetStrategy: .storedArtifactOrEstimate
-            )
+    nonisolated private static let variantRecipes =
+        displayVariantRecipes + avatarRigVariantRecipes
+
+    nonisolated private static let displayVariantRecipes: [VariantRecipe] = [
+        .display(
+            StagePreparedPlaybackVariantCatalog.displayRaw,
+            clipPlan: .sourceOrPlayback([.rebaseForStage]),
+            outputPolicy: .rawDisplay
         ),
-        VariantRecipe(
-            definition: StagePreparedPlaybackVariantCatalog.displayCanonical,
-            clipPlan: VariantClipPlan(
-                seed: .sourceOrPlayback,
-                passes: [.canonicalizeForPlayback, .rebaseForStage]
-            ),
-            outputPolicy: VariantOutputPolicy(
-                skeletonDefinitionPolicy: .odoroCanonical,
-                integrityPolicy: .fixed(.displaySafe),
-                stabilizationProfile: nil,
-                artifactSlot: .canonical,
-                appendagePoseStrategy: .rearBodyEstimateOrStoredArtifact,
-                cameraPresetStrategy: .storedArtifactOrEstimate
-            )
+        .display(
+            StagePreparedPlaybackVariantCatalog.displayCanonical,
+            clipPlan: .sourceOrPlayback([.canonicalizeForPlayback, .rebaseForStage]),
+            outputPolicy: .canonicalDisplay
         ),
-        VariantRecipe(
-            definition: StagePreparedPlaybackVariantCatalog.displayStabilized,
-            clipPlan: VariantClipPlan(
-                seed: .playback,
-                passes: []
-            ),
-            outputPolicy: VariantOutputPolicy(
-                skeletonDefinitionPolicy: .deriveFromClip,
-                integrityPolicy: .fixed(.displaySafe),
-                stabilizationProfile: .displaySafe,
-                artifactSlot: .stabilized,
-                appendagePoseStrategy: .rearBodyEstimateOrStoredArtifact,
-                cameraPresetStrategy: .storedArtifactOrEstimate
-            )
+        .display(
+            StagePreparedPlaybackVariantCatalog.displayStabilized,
+            clipPlan: .playback(),
+            outputPolicy: .stabilizedDisplay
         ),
-        VariantRecipe(
-            definition: StagePreparedPlaybackVariantCatalog.avatarRigStabilized,
-            clipPlan: VariantClipPlan(
-                seed: .source,
-                passes: [.rigNormalizeForStage]
-            ),
-            outputPolicy: VariantOutputPolicy(
-                skeletonDefinitionPolicy: .source,
-                integrityPolicy: .fixed(.rigSafe),
-                stabilizationProfile: .rigSafe,
-                artifactSlot: nil,
-                appendagePoseStrategy: .none,
-                cameraPresetStrategy: .estimate
-            )
+    ]
+
+    nonisolated private static let avatarRigVariantRecipes: [VariantRecipe] = [
+        .avatarRig(
+            StagePreparedPlaybackVariantCatalog.avatarRigStabilized,
+            clipPlan: .source([.rigNormalizeForStage]),
+            outputPolicy: .avatarRigStabilized
         ),
     ]
 
