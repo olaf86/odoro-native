@@ -10,22 +10,58 @@ struct ClipVariant: Sendable {
     enum Purpose: Sendable, Equatable {
         case display
         case avatarRig
+
+        nonisolated static func == (lhs: Self, rhs: Self) -> Bool {
+            switch (lhs, rhs) {
+            case (.display, .display), (.avatarRig, .avatarRig):
+                true
+            default:
+                false
+            }
+        }
     }
 
     enum ProcessingStage: Sendable, Equatable {
         case raw
         case canonical
         case stabilized
+
+        nonisolated static func == (lhs: Self, rhs: Self) -> Bool {
+            switch (lhs, rhs) {
+            case (.raw, .raw), (.canonical, .canonical), (.stabilized, .stabilized):
+                true
+            default:
+                false
+            }
+        }
     }
 
     enum SkeletonDefinition: Sendable, Equatable {
         case source
         case odoroCanonical
+
+        nonisolated static func == (lhs: Self, rhs: Self) -> Bool {
+            switch (lhs, rhs) {
+            case (.source, .source), (.odoroCanonical, .odoroCanonical):
+                true
+            default:
+                false
+            }
+        }
     }
 
     enum Integrity: Sendable, Equatable {
         case rigSafe
         case displaySafe
+
+        nonisolated static func == (lhs: Self, rhs: Self) -> Bool {
+            switch (lhs, rhs) {
+            case (.rigSafe, .rigSafe), (.displaySafe, .displaySafe):
+                true
+            default:
+                false
+            }
+        }
     }
 
     let purpose: Purpose
@@ -223,14 +259,32 @@ struct StagePreparedPlaybackBuilder: Sendable {
         }
     }
 
-    private enum SkeletonDefinitionStrategy {
+    private enum SkeletonDefinitionPolicy {
         case source
         case odoroCanonical
         case deriveFromClip
         case rawDisplayFallback
+
+        nonisolated
+        func resolve(
+            clip: MotionClip?,
+            context: VariantBuildContext,
+            inferredSkeletonDefinition: (MotionClip?) -> ClipVariant.SkeletonDefinition
+        ) -> ClipVariant.SkeletonDefinition {
+            switch self {
+            case .source:
+                .source
+            case .odoroCanonical:
+                .odoroCanonical
+            case .deriveFromClip:
+                inferredSkeletonDefinition(clip)
+            case .rawDisplayFallback:
+                context.sourceClip == nil ? inferredSkeletonDefinition(clip) : .source
+            }
+        }
     }
 
-    private enum IntegrityStrategy {
+    private enum IntegrityPolicy {
         case fixed(ClipVariant.Integrity)
         case rawDisplayFallback
 
@@ -320,8 +374,8 @@ struct StagePreparedPlaybackBuilder: Sendable {
         let purpose: ClipVariant.Purpose
         let processingStage: ClipVariant.ProcessingStage
         let clipPlan: VariantClipPlan
-        let skeletonDefinitionStrategy: SkeletonDefinitionStrategy
-        let integrityStrategy: IntegrityStrategy
+        let skeletonDefinitionPolicy: SkeletonDefinitionPolicy
+        let integrityPolicy: IntegrityPolicy
         let stabilizationProfile: MotionClipStageStabilizer.Profile?
         let artifactSlot: VariantArtifactSlot?
         let appendagePoseStrategy: AppendagePoseStrategy
@@ -368,8 +422,8 @@ struct StagePreparedPlaybackBuilder: Sendable {
                     seed: .sourceOrPlayback,
                     passes: [.rebaseForStage]
                 ),
-                skeletonDefinitionStrategy: .rawDisplayFallback,
-                integrityStrategy: .rawDisplayFallback,
+                skeletonDefinitionPolicy: .rawDisplayFallback,
+                integrityPolicy: .rawDisplayFallback,
                 stabilizationProfile: nil,
                 artifactSlot: .raw,
                 appendagePoseStrategy: .none,
@@ -382,8 +436,8 @@ struct StagePreparedPlaybackBuilder: Sendable {
                     seed: .sourceOrPlayback,
                     passes: [.canonicalizeForPlayback, .rebaseForStage]
                 ),
-                skeletonDefinitionStrategy: .odoroCanonical,
-                integrityStrategy: .fixed(.displaySafe),
+                skeletonDefinitionPolicy: .odoroCanonical,
+                integrityPolicy: .fixed(.displaySafe),
                 stabilizationProfile: nil,
                 artifactSlot: .canonical,
                 appendagePoseStrategy: .rearBodyEstimateOrStoredArtifact,
@@ -396,8 +450,8 @@ struct StagePreparedPlaybackBuilder: Sendable {
                     seed: .playback,
                     passes: []
                 ),
-                skeletonDefinitionStrategy: .deriveFromClip,
-                integrityStrategy: .fixed(.displaySafe),
+                skeletonDefinitionPolicy: .deriveFromClip,
+                integrityPolicy: .fixed(.displaySafe),
                 stabilizationProfile: .displaySafe,
                 artifactSlot: .stabilized,
                 appendagePoseStrategy: .rearBodyEstimateOrStoredArtifact,
@@ -410,8 +464,8 @@ struct StagePreparedPlaybackBuilder: Sendable {
                     seed: .source,
                     passes: [.rigNormalizeForStage]
                 ),
-                skeletonDefinitionStrategy: .source,
-                integrityStrategy: .fixed(.rigSafe),
+                skeletonDefinitionPolicy: .source,
+                integrityPolicy: .fixed(.rigSafe),
                 stabilizationProfile: .rigSafe,
                 artifactSlot: nil,
                 appendagePoseStrategy: .none,
@@ -448,31 +502,14 @@ struct StagePreparedPlaybackBuilder: Sendable {
                 storedPreset: storedArtifacts?.cameraPreset,
                 cameraEstimator: cameraEstimator
             ),
-            skeletonDefinition: resolvedSkeletonDefinition(
-                using: recipe.skeletonDefinitionStrategy,
+            skeletonDefinition: recipe.skeletonDefinitionPolicy.resolve(
                 clip: clip,
-                context: context
+                context: context,
+                inferredSkeletonDefinition: inferredSkeletonDefinition(for:)
             ),
-            integrity: recipe.integrityStrategy.resolve(in: context),
+            integrity: recipe.integrityPolicy.resolve(in: context),
             stabilizationProfile: recipe.stabilizationProfile
         )
-    }
-
-    nonisolated private func resolvedSkeletonDefinition(
-        using strategy: SkeletonDefinitionStrategy,
-        clip: MotionClip?,
-        context: VariantBuildContext
-    ) -> ClipVariant.SkeletonDefinition {
-        switch strategy {
-        case .source:
-            .source
-        case .odoroCanonical:
-            .odoroCanonical
-        case .deriveFromClip:
-            inferredSkeletonDefinition(for: clip)
-        case .rawDisplayFallback:
-            context.sourceClip == nil ? inferredSkeletonDefinition(for: clip) : .source
-        }
     }
 
     nonisolated private func inferredSkeletonDefinition(for clip: MotionClip?) -> ClipVariant.SkeletonDefinition {
