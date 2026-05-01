@@ -94,14 +94,14 @@ struct ClipVariant: Sendable {
 
 typealias PreparedStagePlaybackClip = ClipVariant
 
-struct StagePreparedPlayback: Sendable {
-    private struct VariantKey: Sendable {
-        let purpose: ClipVariant.Purpose
-        let processingStage: ClipVariant.ProcessingStage
-    }
+private struct ClipVariantKey: Sendable {
+    let purpose: ClipVariant.Purpose
+    let processingStage: ClipVariant.ProcessingStage
+}
 
+struct StagePreparedPlayback: Sendable {
     private struct DisplayVariantPolicy: Sendable {
-        let key: VariantKey
+        let key: ClipVariantKey
         let fallbackSkeletonDefinition: ClipVariant.SkeletonDefinition
         let fallbackIntegrity: ClipVariant.Integrity
 
@@ -116,7 +116,7 @@ struct StagePreparedPlayback: Sendable {
     }
 
     private struct PreferredVariantPolicy: Sendable {
-        let preferredKeys: [VariantKey]
+        let preferredKeys: [ClipVariantKey]
         let requiredIntegrity: ClipVariant.Integrity
     }
 
@@ -146,7 +146,7 @@ struct StagePreparedPlayback: Sendable {
 
     nonisolated private var rawDisplayPolicy: DisplayVariantPolicy {
         DisplayVariantPolicy(
-            key: VariantKey(purpose: .display, processingStage: .raw),
+            key: ClipVariantKey(purpose: .display, processingStage: .raw),
             fallbackSkeletonDefinition: .source,
             fallbackIntegrity: .displaySafe
         )
@@ -154,7 +154,7 @@ struct StagePreparedPlayback: Sendable {
 
     nonisolated private var canonicalDisplayPolicy: DisplayVariantPolicy {
         DisplayVariantPolicy(
-            key: VariantKey(purpose: .display, processingStage: .canonical),
+            key: ClipVariantKey(purpose: .display, processingStage: .canonical),
             fallbackSkeletonDefinition: .odoroCanonical,
             fallbackIntegrity: .displaySafe
         )
@@ -162,7 +162,7 @@ struct StagePreparedPlayback: Sendable {
 
     nonisolated private var stabilizedDisplayPolicy: DisplayVariantPolicy {
         DisplayVariantPolicy(
-            key: VariantKey(purpose: .display, processingStage: .stabilized),
+            key: ClipVariantKey(purpose: .display, processingStage: .stabilized),
             fallbackSkeletonDefinition: .odoroCanonical,
             fallbackIntegrity: .displaySafe
         )
@@ -171,7 +171,7 @@ struct StagePreparedPlayback: Sendable {
     nonisolated private var avatarRigSelectionPolicy: PreferredVariantPolicy {
         PreferredVariantPolicy(
             preferredKeys: [
-                VariantKey(purpose: .avatarRig, processingStage: .stabilized),
+                ClipVariantKey(purpose: .avatarRig, processingStage: .stabilized),
                 rawDisplayPolicy.key,
             ],
             requiredIntegrity: .rigSafe
@@ -214,10 +214,10 @@ struct StagePreparedPlayback: Sendable {
         purpose: ClipVariant.Purpose,
         processingStage: ClipVariant.ProcessingStage
     ) -> ClipVariant? {
-        variant(matching: VariantKey(purpose: purpose, processingStage: processingStage))
+        variant(matching: ClipVariantKey(purpose: purpose, processingStage: processingStage))
     }
 
-    nonisolated private func variant(matching key: VariantKey) -> ClipVariant? {
+    nonisolated private func variant(matching key: ClipVariantKey) -> ClipVariant? {
         return variants.first { variant in
             variant.purpose == key.purpose && variant.processingStage == key.processingStage
         }
@@ -420,8 +420,7 @@ struct StagePreparedPlaybackBuilder: Sendable {
     }
 
     private struct VariantRecipe {
-        let purpose: ClipVariant.Purpose
-        let processingStage: ClipVariant.ProcessingStage
+        let key: ClipVariantKey
         let clipPlan: VariantClipPlan
         let skeletonDefinitionPolicy: SkeletonDefinitionPolicy
         let integrityPolicy: IntegrityPolicy
@@ -465,8 +464,7 @@ struct StagePreparedPlaybackBuilder: Sendable {
     nonisolated private var variantRecipes: [VariantRecipe] {
         [
             VariantRecipe(
-                purpose: .display,
-                processingStage: .raw,
+                key: ClipVariantKey(purpose: .display, processingStage: .raw),
                 clipPlan: VariantClipPlan(
                     seed: .sourceOrPlayback,
                     passes: [.rebaseForStage]
@@ -479,8 +477,7 @@ struct StagePreparedPlaybackBuilder: Sendable {
                 cameraPresetStrategy: .storedArtifactOrEstimate
             ),
             VariantRecipe(
-                purpose: .display,
-                processingStage: .canonical,
+                key: ClipVariantKey(purpose: .display, processingStage: .canonical),
                 clipPlan: VariantClipPlan(
                     seed: .sourceOrPlayback,
                     passes: [.canonicalizeForPlayback, .rebaseForStage]
@@ -493,8 +490,7 @@ struct StagePreparedPlaybackBuilder: Sendable {
                 cameraPresetStrategy: .storedArtifactOrEstimate
             ),
             VariantRecipe(
-                purpose: .display,
-                processingStage: .stabilized,
+                key: ClipVariantKey(purpose: .display, processingStage: .stabilized),
                 clipPlan: VariantClipPlan(
                     seed: .playback,
                     passes: []
@@ -507,8 +503,7 @@ struct StagePreparedPlaybackBuilder: Sendable {
                 cameraPresetStrategy: .storedArtifactOrEstimate
             ),
             VariantRecipe(
-                purpose: .avatarRig,
-                processingStage: .stabilized,
+                key: ClipVariantKey(purpose: .avatarRig, processingStage: .stabilized),
                 clipPlan: VariantClipPlan(
                     seed: .source,
                     passes: [.rigNormalizeForStage]
@@ -528,7 +523,7 @@ struct StagePreparedPlaybackBuilder: Sendable {
         context: VariantBuildContext
     ) -> ClipVariant? {
         let clip = recipe.clipPlan.resolve(in: context)
-        if recipe.purpose == .avatarRig,
+        if recipe.key.purpose == .avatarRig,
            clip == nil {
             return nil
         }
@@ -542,8 +537,8 @@ struct StagePreparedPlaybackBuilder: Sendable {
         )
 
         return ClipVariant(
-            purpose: recipe.purpose,
-            processingStage: recipe.processingStage,
+            purpose: recipe.key.purpose,
+            processingStage: recipe.key.processingStage,
             clip: clip,
             appendagePoses: appendagePoses,
             cameraPreset: recipe.cameraPresetStrategy.resolve(
