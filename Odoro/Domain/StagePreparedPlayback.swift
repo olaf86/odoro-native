@@ -97,6 +97,14 @@ typealias PreparedStagePlaybackClip = ClipVariant
 private struct ClipVariantKey: Sendable {
     let purpose: ClipVariant.Purpose
     let processingStage: ClipVariant.ProcessingStage
+
+    nonisolated static func display(_ processingStage: ClipVariant.ProcessingStage) -> Self {
+        Self(purpose: .display, processingStage: processingStage)
+    }
+
+    nonisolated static func avatarRig(_ processingStage: ClipVariant.ProcessingStage) -> Self {
+        Self(purpose: .avatarRig, processingStage: processingStage)
+    }
 }
 
 struct StagePreparedPlayback: Sendable {
@@ -144,52 +152,51 @@ struct StagePreparedPlayback: Sendable {
         )
     }
 
-    nonisolated private var rawDisplayPolicy: DisplayVariantPolicy {
-        DisplayVariantPolicy(
-            key: ClipVariantKey(purpose: .display, processingStage: .raw),
-            fallbackSkeletonDefinition: .source,
-            fallbackIntegrity: .displaySafe
-        )
-    }
-
-    nonisolated private var canonicalDisplayPolicy: DisplayVariantPolicy {
-        DisplayVariantPolicy(
-            key: ClipVariantKey(purpose: .display, processingStage: .canonical),
-            fallbackSkeletonDefinition: .odoroCanonical,
-            fallbackIntegrity: .displaySafe
-        )
-    }
-
-    nonisolated private var stabilizedDisplayPolicy: DisplayVariantPolicy {
-        DisplayVariantPolicy(
-            key: ClipVariantKey(purpose: .display, processingStage: .stabilized),
-            fallbackSkeletonDefinition: .odoroCanonical,
-            fallbackIntegrity: .displaySafe
-        )
+    nonisolated private var displayVariantPolicies: [DisplayVariantPolicy] {
+        [
+            DisplayVariantPolicy(
+                key: .display(.raw),
+                fallbackSkeletonDefinition: .source,
+                fallbackIntegrity: .displaySafe
+            ),
+            DisplayVariantPolicy(
+                key: .display(.canonical),
+                fallbackSkeletonDefinition: .odoroCanonical,
+                fallbackIntegrity: .displaySafe
+            ),
+            DisplayVariantPolicy(
+                key: .display(.stabilized),
+                fallbackSkeletonDefinition: .odoroCanonical,
+                fallbackIntegrity: .displaySafe
+            ),
+        ]
     }
 
     nonisolated private var avatarRigSelectionPolicy: PreferredVariantPolicy {
         PreferredVariantPolicy(
             preferredKeys: [
-                ClipVariantKey(purpose: .avatarRig, processingStage: .stabilized),
-                rawDisplayPolicy.key,
+                .avatarRig(.stabilized),
+                .display(.raw),
             ],
             requiredIntegrity: .rigSafe
         )
     }
 
+    nonisolated private func displayVariantPolicy(
+        for processingStage: ClipVariant.ProcessingStage
+    ) -> DisplayVariantPolicy {
+        displayVariantPolicies.first { $0.key.processingStage == processingStage }
+            ?? DisplayVariantPolicy(
+                key: .display(processingStage),
+                fallbackSkeletonDefinition: .source,
+                fallbackIntegrity: .displaySafe
+            )
+    }
+
     nonisolated private func displayVariant(
         using processingStage: ClipVariant.ProcessingStage
     ) -> ClipVariant {
-        let policy = switch processingStage {
-        case .raw:
-            rawDisplayPolicy
-        case .canonical:
-            canonicalDisplayPolicy
-        case .stabilized:
-            stabilizedDisplayPolicy
-        }
-
+        let policy = displayVariantPolicy(for: processingStage)
         return variant(matching: policy.key) ?? policy.fallbackVariant()
     }
 
@@ -464,7 +471,7 @@ struct StagePreparedPlaybackBuilder: Sendable {
     nonisolated private var variantRecipes: [VariantRecipe] {
         [
             VariantRecipe(
-                key: ClipVariantKey(purpose: .display, processingStage: .raw),
+                key: .display(.raw),
                 clipPlan: VariantClipPlan(
                     seed: .sourceOrPlayback,
                     passes: [.rebaseForStage]
@@ -477,7 +484,7 @@ struct StagePreparedPlaybackBuilder: Sendable {
                 cameraPresetStrategy: .storedArtifactOrEstimate
             ),
             VariantRecipe(
-                key: ClipVariantKey(purpose: .display, processingStage: .canonical),
+                key: .display(.canonical),
                 clipPlan: VariantClipPlan(
                     seed: .sourceOrPlayback,
                     passes: [.canonicalizeForPlayback, .rebaseForStage]
@@ -490,7 +497,7 @@ struct StagePreparedPlaybackBuilder: Sendable {
                 cameraPresetStrategy: .storedArtifactOrEstimate
             ),
             VariantRecipe(
-                key: ClipVariantKey(purpose: .display, processingStage: .stabilized),
+                key: .display(.stabilized),
                 clipPlan: VariantClipPlan(
                     seed: .playback,
                     passes: []
@@ -503,7 +510,7 @@ struct StagePreparedPlaybackBuilder: Sendable {
                 cameraPresetStrategy: .storedArtifactOrEstimate
             ),
             VariantRecipe(
-                key: ClipVariantKey(purpose: .avatarRig, processingStage: .stabilized),
+                key: .avatarRig(.stabilized),
                 clipPlan: VariantClipPlan(
                     seed: .source,
                     passes: [.rigNormalizeForStage]
