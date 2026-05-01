@@ -506,9 +506,8 @@ struct OdoroTests {
 
         let rootIndex = OdoroSkeletonDefinition.index(of: .root)
         let recoveredYs = stabilized.dropFirst(2).map { $0.jointPositions[rootIndex].y }
-
         #expect(recoveredYs.allSatisfy { $0 < 1.2 })
-        #expect(abs(recoveredYs.last ?? 0 - 1.0) < 0.08)
+        #expect(abs((recoveredYs.last ?? 0) - 1.0) < 0.08)
     }
 
     @Test func canonicalPoseMapperCanonicalizesClipFramesForPlayback() {
