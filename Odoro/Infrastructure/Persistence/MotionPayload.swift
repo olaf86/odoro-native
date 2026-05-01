@@ -11,6 +11,10 @@ struct MotionPayloadVector3: Codable, Sendable, Equatable {
     var y: Float
     var z: Float
 
+    nonisolated static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.x == rhs.x && lhs.y == rhs.y && lhs.z == rhs.z
+    }
+
     nonisolated init(x: Float, y: Float, z: Float) {
         self.x = x
         self.y = y

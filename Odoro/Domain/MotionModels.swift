@@ -34,6 +34,17 @@ struct MotionJointRotation: Codable, Sendable, Equatable, Hashable {
     let iz: Float
     let r: Float
 
+    nonisolated static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.ix == rhs.ix && lhs.iy == rhs.iy && lhs.iz == rhs.iz && lhs.r == rhs.r
+    }
+
+    nonisolated func hash(into hasher: inout Hasher) {
+        hasher.combine(ix)
+        hasher.combine(iy)
+        hasher.combine(iz)
+        hasher.combine(r)
+    }
+
     nonisolated init(ix: Float, iy: Float, iz: Float, r: Float) {
         self.ix = ix
         self.iy = iy

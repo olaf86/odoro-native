@@ -11,6 +11,13 @@ struct AppendagePose: Codable, Sendable, Equatable {
     let forward: SIMD3<Float>
     let up: SIMD3<Float>
     let confidence: Float
+
+    nonisolated static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.pivot == rhs.pivot
+            && lhs.forward == rhs.forward
+            && lhs.up == rhs.up
+            && lhs.confidence == rhs.confidence
+    }
 }
 
 struct FootPoses: Codable, Sendable, Equatable {
@@ -18,21 +25,42 @@ struct FootPoses: Codable, Sendable, Equatable {
     let right: AppendagePose?
     let leftContactWeight: Float
     let rightContactWeight: Float
+
+    nonisolated static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.left == rhs.left
+            && lhs.right == rhs.right
+            && lhs.leftContactWeight == rhs.leftContactWeight
+            && lhs.rightContactWeight == rhs.rightContactWeight
+    }
 }
 
 struct HandPoses: Codable, Sendable, Equatable {
     let left: AppendagePose?
     let right: AppendagePose?
+
+    nonisolated static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.left == rhs.left && lhs.right == rhs.right
+    }
 }
 
 struct MotionFrameAppendagePoses: Codable, Sendable, Equatable {
     let time: TimeInterval
     let feet: FootPoses
     let hands: HandPoses
+
+    nonisolated static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.time == rhs.time
+            && lhs.feet == rhs.feet
+            && lhs.hands == rhs.hands
+    }
 }
 
 struct MotionClipAppendagePoses: Codable, Sendable, Equatable {
     let frames: [MotionFrameAppendagePoses]
+
+    nonisolated static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.frames == rhs.frames
+    }
 }
 
 struct RearBody3DAppendagePoseEstimator: Sendable {
@@ -59,7 +87,7 @@ struct RearBody3DAppendagePoseEstimator: Sendable {
     }
 
     nonisolated func estimatePoses(for clip: MotionClip) -> MotionClipAppendagePoses {
-        var previousFootPoses: [BodySide: AppendagePose] = [:]
+        var previousFootPoses = Array<AppendagePose?>(repeating: nil, count: 2)
         var inferredFrames: [MotionFrameAppendagePoses] = []
         inferredFrames.reserveCapacity(clip.frames.count)
 
@@ -73,10 +101,10 @@ struct RearBody3DAppendagePoseEstimator: Sendable {
             inferredFrames.append(inferredFrame)
 
             if let left = inferredFrame.feet.left {
-                previousFootPoses[.left] = left
+                previousFootPoses[BodySide.left.storageIndex] = left
             }
             if let right = inferredFrame.feet.right {
-                previousFootPoses[.right] = right
+                previousFootPoses[BodySide.right.storageIndex] = right
             }
         }
 
@@ -87,7 +115,7 @@ struct RearBody3DAppendagePoseEstimator: Sendable {
         _ frame: MotionFrame,
         at index: Int,
         in frames: [MotionFrame],
-        previousFootPoses: [BodySide: AppendagePose]
+        previousFootPoses: [AppendagePose?]
     ) -> MotionFrameAppendagePoses {
         guard frame.jointPositions.count == OdoroSkeletonDefinition.jointCount else {
             return MotionFrameAppendagePoses(
@@ -105,14 +133,14 @@ struct RearBody3DAppendagePoseEstimator: Sendable {
             in: frame,
             bodyForwardHint: bodyForwardHint,
             contactWeight: leftContactWeight,
-            previousPose: previousFootPoses[.left]
+            previousPose: previousFootPoses[BodySide.left.storageIndex]
         )
         let rightFoot = inferFootPose(
             side: .right,
             in: frame,
             bodyForwardHint: bodyForwardHint,
             contactWeight: rightContactWeight,
-            previousPose: previousFootPoses[.right]
+            previousPose: previousFootPoses[BodySide.right.storageIndex]
         )
         let leftHand = inferHandPose(side: .left, in: frame, bodyForwardHint: bodyForwardHint)
         let rightHand = inferHandPose(side: .right, in: frame, bodyForwardHint: bodyForwardHint)
@@ -416,9 +444,18 @@ struct RearBody3DAppendagePoseEstimator: Sendable {
     }
 }
 
-private enum BodySide: Hashable {
+private enum BodySide {
     case left
     case right
+
+    nonisolated var storageIndex: Int {
+        switch self {
+        case .left:
+            0
+        case .right:
+            1
+        }
+    }
 
     nonisolated var ankleJoint: OdoroJointName {
         switch self {

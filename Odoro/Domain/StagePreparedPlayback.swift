@@ -135,37 +135,37 @@ private struct ClipVariantDefinition: Sendable {
 }
 
 private enum StagePreparedPlaybackVariantCatalog {
-    static let displayRaw = ClipVariantDefinition(
+    nonisolated static let displayRaw = ClipVariantDefinition(
         key: .display(.raw),
         fallbackSkeletonDefinition: .source,
         fallbackIntegrity: .displaySafe
     )
 
-    static let displayCanonical = ClipVariantDefinition(
+    nonisolated static let displayCanonical = ClipVariantDefinition(
         key: .display(.canonical),
         fallbackSkeletonDefinition: .odoroCanonical,
         fallbackIntegrity: .displaySafe
     )
 
-    static let displayStabilized = ClipVariantDefinition(
+    nonisolated static let displayStabilized = ClipVariantDefinition(
         key: .display(.stabilized),
         fallbackSkeletonDefinition: .odoroCanonical,
         fallbackIntegrity: .displaySafe
     )
 
-    static let avatarRigStabilized = ClipVariantDefinition(
+    nonisolated static let avatarRigStabilized = ClipVariantDefinition(
         key: .avatarRig(.stabilized),
         fallbackSkeletonDefinition: .source,
         fallbackIntegrity: .rigSafe
     )
 
-    static let displayDefinitions = [
+    nonisolated static let displayDefinitions = [
         displayRaw,
         displayCanonical,
         displayStabilized,
     ]
 
-    static let avatarRigPreferredDefinitions = [
+    nonisolated static let avatarRigPreferredDefinitions = [
         avatarRigStabilized,
         displayRaw,
     ]
@@ -467,6 +467,37 @@ struct StagePreparedPlaybackBuilder: Sendable {
                 outputPolicy: outputPolicy
             )
         }
+
+        nonisolated static let displayRaw = Self.display(
+            StagePreparedPlaybackVariantCatalog.displayRaw,
+            clipPlan: .sourceOrPlayback([.rebaseForStage]),
+            outputPolicy: .rawDisplay
+        )
+
+        nonisolated static let displayCanonical = Self.display(
+            StagePreparedPlaybackVariantCatalog.displayCanonical,
+            clipPlan: .sourceOrPlayback([.canonicalizeForPlayback, .rebaseForStage]),
+            outputPolicy: .canonicalDisplay
+        )
+
+        nonisolated static let displayStabilized = Self.display(
+            StagePreparedPlaybackVariantCatalog.displayStabilized,
+            clipPlan: .playback(),
+            outputPolicy: .stabilizedDisplay
+        )
+
+        nonisolated static let avatarRigStabilized = Self.avatarRig(
+            StagePreparedPlaybackVariantCatalog.avatarRigStabilized,
+            clipPlan: .source([.rigNormalizeForStage]),
+            outputPolicy: .avatarRigStabilized
+        )
+
+        nonisolated static let all = [
+            displayRaw,
+            displayCanonical,
+            displayStabilized,
+            avatarRigStabilized,
+        ]
     }
 
     private struct VariantOutputPolicy {
@@ -538,41 +569,12 @@ struct StagePreparedPlaybackBuilder: Sendable {
             playbackArtifacts: playbackArtifacts
         )
 
-        let variants = Self.variantRecipes.compactMap { recipe in
+        let variants = VariantRecipe.all.compactMap { recipe in
             buildVariant(from: recipe, context: context)
         }
 
         return StagePreparedPlayback(variants: variants)
     }
-
-    nonisolated private static let variantRecipes =
-        displayVariantRecipes + avatarRigVariantRecipes
-
-    nonisolated private static let displayVariantRecipes: [VariantRecipe] = [
-        .display(
-            StagePreparedPlaybackVariantCatalog.displayRaw,
-            clipPlan: .sourceOrPlayback([.rebaseForStage]),
-            outputPolicy: .rawDisplay
-        ),
-        .display(
-            StagePreparedPlaybackVariantCatalog.displayCanonical,
-            clipPlan: .sourceOrPlayback([.canonicalizeForPlayback, .rebaseForStage]),
-            outputPolicy: .canonicalDisplay
-        ),
-        .display(
-            StagePreparedPlaybackVariantCatalog.displayStabilized,
-            clipPlan: .playback(),
-            outputPolicy: .stabilizedDisplay
-        ),
-    ]
-
-    nonisolated private static let avatarRigVariantRecipes: [VariantRecipe] = [
-        .avatarRig(
-            StagePreparedPlaybackVariantCatalog.avatarRigStabilized,
-            clipPlan: .source([.rigNormalizeForStage]),
-            outputPolicy: .avatarRigStabilized
-        ),
-    ]
 
     nonisolated private func buildVariant(
         from recipe: VariantRecipe,

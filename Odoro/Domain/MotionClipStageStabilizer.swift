@@ -11,7 +11,16 @@ struct MotionClipStageStabilizer: Sendable {
         case displaySafe
         case rigSafe
 
-        var appliesCanonicalConstraints: Bool {
+        nonisolated static func == (lhs: Self, rhs: Self) -> Bool {
+            switch (lhs, rhs) {
+            case (.displaySafe, .displaySafe), (.rigSafe, .rigSafe):
+                true
+            default:
+                false
+            }
+        }
+
+        nonisolated var appliesCanonicalConstraints: Bool {
             switch self {
             case .displaySafe:
                 true
@@ -20,7 +29,7 @@ struct MotionClipStageStabilizer: Sendable {
             }
         }
 
-        var appliesFootContactPinning: Bool {
+        nonisolated var appliesFootContactPinning: Bool {
             switch self {
             case .displaySafe:
                 true
