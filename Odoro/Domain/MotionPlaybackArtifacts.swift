@@ -58,7 +58,7 @@ struct StagePlaybackArtifacts: Codable, Sendable, Equatable {
 }
 
 struct MotionPlaybackArtifacts: Codable, Sendable, Equatable {
-    nonisolated static let currentSchemaVersion = 2
+    nonisolated static let currentSchemaVersion = 1
 
     let schemaVersion: Int
     let stagePlayback: StagePlaybackArtifacts?
