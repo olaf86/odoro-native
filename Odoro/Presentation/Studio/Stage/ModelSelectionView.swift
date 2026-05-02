@@ -35,7 +35,8 @@ struct ModelSelectionView: View {
                     ForEach(studio.availableAvatarOptions) { option in
                         AvatarStyleCard(
                             option: option,
-                            isSelected: studio.selectedAvatarOption.selection == option.selection
+                            isSelected: studio.selectedAvatarOption.selection == option.selection,
+                            isInteractionDisabled: studio.isImportingAvatar
                         ) {
                             studio.selectAvatarOption(option)
                         }
@@ -70,6 +71,7 @@ struct ModelSelectionView: View {
 private struct AvatarStyleCard: View {
     let option: StageAvatarOption
     let isSelected: Bool
+    let isInteractionDisabled: Bool
     let onSelect: () -> Void
 
     var body: some View {
@@ -100,7 +102,7 @@ private struct AvatarStyleCard: View {
                         .foregroundStyle(Color.white.opacity(0.72))
 
                     HStack(spacing: 8) {
-                        Text(isSelected ? "Selected" : "Tap to use this view")
+                        Text(statusText)
                             .font(.caption.weight(.medium))
                             .foregroundStyle(isSelected ? Color.orange.opacity(0.9) : Color.white.opacity(0.54))
 
@@ -121,5 +123,19 @@ private struct AvatarStyleCard: View {
             .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
         }
         .buttonStyle(.plain)
+        .disabled(isInteractionDisabled)
+        .opacity(isInteractionDisabled ? 0.7 : 1)
+    }
+
+    private var statusText: String {
+        if isSelected {
+            return "Selected"
+        }
+
+        if option.installState == .notInstalled {
+            return "Tap to download"
+        }
+
+        return "Tap to use this view"
     }
 }

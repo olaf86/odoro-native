@@ -13,6 +13,121 @@ import Testing
 @testable import Odoro
 
 struct OdoroTests {
+    @MainActor @Test func avatarCatalogMergesInstalledDownloadableAvatarWithoutDuplicates() {
+        let selection = StageAvatarSelection.avatar(
+            avatarID: "avatar-sample-a",
+            variantID: "avatar-sample-a-usdz-v1"
+        )
+        let installedOption = StageAvatarOption(
+            selection: selection,
+            title: "Downloaded Sample A",
+            subtitle: "Downloaded package installed locally.",
+            systemImageName: "arrow.down.circle",
+            source: .downloadable,
+            installState: .installed,
+            runtimeFormat: .usdz,
+            runtimeAssetResourceName: nil,
+            runtimeAssetURL: URL(fileURLWithPath: "/tmp/avatar-sample-a/model.usdz"),
+            rigProfileID: "avatar-sample-a.v1",
+            rigProfile: nil
+        )
+
+        let options = AvatarCatalog.stageOptions(installedOptions: [installedOption])
+        let matchingOptions = options.filter { $0.selection == selection }
+
+        #expect(matchingOptions.count == 1)
+        #expect(matchingOptions[0].title == "Avatar Sample A")
+        #expect(matchingOptions[0].installState == .installed)
+        #expect(matchingOptions[0].runtimeFormat == .usdz)
+        #expect(matchingOptions[0].runtimeAssetURL == installedOption.runtimeAssetURL)
+    }
+
+    @MainActor @Test func avatarAssetStoreInstallsDownloadableUSDZPackage() async throws {
+        let fileManager = FileManager.default
+        let tempRootURL = fileManager.temporaryDirectory.appending(path: UUID().uuidString, directoryHint: .isDirectory)
+        let sourceFilesURL = tempRootURL.appending(path: "remote", directoryHint: .isDirectory)
+        let installRootURL = tempRootURL.appending(path: "installed", directoryHint: .isDirectory)
+        defer { try? fileManager.removeItem(at: tempRootURL) }
+
+        try fileManager.createDirectory(at: sourceFilesURL, withIntermediateDirectories: true)
+
+        let packageManifest = AvatarPackageManifest(
+            schemaVersion: 1,
+            avatarID: "avatar-sample-a",
+            variantID: "avatar-sample-a-usdz-v1",
+            displayName: "Avatar Sample A",
+            source: .downloadable,
+            version: "1.0.0",
+            runtimeFormat: .usdz,
+            runtimeAssetFilename: "model.usdz",
+            generatedRigProfileID: "avatar-sample-a.v1",
+            installedAt: Date(timeIntervalSince1970: 1_776_556_800),
+            sourceFilename: "Avatar Sample A.usdz",
+            sourceFileByteCount: 16,
+            detectedNodeNames: ["Hips"]
+        )
+        let rigProfile = AvatarRigProfile(
+            id: "avatar-sample-a.v1",
+            displayName: "Avatar Sample A Rig",
+            skeletonId: OdoroSkeletonDefinition.id,
+            sourceFormat: .usdz,
+            runtimeFormat: .usdz,
+            runtimeAssetRelativePath: "model.usdz",
+            rootBoneName: "Hips",
+            bindings: [],
+            scaleCompensation: 1,
+            floorOffset: 0,
+            schemaVersion: 1
+        )
+        let rigDocument = AvatarRigProfileDocument(schemaVersion: 1, profile: rigProfile)
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        encoder.dateEncodingStrategy = .iso8601
+
+        let modelURL = sourceFilesURL.appending(path: "model.usdz", directoryHint: .notDirectory)
+        let packageManifestURL = sourceFilesURL.appending(path: "package_manifest.json", directoryHint: .notDirectory)
+        let rigProfileURL = sourceFilesURL.appending(path: "rig_profile.json", directoryHint: .notDirectory)
+
+        try Data("test-usdz-payload".utf8).write(to: modelURL)
+        try encoder.encode(packageManifest).write(to: packageManifestURL)
+        try encoder.encode(rigDocument).write(to: rigProfileURL)
+
+        let store = AvatarAssetStore(
+            fileManager: fileManager,
+            baseDirectoryURL: installRootURL
+        ) { remoteURL async throws in
+            sourceFilesURL.appending(path: remoteURL.lastPathComponent, directoryHint: .notDirectory)
+        }
+        let variant = AvatarAssetVariant(
+            id: "avatar-sample-a-usdz-v1",
+            avatarID: "avatar-sample-a",
+            version: "1.0.0",
+            runtimeFormat: .usdz,
+            runtimeAssetRelativePath: "avatars/avatar-sample-a/1.0.0/model.usdz",
+            runtimeAssetRemoteURL: "https://example.com/model.usdz",
+            runtimeAssetChecksum: nil,
+            runtimeAssetSizeBytes: 16,
+            packageManifestRelativePath: "avatars/avatar-sample-a/1.0.0/package_manifest.json",
+            packageManifestRemoteURL: "https://example.com/package_manifest.json",
+            rigProfileID: "avatar-sample-a.v1",
+            rigProfileRelativePath: "avatars/avatar-sample-a/1.0.0/rig_profile.json",
+            rigProfileRemoteURL: "https://example.com/rig_profile.json",
+            minimumAppVersion: nil,
+            minimumOSVersion: "26.4",
+            installState: .notInstalled
+        )
+
+        let installedOption = try await store.installDownloadableAvatar(from: variant)
+        let installedOptions = store.fetchInstalledAvatarOptions()
+
+        #expect(installedOption.installState == .installed)
+        #expect(installedOption.runtimeFormat == .usdz)
+        #expect(installedOption.runtimeAssetURL?.lastPathComponent == "model.usdz")
+        #expect(installedOptions.count == 1)
+        #expect(installedOptions[0].selection == installedOption.selection)
+        #expect(installedOptions[0].runtimeAssetURL?.lastPathComponent == "model.usdz")
+    }
+
     @Test func recordingContextComputesBeatLengthFromBarsAndMeter() {
         let context = MotionRecordingContext(
             tempoSourceType: .metronome,

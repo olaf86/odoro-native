@@ -122,12 +122,12 @@
   "displayName": "Avatar Sample B",
   "generatedRigProfileID": "avatar-sample-b.v1",
   "installedAt": "2026-04-19T00:00:00Z",
-  "runtimeAssetFilename": "model.glb",
-  "runtimeFormat": "glb",
+  "runtimeAssetFilename": "model.usdz",
+  "runtimeFormat": "usdz",
   "schemaVersion": 1,
   "source": "downloadable",
   "sourceFileByteCount": 28333772,
   "sourceFilename": "Avatar Sample B.glb",
-  "variantID": "avatar-sample-b-glb-v1",
+  "variantID": "avatar-sample-b-usdz-v1",
   "version": "1.0.0"
 }

@@ -5,7 +5,7 @@
       "availableVariants": [
         {
           "avatarID": "avatar-sample-a",
-          "id": "avatar-sample-a-glb-v1",
+          "id": "avatar-sample-a-usdz-v1",
           "installState": "notInstalled",
           "minimumAppVersion": null,
           "minimumOSVersion": "26.4",
@@ -15,27 +15,27 @@
           "rigProfileRelativePath": "avatars/avatar-sample-a/1.0.0/rig_profile.json",
           "rigProfileRemoteURL": "https://storage.googleapis.com/YOUR_BUCKET_NAME/avatars/avatar-sample-a/1.0.0/rig_profile.json",
           "runtimeAssetChecksum": null,
-          "runtimeAssetRelativePath": "avatars/avatar-sample-a/1.0.0/model.glb",
-          "runtimeAssetRemoteURL": "https://storage.googleapis.com/YOUR_BUCKET_NAME/avatars/avatar-sample-a/1.0.0/model.glb",
+          "runtimeAssetRelativePath": "avatars/avatar-sample-a/1.0.0/model.usdz",
+          "runtimeAssetRemoteURL": "https://storage.googleapis.com/YOUR_BUCKET_NAME/avatars/avatar-sample-a/1.0.0/model.usdz",
           "runtimeAssetSizeBytes": 26781812,
-          "runtimeFormat": "glb",
+          "runtimeFormat": "usdz",
           "version": "1.0.0"
         }
       ],
       "defaultRigProfileID": "avatar-sample-a.v1",
-      "defaultVariantID": "avatar-sample-a-glb-v1",
+      "defaultVariantID": "avatar-sample-a-usdz-v1",
       "displayName": "Avatar Sample A",
       "id": "avatar-sample-a",
       "isBundled": false,
       "previewVideoURL": null,
       "slug": "avatar-sample-a",
       "source": "downloadable",
-      "subtitle": "Download-on-demand GLB avatar package served from GCS.",
+      "subtitle": "Download-on-demand USDZ avatar package served from GCS.",
       "systemImageName": "person.crop.square",
       "tags": [
         "download",
         "vroid",
-        "glb",
+        "usdz",
         "gcs"
       ],
       "thumbnailURL": null
@@ -45,7 +45,7 @@
       "availableVariants": [
         {
           "avatarID": "avatar-sample-b",
-          "id": "avatar-sample-b-glb-v1",
+          "id": "avatar-sample-b-usdz-v1",
           "installState": "notInstalled",
           "minimumAppVersion": null,
           "minimumOSVersion": "26.4",
@@ -55,27 +55,27 @@
           "rigProfileRelativePath": "avatars/avatar-sample-b/1.0.0/rig_profile.json",
           "rigProfileRemoteURL": "https://storage.googleapis.com/YOUR_BUCKET_NAME/avatars/avatar-sample-b/1.0.0/rig_profile.json",
           "runtimeAssetChecksum": null,
-          "runtimeAssetRelativePath": "avatars/avatar-sample-b/1.0.0/model.glb",
-          "runtimeAssetRemoteURL": "https://storage.googleapis.com/YOUR_BUCKET_NAME/avatars/avatar-sample-b/1.0.0/model.glb",
+          "runtimeAssetRelativePath": "avatars/avatar-sample-b/1.0.0/model.usdz",
+          "runtimeAssetRemoteURL": "https://storage.googleapis.com/YOUR_BUCKET_NAME/avatars/avatar-sample-b/1.0.0/model.usdz",
           "runtimeAssetSizeBytes": 28333772,
-          "runtimeFormat": "glb",
+          "runtimeFormat": "usdz",
           "version": "1.0.0"
         }
       ],
       "defaultRigProfileID": "avatar-sample-b.v1",
-      "defaultVariantID": "avatar-sample-b-glb-v1",
+      "defaultVariantID": "avatar-sample-b-usdz-v1",
       "displayName": "Avatar Sample B",
       "id": "avatar-sample-b",
       "isBundled": false,
       "previewVideoURL": null,
       "slug": "avatar-sample-b",
       "source": "downloadable",
-      "subtitle": "Second download-on-demand GLB avatar package served from GCS.",
+      "subtitle": "Second download-on-demand USDZ avatar package served from GCS.",
       "systemImageName": "sparkles",
       "tags": [
         "download",
         "vroid",
-        "glb",
+        "usdz",
         "gcs"
       ],
       "thumbnailURL": null

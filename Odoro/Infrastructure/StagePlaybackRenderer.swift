@@ -138,6 +138,7 @@ final class StagePlaybackRenderer: NSObject {
     private var activeRigProfile: AvatarRigProfile?
     private var hasStoppedBuiltInAnimation = false
     private var skeletonDebugLayout: SkeletonDebugLayout = .canonical
+    private var avatarLoadTask: Task<Void, Never>?
 
     override init() {
         super.init()
@@ -229,6 +230,8 @@ final class StagePlaybackRenderer: NSObject {
     // MARK: - Character model loading
 
     private func reloadAvatarAsset() {
+        avatarLoadTask?.cancel()
+        avatarLoadTask = nil
         characterEntity = nil
         skeletalModelEntity = nil
         skeletalBindPoseTransforms = []
@@ -242,30 +245,80 @@ final class StagePlaybackRenderer: NSObject {
         }
 
         do {
-            let entity: Entity
-            let assetName: String
-
             if let runtimeAssetURL = currentAvatarOption.runtimeAssetURL {
-                assetName = runtimeAssetURL.lastPathComponent
-                Self.logger.info("Installed local avatar asset '\(assetName)' is present, but direct URL loading is not enabled in this renderer yet. Falling back to the procedural skeleton.")
+                let expectedSelection = currentAvatarOption.selection
+                let rigProfile = currentAvatarOption.rigProfile
+                if #available(iOS 18.0, *) {
+                    avatarLoadTask = Task { @MainActor [weak self] in
+                        guard let self else { return }
+                        do {
+                            let entity = try await Entity(contentsOf: runtimeAssetURL)
+                            guard !Task.isCancelled, self.currentAvatarOption.selection == expectedSelection else {
+                                return
+                            }
+
+                            self.setLoadedAvatarEntity(
+                                entity,
+                                assetName: runtimeAssetURL.lastPathComponent,
+                                rigProfile: rigProfile
+                            )
+                        } catch is CancellationError {
+                            return
+                        } catch {
+                            Self.logger.error("Failed to load installed avatar asset from '\(runtimeAssetURL.lastPathComponent)': \(error)")
+                        }
+                    }
+                } else {
+                    let entity = try Entity.load(contentsOf: runtimeAssetURL)
+                    guard currentAvatarOption.selection == expectedSelection else {
+                        return
+                    }
+
+                    setLoadedAvatarEntity(
+                        entity,
+                        assetName: runtimeAssetURL.lastPathComponent,
+                        rigProfile: rigProfile
+                    )
+                }
                 return
             } else if let resourceName = currentAvatarOption.runtimeAssetResourceName {
-                assetName = resourceName
-                entity = try Entity.load(named: resourceName)
+                let entity = try Entity.load(named: resourceName)
+                setLoadedAvatarEntity(
+                    entity,
+                    assetName: resourceName,
+                    rigProfile: currentAvatarOption.rigProfile
+                )
             } else {
                 return
             }
-
-            characterEntity = entity
-            skeletalModelEntity = findSkeletalModelEntity(entity)
-            skeletalBindPoseTransforms = skeletalModelEntity?.jointTransforms ?? []
-            activeRigProfile = currentAvatarOption.rigProfile
-            let animCount = entity.availableAnimations.count
-            let bindingCount = activeRigProfile?.bindings.count ?? 0
-            let jointCount = skeletalModelEntity?.jointNames.count ?? 0
-            Self.logger.info("avatar loaded — asset: \(assetName), skeletal model: \(self.skeletalModelEntity != nil), joints: \(jointCount), bindings: \(bindingCount), animations: \(animCount)")
         } catch {
             Self.logger.error("Failed to load avatar asset: \(error)")
+        }
+    }
+
+    private func setLoadedAvatarEntity(
+        _ entity: Entity,
+        assetName: String,
+        rigProfile: AvatarRigProfile?
+    ) {
+        characterEntity = entity
+        skeletalModelEntity = findSkeletalModelEntity(entity)
+        skeletalBindPoseTransforms = skeletalModelEntity?.jointTransforms ?? []
+        activeRigProfile = rigProfile
+        let animCount = entity.availableAnimations.count
+        let bindingCount = activeRigProfile?.bindings.count ?? 0
+        let jointCount = skeletalModelEntity?.jointNames.count ?? 0
+        Self.logger.info("avatar loaded — asset: \(assetName), skeletal model: \(self.skeletalModelEntity != nil), joints: \(jointCount), bindings: \(bindingCount), animations: \(animCount)")
+
+        if let view {
+            let wasPlaying = playbackTimer != nil
+            configureScene(in: view)
+            if let firstFrame = clip?.frames.first {
+                render(frame: firstFrame, frameIndex: 0)
+            }
+            if wasPlaying {
+                play()
+            }
         }
     }
 
