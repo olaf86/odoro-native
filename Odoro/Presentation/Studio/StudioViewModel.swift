@@ -34,6 +34,7 @@ final class StudioViewModel: ObservableObject {
     @Published var isImportingVideo = false
     @Published var isImportingAvatar = false
     @Published var previewingAudioSourceID: String?
+    @Published var isPreparingPlayback = false
 
     // MARK: - Dependencies
 
@@ -124,15 +125,23 @@ final class StudioViewModel: ObservableObject {
         }
 
         if previousState.presentation != .stage, newState.presentation == .stage {
-            if previousState.isRecording {
-                persistCurrentClipIfPossible()
-                refreshLibrary()
-            }
-
             playbackCaptureMode = captureMode
-            rebuildPreparedStagePlayback()
-            prepareStagePlayback()
             navigate(to: .stage, transition: .fromLeading)
+
+            if previousState.isRecording {
+                Task { @MainActor in
+                    isPreparingPlayback = true
+                    await Task.yield()
+                    persistCurrentClipIfPossible()
+                    refreshLibrary()
+                    rebuildPreparedStagePlayback()
+                    isPreparingPlayback = false
+                    prepareStagePlayback()
+                }
+            } else {
+                rebuildPreparedStagePlayback()
+                prepareStagePlayback()
+            }
         }
     }
 

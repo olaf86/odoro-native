@@ -35,6 +35,7 @@ extension StudioViewModel {
     }
 
     func prepareStagePlayback() {
+        guard !isPreparingPlayback else { return }
         stopAudioPlayback()
         interactor.deactivateSource()
         if stageDebugMotionViewMode != .stabilized {
