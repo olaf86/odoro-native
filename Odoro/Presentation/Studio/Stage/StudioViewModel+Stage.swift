@@ -65,20 +65,62 @@ extension StudioViewModel {
     }
 
     func selectAvatarOption(_ option: StageAvatarOption) {
-        guard selectedAvatarOption.selection != option.selection else { return }
+        guard !isImportingAvatar else { return }
+
+        if option.installState == .notInstalled {
+            Task { @MainActor [weak self] in
+                await self?.downloadAvatar(option)
+            }
+            return
+        }
+
+        applySelectedAvatarOption(option)
+    }
+
+    private func applySelectedAvatarOption(_ option: StageAvatarOption) {
+        guard selectedAvatarOption.selection != option.selection || selectedAvatarOption != option else { return }
         selectedAvatarOption = option
         stageRenderer.setAvatarOption(option)
 
-        if !option.isReadyForPlayback {
-            showFeatureNotice("On-demand avatar downloads are next. Playback falls back to the skeleton preview until the package is installed.")
-        } else if option.runtimeFormat == .glb {
-            showFeatureNotice("GLB import is installed locally. If RealityKit cannot load this file directly yet, stage playback will fall back to the skeleton preview.")
+        if option.source == .localDevelopment, option.runtimeFormat == .glb {
+            showFeatureNotice("Local GLB import stays available for rig inspection, but stage playback now expects installed USDZ assets.")
         }
 
         if state.isPlaying {
             prepareStagePlayback()
         } else {
             applyStageDebugPresentation()
+        }
+    }
+
+    private func downloadAvatar(_ option: StageAvatarOption) async {
+        guard !state.isRecording, !isImportingAvatar else {
+            return
+        }
+
+        guard let variant = AvatarCatalog.variant(for: option.selection) else {
+            showFeatureNotice("Avatar download is not configured for this selection.")
+            return
+        }
+
+        isImportingAvatar = true
+        showFeatureNotice("Downloading \(option.titleText)...")
+
+        defer {
+            isImportingAvatar = false
+        }
+
+        do {
+            let installedOption = try await avatarAssetStore.installDownloadableAvatar(from: variant)
+            refreshAvatarLibrary()
+
+            if let resolvedOption = availableAvatarOptions.first(where: { $0.selection == installedOption.selection }) {
+                applySelectedAvatarOption(resolvedOption)
+            }
+
+            showFeatureNotice("Downloaded \(option.titleText). The avatar is installed and ready for stage playback.")
+        } catch {
+            showFeatureNotice("Avatar download failed: \(error.localizedDescription)")
         }
     }
 
@@ -114,9 +156,8 @@ extension StudioViewModel {
     }
 
     func refreshAvatarLibrary() {
-        let builtInOptions = AvatarCatalog.builtInStageOptions
         let installedOptions = avatarAssetStore.fetchInstalledAvatarOptions()
-        availableAvatarOptions = builtInOptions + installedOptions
+        availableAvatarOptions = AvatarCatalog.stageOptions(installedOptions: installedOptions)
 
         if let matchingSelection = availableAvatarOptions.first(where: { $0.selection == selectedAvatarOption.selection }) {
             selectedAvatarOption = matchingSelection

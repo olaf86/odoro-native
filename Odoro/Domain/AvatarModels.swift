@@ -213,6 +213,22 @@ struct StageAvatarOption: Identifiable, Hashable, Sendable {
     var isReadyForPlayback: Bool {
         selection.kind == .proceduralSkeleton || installState != .notInstalled
     }
+
+    func mergedWithInstalledAsset(_ installedOption: StageAvatarOption) -> StageAvatarOption {
+        StageAvatarOption(
+            selection: selection,
+            title: title,
+            subtitle: subtitle,
+            systemImageName: systemImageName,
+            source: source,
+            installState: installedOption.installState,
+            runtimeFormat: installedOption.runtimeFormat,
+            runtimeAssetResourceName: installedOption.runtimeAssetResourceName,
+            runtimeAssetURL: installedOption.runtimeAssetURL,
+            rigProfileID: installedOption.rigProfileID,
+            rigProfile: installedOption.rigProfile
+        )
+    }
 }
 
 enum AvatarCatalog {
@@ -220,10 +236,10 @@ enum AvatarCatalog {
     private static let robotVariantID = "robot-performer-bundled-v1"
     private static let robotRigProfileID = "robot.performer.v1"
     private static let avatarSampleAAvatarID = "avatar-sample-a"
-    private static let avatarSampleAVariantID = "avatar-sample-a-glb-v1"
+    private static let avatarSampleAVariantID = "avatar-sample-a-usdz-v1"
     private static let avatarSampleARigProfileID = "avatar-sample-a.v1"
     private static let avatarSampleBAvatarID = "avatar-sample-b"
-    private static let avatarSampleBVariantID = "avatar-sample-b-glb-v1"
+    private static let avatarSampleBVariantID = "avatar-sample-b-usdz-v1"
     private static let avatarSampleBRigProfileID = "avatar-sample-b.v1"
 
     private static func robotJointPath(_ components: String...) -> String {
@@ -249,7 +265,7 @@ enum AvatarCatalog {
         AppConfiguration.current.remoteAvatarAssetURLString(path: path)
     }
 
-    private static func downloadableGLBVariant(
+    private static func downloadableUSDZVariant(
         avatarID: String,
         variantID: String,
         rigProfileID: String,
@@ -262,9 +278,9 @@ enum AvatarCatalog {
             id: variantID,
             avatarID: avatarID,
             version: version,
-            runtimeFormat: .glb,
-            runtimeAssetRelativePath: "\(assetDirectory)/model.glb",
-            runtimeAssetRemoteURL: gcsURL(path: "\(assetDirectory)/model.glb"),
+            runtimeFormat: .usdz,
+            runtimeAssetRelativePath: "\(assetDirectory)/model.usdz",
+            runtimeAssetRemoteURL: gcsURL(path: "\(assetDirectory)/model.usdz"),
             runtimeAssetChecksum: nil,
             runtimeAssetSizeBytes: sizeBytes,
             packageManifestRelativePath: "\(assetDirectory)/package_manifest.json",
@@ -465,7 +481,7 @@ enum AvatarCatalog {
                 id: avatarSampleAAvatarID,
                 slug: avatarSampleAAvatarID,
                 displayName: "Avatar Sample A",
-                subtitle: "Download-on-demand GLB avatar package served from GCS.",
+                subtitle: "Download-on-demand USDZ avatar package served from GCS.",
                 authorName: "Odoro",
                 systemImageName: "person.crop.square",
                 thumbnailURL: nil,
@@ -473,14 +489,14 @@ enum AvatarCatalog {
                 defaultRigProfileID: avatarSampleARigProfileID,
                 defaultVariantID: avatarSampleAVariantID,
                 availableVariants: [
-                    downloadableGLBVariant(
+                    downloadableUSDZVariant(
                         avatarID: avatarSampleAAvatarID,
                         variantID: avatarSampleAVariantID,
                         rigProfileID: avatarSampleARigProfileID,
                         sizeBytes: 26_781_812
                     )
                 ],
-                tags: ["download", "vroid", "glb", "gcs"],
+                tags: ["download", "vroid", "usdz", "gcs"],
                 source: .downloadable,
                 isBundled: false
             ),
@@ -488,7 +504,7 @@ enum AvatarCatalog {
                 id: avatarSampleBAvatarID,
                 slug: avatarSampleBAvatarID,
                 displayName: "Avatar Sample B",
-                subtitle: "Second download-on-demand GLB avatar package served from GCS.",
+                subtitle: "Second download-on-demand USDZ avatar package served from GCS.",
                 authorName: "Odoro",
                 systemImageName: "sparkles",
                 thumbnailURL: nil,
@@ -496,14 +512,14 @@ enum AvatarCatalog {
                 defaultRigProfileID: avatarSampleBRigProfileID,
                 defaultVariantID: avatarSampleBVariantID,
                 availableVariants: [
-                    downloadableGLBVariant(
+                    downloadableUSDZVariant(
                         avatarID: avatarSampleBAvatarID,
                         variantID: avatarSampleBVariantID,
                         rigProfileID: avatarSampleBRigProfileID,
                         sizeBytes: 28_333_772
                     )
                 ],
-                tags: ["download", "vroid", "glb", "gcs"],
+                tags: ["download", "vroid", "usdz", "gcs"],
                 source: .downloadable,
                 isBundled: false
             ),
@@ -539,5 +555,35 @@ enum AvatarCatalog {
             rigProfileID: variant.rigProfileID,
             rigProfile: variant.rigProfileID == robotRigProfileID ? robotRigProfile : nil
         )
+    }
+
+    static func variant(for selection: StageAvatarSelection) -> AvatarAssetVariant? {
+        guard
+            selection.kind == .avatar,
+            let avatarID = selection.avatarID,
+            let variantID = selection.variantID,
+            let item = manifest.avatars.first(where: { $0.id == avatarID })
+        else {
+            return nil
+        }
+
+        return item.availableVariants.first(where: { $0.id == variantID })
+    }
+
+    static func stageOptions(installedOptions: [StageAvatarOption]) -> [StageAvatarOption] {
+        let baseOptions = builtInStageOptions
+        let installedBySelection = Dictionary(uniqueKeysWithValues: installedOptions.map { ($0.selection, $0) })
+        let mergedBaseOptions = baseOptions.map { option in
+            guard let installedOption = installedBySelection[option.selection] else {
+                return option
+            }
+
+            return option.mergedWithInstalledAsset(installedOption)
+        }
+        let additionalOptions = installedOptions.filter { option in
+            !baseOptions.contains(where: { $0.selection == option.selection })
+        }
+
+        return mergedBaseOptions + additionalOptions
     }
 }

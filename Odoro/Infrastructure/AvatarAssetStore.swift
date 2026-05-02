@@ -6,25 +6,42 @@
 import Foundation
 
 struct AvatarAssetStore {
+    typealias RemoteFileDownloader = @Sendable (URL) async throws -> URL
+
     enum StoreError: LocalizedError {
         case unsupportedFileExtension(String)
+        case unsupportedRuntimeFormat(AvatarRuntimeFormat)
         case invalidGLBFile
+        case missingRemoteAssetURL(String)
+        case invalidPackageManifest
 
         var errorDescription: String? {
             switch self {
             case let .unsupportedFileExtension(ext):
                 "Unsupported avatar file type: \(ext)"
+            case let .unsupportedRuntimeFormat(format):
+                "Unsupported downloadable avatar format: \(format.rawValue)"
             case .invalidGLBFile:
                 "The selected GLB file could not be parsed."
+            case let .missingRemoteAssetURL(label):
+                "Avatar package is missing a remote \(label) URL."
+            case .invalidPackageManifest:
+                "The downloaded avatar package manifest is invalid."
             }
         }
     }
 
     private let fileManager: FileManager
     private let baseDirectoryURL: URL
+    private let remoteFileDownloader: RemoteFileDownloader
 
-    init(fileManager: FileManager = .default, baseDirectoryURL: URL? = nil) {
+    init(
+        fileManager: FileManager = .default,
+        baseDirectoryURL: URL? = nil,
+        remoteFileDownloader: @escaping RemoteFileDownloader = Self.defaultRemoteFileDownloader
+    ) {
         self.fileManager = fileManager
+        self.remoteFileDownloader = remoteFileDownloader
         if let baseDirectoryURL {
             self.baseDirectoryURL = baseDirectoryURL
         } else {
@@ -47,6 +64,117 @@ struct AvatarAssetStore {
                 .compactMap(loadOption(fromAvatarDirectory:))
         } catch {
             return []
+        }
+    }
+
+    func installDownloadableAvatar(from variant: AvatarAssetVariant) async throws -> StageAvatarOption {
+        guard variant.runtimeFormat == .usdz else {
+            throw StoreError.unsupportedRuntimeFormat(variant.runtimeFormat)
+        }
+
+        try ensureBaseDirectoryExists()
+
+        let runtimeAssetRemoteURL = try Self.parseRemoteURL(
+            variant.runtimeAssetRemoteURL,
+            label: "runtime asset"
+        )
+        let packageManifestRemoteURL = try Self.parseRemoteURL(
+            variant.packageManifestRemoteURL,
+            label: "package manifest"
+        )
+        let rigProfileRemoteURL = try Self.parseRemoteURL(
+            variant.rigProfileRemoteURL,
+            label: "rig profile"
+        )
+
+        let downloadedPackageManifestURL = try await remoteFileDownloader(packageManifestRemoteURL)
+        let downloadedRigProfileURL = try await remoteFileDownloader(rigProfileRemoteURL)
+
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+
+        let packageManifest = try decoder.decode(
+            AvatarPackageManifest.self,
+            from: Data(contentsOf: downloadedPackageManifestURL)
+        )
+        let rigDocument = try decoder.decode(
+            AvatarRigProfileDocument.self,
+            from: Data(contentsOf: downloadedRigProfileURL)
+        )
+
+        guard
+            packageManifest.avatarID == variant.avatarID,
+            packageManifest.variantID == variant.id,
+            packageManifest.version == variant.version,
+            packageManifest.runtimeFormat == variant.runtimeFormat,
+            rigDocument.profile.id == variant.rigProfileID,
+            rigDocument.profile.runtimeFormat == variant.runtimeFormat
+        else {
+            throw StoreError.invalidPackageManifest
+        }
+
+        let downloadedRuntimeAssetURL = try await remoteFileDownloader(runtimeAssetRemoteURL)
+
+        let avatarDirectoryURL = baseDirectoryURL.appending(path: variant.avatarID, directoryHint: .isDirectory)
+        try fileManager.createDirectory(at: avatarDirectoryURL, withIntermediateDirectories: true)
+
+        let installedVersionDirectoryURL = avatarDirectoryURL.appending(
+            path: variant.version,
+            directoryHint: .isDirectory
+        )
+        let stagingDirectoryURL = avatarDirectoryURL.appending(
+            path: "\(variant.version).staging-\(UUID().uuidString.lowercased())",
+            directoryHint: .isDirectory
+        )
+
+        try fileManager.createDirectory(at: stagingDirectoryURL, withIntermediateDirectories: true)
+
+        do {
+            let runtimeAssetDestinationURL = stagingDirectoryURL.appending(
+                path: packageManifest.runtimeAssetFilename,
+                directoryHint: .notDirectory
+            )
+            let packageManifestDestinationURL = stagingDirectoryURL.appending(
+                path: "package_manifest.json",
+                directoryHint: .notDirectory
+            )
+            let rigProfileDestinationURL = stagingDirectoryURL.appending(
+                path: "rig_profile.json",
+                directoryHint: .notDirectory
+            )
+
+            try copyDownloadedFile(
+                from: downloadedRuntimeAssetURL,
+                to: runtimeAssetDestinationURL
+            )
+            try copyDownloadedFile(
+                from: downloadedPackageManifestURL,
+                to: packageManifestDestinationURL
+            )
+            try copyDownloadedFile(
+                from: downloadedRigProfileURL,
+                to: rigProfileDestinationURL
+            )
+
+            if fileManager.fileExists(atPath: installedVersionDirectoryURL.path()) {
+                try fileManager.removeItem(at: installedVersionDirectoryURL)
+            }
+
+            try fileManager.moveItem(at: stagingDirectoryURL, to: installedVersionDirectoryURL)
+
+            let installedRuntimeAssetURL = installedVersionDirectoryURL.appending(
+                path: packageManifest.runtimeAssetFilename,
+                directoryHint: .notDirectory
+            )
+
+            return makeOption(
+                packageManifest: packageManifest,
+                rigProfile: rigDocument.profile,
+                runtimeAssetURL: installedRuntimeAssetURL
+            )
+        } catch {
+            try? fileManager.removeItem(at: stagingDirectoryURL)
+            throw error
         }
     }
 
@@ -149,11 +277,26 @@ struct AvatarAssetStore {
         rigProfile: AvatarRigProfile,
         runtimeAssetURL: URL
     ) -> StageAvatarOption {
-        StageAvatarOption(
+        let subtitle: String
+        let systemImageName: String
+
+        switch packageManifest.source {
+        case .localDevelopment:
+            subtitle = "Imported from local GLB. Generated rig profile is editable in Application Support."
+            systemImageName = "person.crop.square.badge.plus"
+        case .downloadable:
+            subtitle = "Downloaded avatar package installed locally for stage playback."
+            systemImageName = "arrow.down.circle"
+        case .bundled:
+            subtitle = "Bundled avatar package installed locally for stage playback."
+            systemImageName = "shippingbox"
+        }
+
+        return StageAvatarOption(
             selection: .avatar(avatarID: packageManifest.avatarID, variantID: packageManifest.variantID),
             title: packageManifest.displayName,
-            subtitle: "Imported from local GLB. Generated rig profile is editable in Application Support.",
-            systemImageName: "person.crop.square.badge.plus",
+            subtitle: subtitle,
+            systemImageName: systemImageName,
             source: packageManifest.source,
             installState: .installed,
             runtimeFormat: packageManifest.runtimeFormat,
@@ -170,6 +313,14 @@ struct AvatarAssetStore {
         }
 
         try fileManager.createDirectory(at: baseDirectoryURL, withIntermediateDirectories: true)
+    }
+
+    private func copyDownloadedFile(from sourceURL: URL, to destinationURL: URL) throws {
+        if fileManager.fileExists(atPath: destinationURL.path()) {
+            try fileManager.removeItem(at: destinationURL)
+        }
+
+        try fileManager.copyItem(at: sourceURL, to: destinationURL)
     }
 
     private static func displayName(from rawName: String) -> String {
@@ -189,6 +340,23 @@ struct AvatarAssetStore {
         let raw = String(scalars)
         let collapsed = raw.replacingOccurrences(of: "-+", with: "-", options: .regularExpression)
         return collapsed.trimmingCharacters(in: CharacterSet(charactersIn: "-"))
+    }
+
+    private static func parseRemoteURL(_ remoteURLString: String?, label: String) throws -> URL {
+        guard
+            let remoteURLString,
+            let remoteURL = URL(string: remoteURLString),
+            remoteURL.scheme != nil
+        else {
+            throw StoreError.missingRemoteAssetURL(label)
+        }
+
+        return remoteURL
+    }
+
+    private static func defaultRemoteFileDownloader(from remoteURL: URL) async throws -> URL {
+        let (downloadedFileURL, _) = try await URLSession.shared.download(from: remoteURL)
+        return downloadedFileURL
     }
 
     private static func makeGeneratedRigProfile(
