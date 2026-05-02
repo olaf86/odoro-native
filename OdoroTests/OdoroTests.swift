@@ -1082,6 +1082,121 @@ struct OdoroTests {
         #expect(Self.rotationAngle(dampedRotation) > 0)
     }
 
+    @Test func stageRendererRigContinuityCorrectionDampensLargeRotationJumps() {
+        let previous = Transform(
+            scale: .one,
+            rotation: simd_quatf(angle: 0, axis: SIMD3<Float>(0, 1, 0)),
+            translation: SIMD3<Float>(0, 0.2, 0)
+        )
+        let target = Transform(
+            scale: .one,
+            rotation: simd_quatf(angle: .pi, axis: SIMD3<Float>(0, 1, 0)),
+            translation: SIMD3<Float>(0.4, 0.6, -0.2)
+        )
+
+        let stabilized = StagePlaybackRenderer.stabilizedRigLocalTransform(
+            previous: previous,
+            target: target
+        )
+
+        #expect(Self.rotationAngle(stabilized.rotation) < Self.rotationAngle(target.rotation))
+        #expect(Self.rotationAngle(stabilized.rotation) > 0)
+        #expect(stabilized.translation == target.translation)
+    }
+
+    @Test func stageRendererRigContinuityTranslationSmoothingDampensRootPositionSpikes() {
+        let previous = Transform(
+            scale: .one,
+            rotation: simd_quatf(angle: 0, axis: SIMD3<Float>(0, 1, 0)),
+            translation: SIMD3<Float>(0, 0, 0)
+        )
+        let spikeTarget = Transform(
+            scale: .one,
+            rotation: simd_quatf(angle: 0.05, axis: SIMD3<Float>(0, 1, 0)),
+            translation: SIMD3<Float>(0.4, 0.6, 0)
+        )
+
+        let withoutSmoothing = StagePlaybackRenderer.stabilizedRigLocalTransform(
+            previous: previous,
+            target: spikeTarget,
+            smoothsTranslation: false
+        )
+        let withSmoothing = StagePlaybackRenderer.stabilizedRigLocalTransform(
+            previous: previous,
+            target: spikeTarget,
+            smoothsTranslation: true
+        )
+
+        #expect(withoutSmoothing.translation == spikeTarget.translation)
+        #expect(simd_length(withSmoothing.translation) < simd_length(spikeTarget.translation))
+        #expect(simd_length(withSmoothing.translation) > 0)
+    }
+
+    @Test func stageRendererRigContinuityHeadRotationAlphaProducesLessMotionThanDefault() {
+        let previous = Transform(
+            scale: .one,
+            rotation: simd_quatf(angle: 0, axis: SIMD3<Float>(0, 1, 0)),
+            translation: .zero
+        )
+        let target = Transform(
+            scale: .one,
+            rotation: simd_quatf(angle: 0.25, axis: SIMD3<Float>(0, 1, 0)),
+            translation: .zero
+        )
+
+        let defaultStabilized = StagePlaybackRenderer.stabilizedRigLocalTransform(
+            previous: previous,
+            target: target
+        )
+        let headStabilized = StagePlaybackRenderer.stabilizedRigLocalTransform(
+            previous: previous,
+            target: target,
+            maximumRotationAlpha: 0.62
+        )
+
+        #expect(Self.rotationAngle(headStabilized.rotation) < Self.rotationAngle(defaultStabilized.rotation))
+        #expect(Self.rotationAngle(headStabilized.rotation) > 0)
+    }
+
+    @Test func stageRendererRigContinuityTranslationSmoothingPassesThroughSmallDeltas() {
+        let previous = Transform(
+            scale: .one,
+            rotation: simd_quatf(angle: 0, axis: SIMD3<Float>(0, 1, 0)),
+            translation: SIMD3<Float>(0.1, 0, 0)
+        )
+        let smallTarget = Transform(
+            scale: .one,
+            rotation: simd_quatf(angle: 0.02, axis: SIMD3<Float>(0, 1, 0)),
+            translation: SIMD3<Float>(0.115, 0, 0)
+        )
+
+        let smoothed = StagePlaybackRenderer.stabilizedRigLocalTransform(
+            previous: previous,
+            target: smallTarget,
+            smoothsTranslation: true
+        )
+
+        // Small movement (1.5cm) should follow at high alpha — well above 70% of target distance
+        let targetDist = simd_length(smallTarget.translation - previous.translation)
+        let smoothedDist = simd_length(smoothed.translation - previous.translation)
+        #expect(smoothedDist / targetDist > 0.7)
+    }
+
+    @Test func stageRendererRigContinuityCorrectionPassesThroughFirstTargetPose() {
+        let target = Transform(
+            scale: SIMD3<Float>(1.2, 0.9, 1.1),
+            rotation: simd_quatf(angle: .pi / 3, axis: SIMD3<Float>(1, 0, 0)),
+            translation: SIMD3<Float>(0.1, 0.3, -0.1)
+        )
+
+        let stabilized = StagePlaybackRenderer.stabilizedRigLocalTransform(
+            previous: nil,
+            target: target
+        )
+
+        #expect(stabilized == target)
+    }
+
     @Test func stageRendererBindPoseNeutralRotationKeepsBindPoseAtSourceRest() {
         let baseRotation = simd_quatf(angle: .pi / 2, axis: SIMD3<Float>(1, 0, 0))
         let sourceNeutralLocalRotation = simd_quatf(angle: .pi / 3, axis: SIMD3<Float>(0, 1, 0))
