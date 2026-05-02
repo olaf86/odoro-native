@@ -832,13 +832,13 @@ struct OdoroTests {
         #expect(prepared.stabilized.appendagePoses == nil)
     }
 
-    @Test func stagePreparedPlaybackBuilderUsesStoredArtifactsWhenSourceClipIsUnavailable() throws {
+    @Test func stagePreparedPlaybackBuilderUsesStoredHintsWhenSourceClipIsUnavailable() throws {
         let playbackClip = MotionClip(frames: [
             Self.canonicalFrame(time: 0),
             Self.canonicalFrame(time: 1.0 / 30.0),
         ])
-        let storedArtifacts = try #require(
-            MotionPlaybackArtifactsBuilder().build(
+        let storedHints = try #require(
+            MotionPlaybackHintsBuilder().build(
                 playbackClip: playbackClip,
                 captureMode: .rearBody3D
             )
@@ -848,13 +848,13 @@ struct OdoroTests {
             sourceClip: nil,
             playbackClip: playbackClip,
             captureMode: .rearBody3D,
-            playbackArtifacts: storedArtifacts
+            hints: storedHints
         )
 
-        #expect(prepared.canonical.appendagePoses == storedArtifacts.stagePlayback?.canonical.appendagePoses)
-        #expect(prepared.stabilized.appendagePoses == storedArtifacts.stagePlayback?.stabilized.appendagePoses)
-        #expect(prepared.canonical.cameraPreset == storedArtifacts.stagePlayback?.canonical.cameraPreset)
-        #expect(prepared.stabilized.cameraPreset == storedArtifacts.stagePlayback?.stabilized.cameraPreset)
+        #expect(prepared.canonical.appendagePoses == storedHints.stage?.canonical.appendagePoses)
+        #expect(prepared.stabilized.appendagePoses == storedHints.stage?.stabilized.appendagePoses)
+        #expect(prepared.canonical.cameraPreset == storedHints.stage?.canonical.cameraPreset)
+        #expect(prepared.stabilized.cameraPreset == storedHints.stage?.stabilized.cameraPreset)
         #expect(prepared.raw.integrity == .displaySafe)
         #expect(prepared.raw.skeletonDefinition == .odoroCanonical)
         #expect(prepared.variant(purpose: .avatarRig, processingStage: .stabilized) == nil)
@@ -1418,7 +1418,7 @@ struct OdoroTests {
         let archiveStore = MotionArchiveStore(
             modelContainer: container,
             payloadFileStore: MotionPayloadFileStore(baseDirectoryURL: tempDirectory),
-            playbackArtifactsFileStore: MotionPlaybackArtifactsFileStore(baseDirectoryURL: tempDirectory)
+            hintsFileStore: MotionPlaybackHintsFileStore(baseDirectoryURL: tempDirectory)
         )
         let runtimeClip = MotionClip(frames: [
             MotionFrame(
@@ -1448,7 +1448,7 @@ struct OdoroTests {
         #expect(reloadedClip.frameCount == 1)
         #expect(reloadedClip.frames[0].jointPositions.count == OdoroSkeletonDefinition.jointCount)
         #expect(FileManager.default.fileExists(atPath: saveResult.localFilePath))
-        #expect(storedTake.playbackArtifacts?.stagePlayback?.stabilized.appendagePoses != nil)
+        #expect(storedTake.hints?.stage?.stabilized.appendagePoses != nil)
 
         let secondSaveResult = try archiveStore.saveTake(
             clip: runtimeClip,
@@ -1478,7 +1478,7 @@ struct OdoroTests {
         let archiveStore = MotionArchiveStore(
             modelContainer: container,
             payloadFileStore: MotionPayloadFileStore(baseDirectoryURL: tempDirectory),
-            playbackArtifactsFileStore: MotionPlaybackArtifactsFileStore(baseDirectoryURL: tempDirectory)
+            hintsFileStore: MotionPlaybackHintsFileStore(baseDirectoryURL: tempDirectory)
         )
         let runtimeClip = MotionClip(frames: [
             MotionFrame(
@@ -1532,7 +1532,7 @@ struct OdoroTests {
         let archiveStore = MotionArchiveStore(
             modelContainer: container,
             payloadFileStore: MotionPayloadFileStore(baseDirectoryURL: tempDirectory),
-            playbackArtifactsFileStore: MotionPlaybackArtifactsFileStore(baseDirectoryURL: tempDirectory)
+            hintsFileStore: MotionPlaybackHintsFileStore(baseDirectoryURL: tempDirectory)
         )
         let runtimeClip = MotionClip(frames: [
             MotionFrame(
@@ -1568,7 +1568,7 @@ struct OdoroTests {
 
         #expect(summaries.count == 1)
         #expect(summaries.first?.captureMode == .importedVideo)
-        #expect(storedTake.playbackArtifacts?.stagePlayback?.stabilized.cameraPreset != nil)
+        #expect(storedTake.hints?.stage?.stabilized.cameraPreset != nil)
     }
 
     @MainActor

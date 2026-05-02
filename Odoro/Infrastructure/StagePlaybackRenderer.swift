@@ -133,7 +133,7 @@ final class StagePlaybackRenderer: NSObject {
 
     private weak var view: ARView?
     private var clip: MotionClip?
-    private var avatarRigClip: MotionClip?
+    private var rigClip: MotionClip?
     private var appendagePoses: MotionClipAppendagePoses?
     private var stageCameraPreset: StagePlaybackCameraPreset?
     private var playbackTimer: Timer?
@@ -179,8 +179,8 @@ final class StagePlaybackRenderer: NSObject {
         }
     }
 
-    func setAvatarRigClip(_ clip: MotionClip?) {
-        avatarRigClip = clip
+    func setRigClip(_ clip: MotionClip?) {
+        rigClip = clip
         precomputedRigFrames = nil
         precomputeRigFramesIfReady()
 
@@ -576,20 +576,20 @@ final class StagePlaybackRenderer: NSObject {
     }
 
     private func resolvedAvatarRigFrame(for displayFrame: MotionFrame, frameIndex: Int) -> MotionFrame {
-        guard let avatarRigClip else {
+        guard let rigClip else {
             return displayFrame
         }
 
-        if avatarRigClip.frames.indices.contains(frameIndex) {
-            return avatarRigClip.frames[frameIndex]
+        if rigClip.frames.indices.contains(frameIndex) {
+            return rigClip.frames[frameIndex]
         }
 
-        let matchedIndex = avatarRigClip.frames.lastIndex(where: { $0.time <= displayFrame.time }) ?? 0
-        guard avatarRigClip.frames.indices.contains(matchedIndex) else {
+        let matchedIndex = rigClip.frames.lastIndex(where: { $0.time <= displayFrame.time }) ?? 0
+        guard rigClip.frames.indices.contains(matchedIndex) else {
             return displayFrame
         }
 
-        return avatarRigClip.frames[matchedIndex]
+        return rigClip.frames[matchedIndex]
     }
 
     // Returns the index into precomputedRigFrames for a given display frame.
@@ -603,14 +603,14 @@ final class StagePlaybackRenderer: NSObject {
             return displayFrameIndex
         }
 
-        let sourceClip = avatarRigClip ?? clip
+        let sourceClip = rigClip ?? clip
         return sourceClip?.frames.lastIndex(where: { $0.time <= displayFrame.time })
     }
 
     // MARK: - Rig frame pre-computation
 
     private func precomputeRigFramesIfReady() {
-        let sourceClip = avatarRigClip ?? clip
+        let sourceClip = rigClip ?? clip
         guard
             let sourceClip,
             let modelEntity = skeletalModelEntity,

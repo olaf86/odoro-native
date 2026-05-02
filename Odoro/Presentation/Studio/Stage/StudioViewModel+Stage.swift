@@ -24,13 +24,14 @@ extension StudioViewModel {
         stageRenderer.pause()
         interactor.setPlaybackActive(false)
         stageRenderer.setClip(nil)
-        stageRenderer.setAvatarRigClip(nil)
+        stageRenderer.setRigClip(nil)
         stageRenderer.setAppendagePoses(nil)
         interactor.resetClip()
         currentTakeID = nil
         playbackCaptureMode = nil
         preparedStagePlayback = nil
-        storedPlaybackArtifacts = nil
+        storedHints = nil
+        storedRigClip = nil
     }
 
     func prepareStagePlayback() {
@@ -138,7 +139,7 @@ extension StudioViewModel {
         }
 
         stageRenderer.setSkeletonDebugLayout(stageDebugSkeletonLayout)
-        stageRenderer.setAvatarRigClip(preparedStagePlayback?.avatarRigVariant?.clip)
+        stageRenderer.setRigClip(storedRigClip ?? preparedStagePlayback?.avatarRigVariant?.clip)
         stageRenderer.setClip(stageDebugPresentation.clip)
         stageRenderer.setAppendagePoses(stageDebugPresentation.appendagePoses)
         stageRenderer.setStageCameraPreset(stageDebugPresentation.cameraPreset)

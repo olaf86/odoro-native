@@ -28,7 +28,7 @@ struct StagePlaybackCameraPreset: Codable, Sendable, Equatable {
     }
 }
 
-struct StagePlaybackClipArtifacts: Codable, Sendable, Equatable {
+struct StagePlaybackClipHints: Codable, Sendable, Equatable {
     let appendagePoses: MotionClipAppendagePoses?
     let cameraPreset: StagePlaybackCameraPreset?
 
@@ -41,15 +41,15 @@ struct StagePlaybackClipArtifacts: Codable, Sendable, Equatable {
     }
 }
 
-struct StagePlaybackArtifacts: Codable, Sendable, Equatable {
-    let raw: StagePlaybackClipArtifacts
-    let canonical: StagePlaybackClipArtifacts
-    let stabilized: StagePlaybackClipArtifacts
+struct StagePlaybackHints: Codable, Sendable, Equatable {
+    let raw: StagePlaybackClipHints
+    let canonical: StagePlaybackClipHints
+    let stabilized: StagePlaybackClipHints
 
     nonisolated init(
-        raw: StagePlaybackClipArtifacts,
-        canonical: StagePlaybackClipArtifacts,
-        stabilized: StagePlaybackClipArtifacts
+        raw: StagePlaybackClipHints,
+        canonical: StagePlaybackClipHints,
+        stabilized: StagePlaybackClipHints
     ) {
         self.raw = raw
         self.canonical = canonical
@@ -57,27 +57,28 @@ struct StagePlaybackArtifacts: Codable, Sendable, Equatable {
     }
 }
 
-struct MotionPlaybackArtifacts: Codable, Sendable, Equatable {
+struct MotionPlaybackHints: Codable, Sendable, Equatable {
     nonisolated static let currentSchemaVersion = 1
 
     let schemaVersion: Int
-    let stagePlayback: StagePlaybackArtifacts?
+    let stage: StagePlaybackHints?
 
     nonisolated init(
         schemaVersion: Int = Self.currentSchemaVersion,
-        stagePlayback: StagePlaybackArtifacts?
+        stage: StagePlaybackHints?
     ) {
         self.schemaVersion = schemaVersion
-        self.stagePlayback = stagePlayback
+        self.stage = stage
     }
 }
 
 struct StoredMotionTake: Sendable {
     let clip: MotionClip
-    let playbackArtifacts: MotionPlaybackArtifacts?
+    let rigClip: MotionClip?
+    let hints: MotionPlaybackHints?
 }
 
-struct MotionPlaybackArtifactsBuilder: Sendable {
+struct MotionPlaybackHintsBuilder: Sendable {
     let stagePlaybackBuilder: StagePreparedPlaybackBuilder
 
     nonisolated init(
@@ -89,38 +90,38 @@ struct MotionPlaybackArtifactsBuilder: Sendable {
     nonisolated func build(
         playbackClip: MotionClip,
         captureMode: CaptureMode
-    ) -> MotionPlaybackArtifacts? {
+    ) -> MotionPlaybackHints? {
         let preparedPlayback = stagePlaybackBuilder.prepare(
             sourceClip: nil,
             playbackClip: playbackClip,
             captureMode: captureMode
         )
 
-        let stagePlayback = StagePlaybackArtifacts(
-            raw: StagePlaybackClipArtifacts(
+        let stageHints = StagePlaybackHints(
+            raw: StagePlaybackClipHints(
                 appendagePoses: preparedPlayback.raw.appendagePoses,
                 cameraPreset: preparedPlayback.raw.cameraPreset
             ),
-            canonical: StagePlaybackClipArtifacts(
+            canonical: StagePlaybackClipHints(
                 appendagePoses: preparedPlayback.canonical.appendagePoses,
                 cameraPreset: preparedPlayback.canonical.cameraPreset
             ),
-            stabilized: StagePlaybackClipArtifacts(
+            stabilized: StagePlaybackClipHints(
                 appendagePoses: preparedPlayback.stabilized.appendagePoses,
                 cameraPreset: preparedPlayback.stabilized.cameraPreset
             )
         )
 
-        if !containsArtifacts(stagePlayback.raw),
-           !containsArtifacts(stagePlayback.canonical),
-           !containsArtifacts(stagePlayback.stabilized) {
+        if !containsHints(stageHints.raw),
+           !containsHints(stageHints.canonical),
+           !containsHints(stageHints.stabilized) {
             return nil
         }
 
-        return MotionPlaybackArtifacts(stagePlayback: stagePlayback)
+        return MotionPlaybackHints(stage: stageHints)
     }
 
-    nonisolated private func containsArtifacts(_ clip: StagePlaybackClipArtifacts) -> Bool {
+    nonisolated private func containsHints(_ clip: StagePlaybackClipHints) -> Bool {
         if case .some = clip.appendagePoses {
             return true
         }

@@ -20,7 +20,7 @@ struct MotionPayloadFileStore {
     }
 
     func payloadURL(for takeID: UUID) -> URL {
-        baseDirectoryURL.appending(path: "\(takeID.uuidString).odoro", directoryHint: .notDirectory)
+        baseDirectoryURL.appending(path: "\(takeID.uuidString).odoro.stage", directoryHint: .notDirectory)
     }
 
     func write(_ payload: MotionPayload, for takeID: UUID) throws -> URL {
