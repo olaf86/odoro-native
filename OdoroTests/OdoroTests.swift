@@ -128,31 +128,16 @@ struct OdoroTests {
         #expect(installedOptions[0].runtimeAssetURL?.lastPathComponent == "model.usdz")
     }
 
-    @MainActor @Test func avatarAssetStoreInstallsBundledFallbackWhenRemoteStorageIsUnavailable() async throws {
+    @MainActor @Test func avatarAssetStoreRequiresRemoteURLsForDownloadableAvatarInstall() async throws {
         let fileManager = FileManager.default
         let tempRootURL = fileManager.temporaryDirectory.appending(path: UUID().uuidString, directoryHint: .isDirectory)
         let installRootURL = tempRootURL.appending(path: "installed", directoryHint: .isDirectory)
-        let fallbackAssetURL = tempRootURL.appending(path: "robot.usdz", directoryHint: .notDirectory)
         defer { try? fileManager.removeItem(at: tempRootURL) }
 
         try fileManager.createDirectory(at: tempRootURL, withIntermediateDirectories: true)
-        try Data("bundled-fallback".utf8).write(to: fallbackAssetURL)
-
         let store = AvatarAssetStore(
             fileManager: fileManager,
-            baseDirectoryURL: installRootURL,
-            downloadableAvatarFallbackProvider: { variant in
-                var rigProfile = AvatarCatalog.robotRigProfile
-                rigProfile.id = variant.rigProfileID
-                rigProfile.displayName = "Fallback Rig"
-                rigProfile.runtimeAssetRelativePath = "model.usdz"
-
-                return AvatarAssetStore.DownloadableAvatarFallback(
-                    runtimeAssetURL: fallbackAssetURL,
-                    rigProfile: rigProfile,
-                    displayName: "Avatar Sample A"
-                )
-            }
+            baseDirectoryURL: installRootURL
         )
         let variant = AvatarAssetVariant(
             id: "avatar-sample-a-usdz-v1",
@@ -173,14 +158,13 @@ struct OdoroTests {
             installState: .notInstalled
         )
 
-        let installedOption = try await store.installDownloadableAvatar(from: variant)
-        let installedOptions = store.fetchInstalledAvatarOptions()
-
-        #expect(installedOption.installState == .installed)
-        #expect(installedOption.runtimeAssetURL?.lastPathComponent == "model.usdz")
-        #expect(installedOption.rigProfileID == variant.rigProfileID)
-        #expect(installedOptions.count == 1)
-        #expect(installedOptions[0].selection == installedOption.selection)
+        do {
+            _ = try await store.installDownloadableAvatar(from: variant)
+            Issue.record("Expected installDownloadableAvatar to fail when remote URLs are missing.")
+        } catch let error as AvatarAssetStore.StoreError {
+            #expect(error == .missingRemoteAssetURL("runtime asset"))
+            #expect(store.fetchInstalledAvatarOptions().isEmpty)
+        }
     }
 
     @Test func appConfigurationTreatsMissingAvatarStorageBaseURLAsUnset() {
@@ -189,6 +173,9 @@ struct OdoroTests {
         )
         #expect(
             AppConfiguration.resolvedAvatarStorageBaseURL(from: "   ") == nil
+        )
+        #expect(
+            AppConfiguration.resolvedAvatarStorageBaseURL(from: "https:") == nil
         )
         #expect(
             AppConfiguration.resolvedAvatarStorageBaseURL(

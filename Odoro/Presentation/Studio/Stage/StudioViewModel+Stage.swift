@@ -105,7 +105,6 @@ extension StudioViewModel {
             return
         }
 
-        let usesBundledFallback = !variant.hasRemotePackageURLs
         isImportingAvatar = true
         showFeatureNotice("Downloading \(option.titleText)...")
 
@@ -121,13 +120,7 @@ extension StudioViewModel {
                 applySelectedAvatarOption(resolvedOption)
             }
 
-            if usesBundledFallback {
-                showFeatureNotice(
-                    "Installed \(option.titleText) using the bundled download fallback. Stage playback is ready, and you can switch to remote assets later by setting OdoroAvatarStorageBaseURL."
-                )
-            } else {
-                showFeatureNotice("Downloaded \(option.titleText). The avatar is installed and ready for stage playback.")
-            }
+            showFeatureNotice("Downloaded \(option.titleText). The avatar is installed and ready for stage playback.")
         } catch {
             showFeatureNotice("Avatar download failed: \(error.localizedDescription)")
         }

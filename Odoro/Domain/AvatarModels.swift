@@ -136,8 +136,15 @@ struct AvatarAssetVariant: Codable, Hashable, Identifiable, Sendable {
         .allSatisfy { remoteURLString in
             guard let remoteURLString,
                   let remoteURL = URL(string: remoteURLString),
-                  remoteURL.scheme != nil else {
+                  let scheme = remoteURL.scheme,
+                  !scheme.isEmpty else {
                 return false
+            }
+
+            if ["http", "https"].contains(scheme.lowercased()) {
+                guard let host = remoteURL.host, !host.isEmpty else {
+                    return false
+                }
             }
 
             return true
