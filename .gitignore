@@ -43,3 +43,6 @@ Carthage/Build/
 
 # Local app configuration
 Configs/AvatarStorage.local.xcconfig
+
+# Local assistant scratch data
+memory/
