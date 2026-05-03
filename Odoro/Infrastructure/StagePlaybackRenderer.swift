@@ -736,9 +736,17 @@ final class StagePlaybackRenderer: NSObject {
             return []
         }
 
-        let modelJointIndices = Dictionary(
-            uniqueKeysWithValues: modelEntity.jointNames.enumerated().map { ($0.element, $0.offset) }
-        )
+        // USD skeletons store joint names as hierarchical paths (e.g. "root/J_Bip_C_Hips"),
+        // while rig profiles authored from GLB use just the leaf name ("J_Bip_C_Hips").
+        // Index both the full path and the leaf component so either form resolves.
+        var modelJointIndices: [String: Int] = [:]
+        for (index, name) in modelEntity.jointNames.enumerated() {
+            modelJointIndices[name] = index
+            let leaf = name.components(separatedBy: "/").last ?? name
+            if leaf != name {
+                modelJointIndices[leaf] = modelJointIndices[leaf] ?? index
+            }
+        }
 
         var result: [[Transform]] = []
         result.reserveCapacity(clip.frames.count)
@@ -1001,8 +1009,15 @@ final class StagePlaybackRenderer: NSObject {
             return position
         }
 
-        if let rawJointName = reference.rawJointName {
-            return position(for: ARSkeleton.JointName(rawValue: rawJointName), in: frame)
+        if let rawJointName = reference.rawJointName,
+           let position = position(for: ARSkeleton.JointName(rawValue: rawJointName), in: frame) {
+            return position
+        }
+
+        // rawJointName may be a model bone name (e.g. VRoid "J_Bip_C_Hips") rather than an
+        // ARKit joint name. Fall back to the ARKit joint that corresponds to the canonical joint.
+        if let canonicalJoint = reference.canonicalJoint {
+            return position(for: Self.sourceJointName(for: canonicalJoint), in: frame)
         }
 
         return nil
@@ -1014,8 +1029,15 @@ final class StagePlaybackRenderer: NSObject {
             return rotation
         }
 
-        if let rawJointName = reference.rawJointName {
-            return rotation(for: ARSkeleton.JointName(rawValue: rawJointName), in: frame)
+        if let rawJointName = reference.rawJointName,
+           let rotation = rotation(for: ARSkeleton.JointName(rawValue: rawJointName), in: frame) {
+            return rotation
+        }
+
+        // rawJointName may be a model bone name rather than an ARKit joint name.
+        // Fall back to the ARKit joint that corresponds to the canonical joint.
+        if let canonicalJoint = reference.canonicalJoint {
+            return rotation(for: Self.sourceJointName(for: canonicalJoint), in: frame)
         }
 
         return nil
@@ -1138,11 +1160,13 @@ final class StagePlaybackRenderer: NSObject {
             return neutralLocalRotation(for: Self.sourceJointName(for: canonicalJoint))
         }
 
-        if let rawJointName = reference.rawJointName {
-            return neutralLocalRotation(for: ARSkeleton.JointName(rawValue: rawJointName))
+        if let rawJointName = reference.rawJointName,
+           let result = neutralLocalRotation(for: ARSkeleton.JointName(rawValue: rawJointName)) {
+            return result
         }
 
-        return nil
+        // rawJointName may be a model bone name rather than an ARKit joint name.
+        return neutralLocalRotation(for: Self.sourceJointName(for: canonicalJoint))
     }
 
     private func neutralLocalRotation(for jointName: ARSkeleton.JointName) -> simd_quatf? {
