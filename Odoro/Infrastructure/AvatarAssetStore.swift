@@ -7,20 +7,14 @@ import Foundation
 
 struct AvatarAssetStore {
     typealias RemoteFileDownloader = @Sendable (URL) async throws -> URL
-    typealias DownloadableAvatarFallbackProvider = @Sendable (AvatarAssetVariant) throws -> DownloadableAvatarFallback
 
-    struct DownloadableAvatarFallback {
-        var runtimeAssetURL: URL
-        var rigProfile: AvatarRigProfile
-        var displayName: String
-    }
-
-    enum StoreError: LocalizedError {
+    enum StoreError: LocalizedError, Equatable {
         case unsupportedFileExtension(String)
         case unsupportedRuntimeFormat(AvatarRuntimeFormat)
         case invalidGLBFile
+        case missingRemoteBaseURL
         case missingRemoteAssetURL(String)
-        case missingBundledFallbackAsset
+        case invalidRemoteAssetURL(String)
         case invalidPackageManifest
 
         var errorDescription: String? {
@@ -31,10 +25,12 @@ struct AvatarAssetStore {
                 "Unsupported downloadable avatar format: \(format.rawValue)"
             case .invalidGLBFile:
                 "The selected GLB file could not be parsed."
+            case .missingRemoteBaseURL:
+                "OdoroAvatarStorageBaseURL is not configured for downloadable avatars."
             case let .missingRemoteAssetURL(label):
                 "Avatar package is missing a remote \(label) URL."
-            case .missingBundledFallbackAsset:
-                "Avatar package is missing its bundled fallback asset."
+            case let .invalidRemoteAssetURL(label):
+                "Avatar package has an invalid remote \(label) URL."
             case .invalidPackageManifest:
                 "The downloaded avatar package manifest is invalid."
             }
@@ -44,18 +40,17 @@ struct AvatarAssetStore {
     private let fileManager: FileManager
     private let baseDirectoryURL: URL
     private let remoteFileDownloader: RemoteFileDownloader
-    private let downloadableAvatarFallbackProvider: DownloadableAvatarFallbackProvider
+    private let remoteBaseURL: URL?
 
     init(
         fileManager: FileManager = .default,
         baseDirectoryURL: URL? = nil,
-        remoteFileDownloader: @escaping RemoteFileDownloader = Self.defaultRemoteFileDownloader,
-        downloadableAvatarFallbackProvider: DownloadableAvatarFallbackProvider? = nil
+        remoteBaseURL: URL? = AppConfiguration.current.avatarStorageBaseURL,
+        remoteFileDownloader: @escaping RemoteFileDownloader = Self.defaultRemoteFileDownloader
     ) {
         self.fileManager = fileManager
         self.remoteFileDownloader = remoteFileDownloader
-        self.downloadableAvatarFallbackProvider = downloadableAvatarFallbackProvider
-            ?? { try Self.defaultDownloadableAvatarFallbackProvider(for: $0) }
+        self.remoteBaseURL = remoteBaseURL
         if let baseDirectoryURL {
             self.baseDirectoryURL = baseDirectoryURL
         } else {
@@ -82,15 +77,13 @@ struct AvatarAssetStore {
     }
 
     func installDownloadableAvatar(from variant: AvatarAssetVariant) async throws -> StageAvatarOption {
-        guard variant.runtimeFormat == .usdz else {
+        guard variant.runtimeFormat.isUSD else {
             throw StoreError.unsupportedRuntimeFormat(variant.runtimeFormat)
         }
 
         try ensureBaseDirectoryExists()
 
-        guard let remoteURLs = Self.remoteAssetURLs(for: variant) else {
-            return try installBundledFallbackDownloadableAvatar(from: variant)
-        }
+        let remoteURLs = try remoteAssetURLs(for: variant)
 
         let downloadedPackageManifestURL = try await remoteFileDownloader(remoteURLs.packageManifestURL)
         let downloadedRigProfileURL = try await remoteFileDownloader(remoteURLs.rigProfileURL)
@@ -108,43 +101,26 @@ struct AvatarAssetStore {
 
         guard
             packageManifest.avatarID == variant.avatarID,
-            packageManifest.variantID == variant.id,
             packageManifest.version == variant.version,
-            packageManifest.runtimeFormat == variant.runtimeFormat,
             rigDocument.profile.id == variant.rigProfileID,
-            rigDocument.profile.runtimeFormat == variant.runtimeFormat
+            packageManifest.generatedRigProfileID == variant.rigProfileID
         else {
             throw StoreError.invalidPackageManifest
         }
 
         let downloadedRuntimeAssetURL = try await remoteFileDownloader(remoteURLs.runtimeAssetURL)
-        return try installPackage(
+        let normalizedRuntimeAssetFilename = remoteURLs.runtimeAssetURL.lastPathComponent
+        let runtimeAssetByteCount = try fileSize(at: downloadedRuntimeAssetURL)
+        let normalizedPackageManifest = Self.normalizedDownloadedPackageManifest(
+            packageManifest,
             variant: variant,
-            runtimeAssetSourceURL: downloadedRuntimeAssetURL,
-            packageManifest: packageManifest,
-            rigProfile: rigDocument.profile,
-            packageManifestData: packageManifestData,
-            rigProfileData: rigProfileData
+            runtimeAssetFilename: normalizedRuntimeAssetFilename,
+            runtimeAssetByteCount: runtimeAssetByteCount
         )
-    }
-
-    private func installBundledFallbackDownloadableAvatar(from variant: AvatarAssetVariant) throws -> StageAvatarOption {
-        let fallback = try downloadableAvatarFallbackProvider(variant)
-        let runtimeAssetByteCount = try fileSize(at: fallback.runtimeAssetURL)
-        let packageManifest = AvatarPackageManifest(
-            schemaVersion: 1,
-            avatarID: variant.avatarID,
-            variantID: variant.id,
-            displayName: fallback.displayName,
-            source: .downloadable,
-            version: variant.version,
-            runtimeFormat: variant.runtimeFormat,
-            runtimeAssetFilename: "model.\(variant.runtimeFormat.rawValue)",
-            generatedRigProfileID: fallback.rigProfile.id,
-            installedAt: .now,
-            sourceFilename: fallback.runtimeAssetURL.lastPathComponent,
-            sourceFileByteCount: runtimeAssetByteCount,
-            detectedNodeNames: detectedNodeNames(for: fallback.rigProfile)
+        let normalizedRigProfile = Self.normalizedDownloadedRigProfile(
+            rigDocument.profile,
+            variant: variant,
+            runtimeAssetFilename: normalizedRuntimeAssetFilename
         )
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
@@ -152,12 +128,12 @@ struct AvatarAssetStore {
 
         return try installPackage(
             variant: variant,
-            runtimeAssetSourceURL: fallback.runtimeAssetURL,
-            packageManifest: packageManifest,
-            rigProfile: fallback.rigProfile,
-            packageManifestData: try encoder.encode(packageManifest),
+            runtimeAssetSourceURL: downloadedRuntimeAssetURL,
+            packageManifest: normalizedPackageManifest,
+            rigProfile: normalizedRigProfile,
+            packageManifestData: try encoder.encode(normalizedPackageManifest),
             rigProfileData: try encoder.encode(
-                AvatarRigProfileDocument(schemaVersion: 1, profile: fallback.rigProfile)
+                AvatarRigProfileDocument(schemaVersion: rigDocument.schemaVersion, profile: normalizedRigProfile)
             )
         )
     }
@@ -408,27 +384,69 @@ struct AvatarAssetStore {
         return collapsed.trimmingCharacters(in: CharacterSet(charactersIn: "-"))
     }
 
-    private static func remoteAssetURLs(for variant: AvatarAssetVariant) -> (
+    private func remoteAssetURLs(for variant: AvatarAssetVariant) throws -> (
         runtimeAssetURL: URL,
         packageManifestURL: URL,
         rigProfileURL: URL
-    )? {
-        guard
-            let runtimeAssetURL = resolvedRemoteURL(from: variant.runtimeAssetRemoteURL),
-            let packageManifestURL = resolvedRemoteURL(from: variant.packageManifestRemoteURL),
-            let rigProfileURL = resolvedRemoteURL(from: variant.rigProfileRemoteURL)
-        else {
-            return nil
-        }
+    ) {
+        let runtimeAssetURL = try resolvedRemoteURL(
+            from: variant.runtimeAssetRemoteURL,
+            relativePath: variant.runtimeAssetRelativePath,
+            label: "runtime asset"
+        )
+        let packageManifestURL = try resolvedRemoteURL(
+            from: variant.packageManifestRemoteURL,
+            relativePath: variant.packageManifestRelativePath,
+            label: "package manifest"
+        )
+        let rigProfileURL = try resolvedRemoteURL(
+            from: variant.rigProfileRemoteURL,
+            relativePath: variant.rigProfileRelativePath,
+            label: "rig profile"
+        )
 
         return (runtimeAssetURL, packageManifestURL, rigProfileURL)
     }
 
-    private static func resolvedRemoteURL(from remoteURLString: String?) -> URL? {
-        guard let remoteURLString,
+    private func resolvedRemoteURL(
+        from remoteURLString: String?,
+        relativePath: String?,
+        label: String
+    ) throws -> URL {
+        if let remoteURL = Self.validRemoteURL(from: remoteURLString) {
+            return remoteURL
+        }
+
+        if let relativePath = relativePath?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !relativePath.isEmpty {
+            guard let remoteBaseURL else {
+                throw StoreError.missingRemoteBaseURL
+            }
+
+            return remoteBaseURL.appending(path: relativePath, directoryHint: .notDirectory)
+        }
+
+        guard let remoteURLString = remoteURLString?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !remoteURLString.isEmpty else {
+            throw StoreError.missingRemoteAssetURL(label)
+        }
+
+        throw StoreError.invalidRemoteAssetURL(label)
+    }
+
+    private static func validRemoteURL(from remoteURLString: String?) -> URL? {
+        guard let remoteURLString = remoteURLString?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !remoteURLString.isEmpty,
               let remoteURL = URL(string: remoteURLString),
-              remoteURL.scheme != nil else {
+              let scheme = remoteURL.scheme,
+              !scheme.isEmpty else {
             return nil
+        }
+
+        if ["http", "https"].contains(scheme.lowercased()) {
+            guard let host = remoteURL.host, !host.isEmpty else {
+                return nil
+            }
         }
 
         return remoteURL
@@ -439,24 +457,34 @@ struct AvatarAssetStore {
         return downloadedFileURL
     }
 
-    nonisolated private static func defaultDownloadableAvatarFallbackProvider(
-        for variant: AvatarAssetVariant
-    ) throws -> DownloadableAvatarFallback {
-        guard let runtimeAssetURL = Bundle.main.url(forResource: "robot", withExtension: "usdz") else {
-            throw StoreError.missingBundledFallbackAsset
-        }
+    private static func normalizedDownloadedPackageManifest(
+        _ packageManifest: AvatarPackageManifest,
+        variant: AvatarAssetVariant,
+        runtimeAssetFilename: String,
+        runtimeAssetByteCount: Int
+    ) -> AvatarPackageManifest {
+        var normalizedManifest = packageManifest
+        normalizedManifest.variantID = variant.id
+        normalizedManifest.runtimeFormat = variant.runtimeFormat
+        normalizedManifest.runtimeAssetFilename = runtimeAssetFilename
+        normalizedManifest.generatedRigProfileID = variant.rigProfileID
+        normalizedManifest.installedAt = .now
+        normalizedManifest.sourceFilename = runtimeAssetFilename
+        normalizedManifest.sourceFileByteCount = runtimeAssetByteCount
+        return normalizedManifest
+    }
 
-        let displayName = displayName(from: variant.avatarID)
-        var rigProfile = AvatarCatalog.robotRigProfile
-        rigProfile.id = variant.rigProfileID
-        rigProfile.displayName = "\(displayName) Rig"
-        rigProfile.runtimeAssetRelativePath = "model.\(variant.runtimeFormat.rawValue)"
-
-        return DownloadableAvatarFallback(
-            runtimeAssetURL: runtimeAssetURL,
-            rigProfile: rigProfile,
-            displayName: displayName
-        )
+    private static func normalizedDownloadedRigProfile(
+        _ rigProfile: AvatarRigProfile,
+        variant: AvatarAssetVariant,
+        runtimeAssetFilename: String
+    ) -> AvatarRigProfile {
+        var normalizedRigProfile = rigProfile
+        normalizedRigProfile.id = variant.rigProfileID
+        normalizedRigProfile.sourceFormat = variant.runtimeFormat
+        normalizedRigProfile.runtimeFormat = variant.runtimeFormat
+        normalizedRigProfile.runtimeAssetRelativePath = runtimeAssetFilename
+        return normalizedRigProfile
     }
 
     private static func makeGeneratedRigProfile(

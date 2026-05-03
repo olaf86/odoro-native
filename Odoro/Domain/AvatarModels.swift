@@ -14,7 +14,17 @@ enum AvatarAssetSource: String, Codable, Sendable {
 
 enum AvatarRuntimeFormat: String, Codable, Sendable {
     case usdz
+    case usdc
     case glb
+
+    var isUSD: Bool {
+        switch self {
+        case .usdz, .usdc:
+            true
+        case .glb:
+            false
+        }
+    }
 }
 
 enum AvatarInstallState: String, Codable, Sendable {
@@ -136,8 +146,15 @@ struct AvatarAssetVariant: Codable, Hashable, Identifiable, Sendable {
         .allSatisfy { remoteURLString in
             guard let remoteURLString,
                   let remoteURL = URL(string: remoteURLString),
-                  remoteURL.scheme != nil else {
+                  let scheme = remoteURL.scheme,
+                  !scheme.isEmpty else {
                 return false
+            }
+
+            if ["http", "https"].contains(scheme.lowercased()) {
+                guard let host = remoteURL.host, !host.isEmpty else {
+                    return false
+                }
             }
 
             return true
@@ -253,10 +270,10 @@ enum AvatarCatalog {
     private static let robotVariantID = "robot-performer-bundled-v1"
     private static let robotRigProfileID = "robot.performer.v1"
     private static let avatarSampleAAvatarID = "avatar-sample-a"
-    private static let avatarSampleAVariantID = "avatar-sample-a-usdz-v1"
+    private static let avatarSampleAVariantID = "avatar-sample-a-usdc-v1"
     private static let avatarSampleARigProfileID = "avatar-sample-a.v1"
     private static let avatarSampleBAvatarID = "avatar-sample-b"
-    private static let avatarSampleBVariantID = "avatar-sample-b-usdz-v1"
+    private static let avatarSampleBVariantID = "avatar-sample-b-usdc-v1"
     private static let avatarSampleBRigProfileID = "avatar-sample-b.v1"
 
     private static func robotJointPath(_ components: String...) -> String {
@@ -282,22 +299,24 @@ enum AvatarCatalog {
         AppConfiguration.current.remoteAvatarAssetURL(path: path)?.absoluteString
     }
 
-    private static func downloadableUSDZVariant(
+    private static func downloadableUSDVariant(
         avatarID: String,
         variantID: String,
         rigProfileID: String,
+        runtimeFormat: AvatarRuntimeFormat,
         sizeBytes: Int
     ) -> AvatarAssetVariant {
         let version = "1.0.0"
         let assetDirectory = "avatars/\(avatarID)/\(version)"
+        let runtimeFilename = "model.\(runtimeFormat.rawValue)"
 
         return AvatarAssetVariant(
             id: variantID,
             avatarID: avatarID,
             version: version,
-            runtimeFormat: .usdz,
-            runtimeAssetRelativePath: "\(assetDirectory)/model.usdz",
-            runtimeAssetRemoteURL: gcsURL(path: "\(assetDirectory)/model.usdz"),
+            runtimeFormat: runtimeFormat,
+            runtimeAssetRelativePath: "\(assetDirectory)/\(runtimeFilename)",
+            runtimeAssetRemoteURL: gcsURL(path: "\(assetDirectory)/\(runtimeFilename)"),
             runtimeAssetChecksum: nil,
             runtimeAssetSizeBytes: sizeBytes,
             packageManifestRelativePath: "\(assetDirectory)/package_manifest.json",
@@ -498,7 +517,7 @@ enum AvatarCatalog {
                 id: avatarSampleAAvatarID,
                 slug: avatarSampleAAvatarID,
                 displayName: "Avatar Sample A",
-                subtitle: "Download-on-demand USDZ avatar package served from GCS.",
+                subtitle: "Download-on-demand USDC avatar package served from GCS.",
                 authorName: "Odoro",
                 systemImageName: "person.crop.square",
                 thumbnailURL: nil,
@@ -506,14 +525,15 @@ enum AvatarCatalog {
                 defaultRigProfileID: avatarSampleARigProfileID,
                 defaultVariantID: avatarSampleAVariantID,
                 availableVariants: [
-                    downloadableUSDZVariant(
+                    downloadableUSDVariant(
                         avatarID: avatarSampleAAvatarID,
                         variantID: avatarSampleAVariantID,
                         rigProfileID: avatarSampleARigProfileID,
+                        runtimeFormat: .usdc,
                         sizeBytes: 26_781_812
                     )
                 ],
-                tags: ["download", "vroid", "usdz", "gcs"],
+                tags: ["download", "vroid", "usdc", "gcs"],
                 source: .downloadable,
                 isBundled: false
             ),
@@ -521,7 +541,7 @@ enum AvatarCatalog {
                 id: avatarSampleBAvatarID,
                 slug: avatarSampleBAvatarID,
                 displayName: "Avatar Sample B",
-                subtitle: "Second download-on-demand USDZ avatar package served from GCS.",
+                subtitle: "Second download-on-demand USDC avatar package served from GCS.",
                 authorName: "Odoro",
                 systemImageName: "sparkles",
                 thumbnailURL: nil,
@@ -529,14 +549,15 @@ enum AvatarCatalog {
                 defaultRigProfileID: avatarSampleBRigProfileID,
                 defaultVariantID: avatarSampleBVariantID,
                 availableVariants: [
-                    downloadableUSDZVariant(
+                    downloadableUSDVariant(
                         avatarID: avatarSampleBAvatarID,
                         variantID: avatarSampleBVariantID,
                         rigProfileID: avatarSampleBRigProfileID,
+                        runtimeFormat: .usdc,
                         sizeBytes: 28_333_772
                     )
                 ],
-                tags: ["download", "vroid", "usdz", "gcs"],
+                tags: ["download", "vroid", "usdc", "gcs"],
                 source: .downloadable,
                 isBundled: false
             ),
@@ -567,7 +588,7 @@ enum AvatarCatalog {
             source: item.source,
             installState: variant.installState,
             runtimeFormat: variant.runtimeFormat,
-            runtimeAssetResourceName: item.source == .bundled ? "robot" : nil,
+            runtimeAssetResourceName: item.source == .bundled ? "robot.\(variant.runtimeFormat.rawValue)" : nil,
             runtimeAssetURL: nil,
             rigProfileID: variant.rigProfileID,
             rigProfile: variant.rigProfileID == robotRigProfileID ? robotRigProfile : nil

@@ -464,7 +464,8 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 48C76HC76Y;
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Configs/Odoro-Info.plist;
 				INFOPLIST_KEY_CFBundleIconName = AppIcon;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Camera access is required to capture body motion.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -477,6 +478,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
+				ODORO_ENVIRONMENT_NAME = prod;
 				PRODUCT_BUNDLE_IDENTIFIER = dev.asobo.odoro;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -498,7 +500,8 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 48C76HC76Y;
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Configs/Odoro-Info.plist;
 				INFOPLIST_KEY_CFBundleIconName = AppIcon;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Camera access is required to capture body motion.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -511,6 +514,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
+				ODORO_ENVIRONMENT_NAME = prod;
 				PRODUCT_BUNDLE_IDENTIFIER = dev.asobo.odoro;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -739,7 +743,8 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 48C76HC76Y;
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Configs/Odoro-Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Odoro;
 				INFOPLIST_KEY_CFBundleIconName = AppIcon;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Camera access is required to capture body motion.";
@@ -754,6 +759,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
+				ODORO_ENVIRONMENT_NAME = prod;
 				PRODUCT_BUNDLE_IDENTIFIER = dev.asobo.odoro;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -776,7 +782,8 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 48C76HC76Y;
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Configs/Odoro-Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Odoro;
 				INFOPLIST_KEY_CFBundleIconName = AppIcon;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Camera access is required to capture body motion.";
@@ -791,6 +798,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
+				ODORO_ENVIRONMENT_NAME = prod;
 				PRODUCT_BUNDLE_IDENTIFIER = dev.asobo.odoro;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -899,7 +907,8 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 48C76HC76Y;
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Configs/Odoro-Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Odoro Staging";
 				INFOPLIST_KEY_CFBundleIconName = AppIcon;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Camera access is required to capture body motion.";
@@ -914,6 +923,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
+				ODORO_ENVIRONMENT_NAME = stg;
 				PRODUCT_BUNDLE_IDENTIFIER = dev.asobo.odoro.stg;
 				PRODUCT_NAME = "Odoro Staging";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -936,7 +946,8 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 48C76HC76Y;
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Configs/Odoro-Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Odoro Staging";
 				INFOPLIST_KEY_CFBundleIconName = AppIcon;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Camera access is required to capture body motion.";
@@ -951,6 +962,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
+				ODORO_ENVIRONMENT_NAME = stg;
 				PRODUCT_BUNDLE_IDENTIFIER = dev.asobo.odoro.stg;
 				PRODUCT_NAME = "Odoro Staging";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -973,7 +985,8 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 48C76HC76Y;
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Configs/Odoro-Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Odoro Staging";
 				INFOPLIST_KEY_CFBundleIconName = AppIcon;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Camera access is required to capture body motion.";
@@ -988,6 +1001,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
+				ODORO_ENVIRONMENT_NAME = stg;
 				PRODUCT_BUNDLE_IDENTIFIER = dev.asobo.odoro.stg;
 				PRODUCT_NAME = "Odoro Staging";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -1010,7 +1024,8 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 48C76HC76Y;
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Configs/Odoro-Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Odoro Staging";
 				INFOPLIST_KEY_CFBundleIconName = AppIcon;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Camera access is required to capture body motion.";
@@ -1025,6 +1040,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
+				ODORO_ENVIRONMENT_NAME = stg;
 				PRODUCT_BUNDLE_IDENTIFIER = dev.asobo.odoro.stg;
 				PRODUCT_NAME = "Odoro Staging";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;

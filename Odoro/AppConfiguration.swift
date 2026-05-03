@@ -34,8 +34,15 @@ struct AppConfiguration {
         guard let baseURLString = rawValue?.trimmingCharacters(in: .whitespacesAndNewlines),
               !baseURLString.isEmpty,
               let parsedURL = URL(string: baseURLString),
-              parsedURL.scheme != nil else {
+              let scheme = parsedURL.scheme,
+              !scheme.isEmpty else {
             return nil
+        }
+
+        if ["http", "https"].contains(scheme.lowercased()) {
+            guard let host = parsedURL.host, !host.isEmpty else {
+                return nil
+            }
         }
 
         return parsedURL
