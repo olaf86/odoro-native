@@ -13,8 +13,9 @@ extension StudioViewModel {
         navigate(to: .archive, transition: .fromLeading)
     }
 
-    func loadTake(_ take: MotionTakeSummary) {
-        guard let archiveStore else { return }
+    @discardableResult
+    func loadTake(_ take: MotionTakeSummary) -> Bool {
+        guard let archiveStore else { return false }
 
         do {
             if let sessionSummary = try archiveStore.fetchSessionSummary(withID: take.sessionID) {
@@ -32,13 +33,19 @@ extension StudioViewModel {
             interactor.replaceCurrentClip(storedTake.clip, sourceClip: storedTake.sourceClip)
             try refreshCurrentSessionTakes()
             interactor.enterStageMode()
+            return true
         } catch {
             print("Failed to load motion take: \(error)")
+            showFeatureNotice("Saved clip could not be loaded: \(error.localizedDescription)")
+            return false
         }
     }
 
     func openTakeFromLibrary(_ take: MotionTakeSummary) {
-        loadTake(take)
+        guard loadTake(take) else {
+            return
+        }
+
         navigate(to: .stage, transition: .fromLeading)
     }
 

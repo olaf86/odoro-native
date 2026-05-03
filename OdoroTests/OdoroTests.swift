@@ -2059,6 +2059,65 @@ struct OdoroTests {
     }
 
     @MainActor
+    @Test func studioViewModelLoadsSavedClipFromLibraryInFreshViewModel() async throws {
+        let modelConfiguration = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(
+            for: RecordingSessionRecord.self,
+            MotionTakeRecord.self,
+            configurations: modelConfiguration
+        )
+        let tempDirectory = FileManager.default.temporaryDirectory
+            .appending(path: UUID().uuidString, directoryHint: .isDirectory)
+        let archiveStore = MotionArchiveStore(
+            modelContainer: container,
+            payloadFileStore: MotionPayloadFileStore(baseDirectoryURL: tempDirectory),
+            sourceClipFileStore: MotionSourceClipFileStore(baseDirectoryURL: tempDirectory),
+            hintsFileStore: MotionPlaybackHintsFileStore(baseDirectoryURL: tempDirectory)
+        )
+        let sourceClip = MotionClip(frames: [
+            MotionFrame(
+                time: 0,
+                jointPositions: [
+                    SIMD3<Float>(0, 1.0, 0),
+                    SIMD3<Float>(0.2, 1.3, 0.1),
+                    SIMD3<Float>(-0.1, 0.7, -0.05),
+                ]
+            ),
+            MotionFrame(
+                time: 1.0 / 30.0,
+                jointPositions: [
+                    SIMD3<Float>(0.05, 1.02, 0),
+                    SIMD3<Float>(0.24, 1.32, 0.12),
+                    SIMD3<Float>(-0.08, 0.72, -0.04),
+                ]
+            )
+        ])
+        _ = try archiveStore.saveTake(
+            sourceClip: sourceClip,
+            captureMode: .rearBody3D,
+            recordingContext: .defaultMetronomeLoop
+        )
+        let studio = StudioViewModel(
+            archiveStore: archiveStore,
+            audioPlaybackController: TestAudioPlaybackController(),
+            motionSourceFactory: { _ in TestMotionSource() }
+        )
+
+        defer {
+            try? FileManager.default.removeItem(at: tempDirectory)
+        }
+
+        let take = try #require(studio.libraryClips.first)
+        let loaded = studio.loadTake(take)
+        await Task.yield()
+
+        #expect(loaded)
+        #expect(studio.state.hasClip)
+        #expect(studio.interactor.sourceClip?.frameCount == sourceClip.frameCount)
+        #expect(studio.storedRigClip?.frameCount == sourceClip.frameCount)
+    }
+
+    @MainActor
     @Test func motionStudioInteractorStopsRecordingAtConfiguredDuration() async {
         let source = TestMotionSource()
         var clock: TimeInterval = 0
