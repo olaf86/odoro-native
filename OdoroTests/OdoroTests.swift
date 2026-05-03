@@ -215,7 +215,7 @@ struct OdoroTests {
         #expect(installedOptions[0].runtimeAssetURL?.lastPathComponent == "model.usdc")
     }
 
-    @MainActor @Test func avatarAssetStoreRequiresRemoteURLsForDownloadableAvatarInstall() async throws {
+    @MainActor @Test func avatarAssetStoreRequiresRemoteRuntimeAssetLocationForDownloadableAvatarInstall() async throws {
         let fileManager = FileManager.default
         let tempRootURL = fileManager.temporaryDirectory.appending(path: UUID().uuidString, directoryHint: .isDirectory)
         let installRootURL = tempRootURL.appending(path: "installed", directoryHint: .isDirectory)
@@ -231,7 +231,7 @@ struct OdoroTests {
             avatarID: "avatar-sample-a",
             version: "1.0.0",
             runtimeFormat: .usdc,
-            runtimeAssetRelativePath: "avatars/avatar-sample-a/1.0.0/model.usdc",
+            runtimeAssetRelativePath: "",
             runtimeAssetRemoteURL: nil,
             runtimeAssetChecksum: nil,
             runtimeAssetSizeBytes: 16,
@@ -247,9 +247,9 @@ struct OdoroTests {
 
         do {
             _ = try await store.installDownloadableAvatar(from: variant)
-            Issue.record("Expected installDownloadableAvatar to fail when remote URLs are missing.")
+            Issue.record("Expected installDownloadableAvatar to fail when the runtime asset location is missing.")
         } catch let error as AvatarAssetStore.StoreError {
-            #expect(error == .missingRemoteBaseURL)
+            #expect(error == .missingRemoteAssetURL("runtime asset"))
             #expect(store.fetchInstalledAvatarOptions().isEmpty)
         }
     }
