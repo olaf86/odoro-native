@@ -1759,6 +1759,7 @@ struct OdoroTests {
         let archiveStore = MotionArchiveStore(
             modelContainer: container,
             payloadFileStore: MotionPayloadFileStore(baseDirectoryURL: tempDirectory),
+            sourceClipFileStore: MotionSourceClipFileStore(baseDirectoryURL: tempDirectory),
             hintsFileStore: MotionPlaybackHintsFileStore(baseDirectoryURL: tempDirectory)
         )
         let runtimeClip = MotionClip(frames: [
@@ -1807,6 +1808,73 @@ struct OdoroTests {
     }
 
     @MainActor
+    @Test func archiveStorePersistsAndReloadsUnprocessedSourceClip() throws {
+        let modelConfiguration = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(
+            for: RecordingSessionRecord.self,
+            MotionTakeRecord.self,
+            configurations: modelConfiguration
+        )
+        let tempDirectory = FileManager.default.temporaryDirectory
+            .appending(path: UUID().uuidString, directoryHint: .isDirectory)
+        let archiveStore = MotionArchiveStore(
+            modelContainer: container,
+            payloadFileStore: MotionPayloadFileStore(baseDirectoryURL: tempDirectory),
+            sourceClipFileStore: MotionSourceClipFileStore(baseDirectoryURL: tempDirectory),
+            hintsFileStore: MotionPlaybackHintsFileStore(baseDirectoryURL: tempDirectory)
+        )
+        let playbackClip = MotionClip(frames: [
+            Self.canonicalFrame(
+                time: 0,
+                overrides: [
+                    .root: SIMD3<Float>(0, 1, 0),
+                    .head: SIMD3<Float>(0, 1.55, 0.05),
+                ]
+            )
+        ])
+        let sourceClip = MotionClip(frames: [
+            MotionFrame(
+                time: 0,
+                jointPositions: [
+                    SIMD3<Float>(0, 1.0, 0),
+                    SIMD3<Float>(0.2, 1.3, 0.1),
+                    SIMD3<Float>(-0.1, 0.7, -0.05),
+                ],
+                jointRotations: [
+                    MotionJointRotation(simd_quatf(angle: 0.1, axis: SIMD3<Float>(0, 1, 0))),
+                    MotionJointRotation(simd_quatf(angle: -0.2, axis: SIMD3<Float>(1, 0, 0))),
+                    nil,
+                ]
+            )
+        ])
+
+        defer {
+            try? FileManager.default.removeItem(at: tempDirectory)
+        }
+
+        let saveResult = try archiveStore.saveTake(
+            clip: playbackClip,
+            sourceClip: sourceClip,
+            clipIsCanonical: true,
+            captureMode: .rearBody3D,
+            recordingContext: .defaultMetronomeLoop
+        )
+        let sourceClipFileStore = MotionSourceClipFileStore(baseDirectoryURL: tempDirectory)
+        let sourceClipData = try Data(contentsOf: sourceClipFileStore.sourceClipURL(for: saveResult.takeID))
+        let storedTake = try archiveStore.loadStoredTake(
+            withID: saveResult.takeID,
+            fromLocalFilePath: saveResult.localFilePath
+        )
+
+        #expect(sourceClipData.starts(with: Data("OSRC".utf8)))
+        let reloadedSourceClip = try #require(storedTake.sourceClip)
+        #expect(reloadedSourceClip.frameCount == 1)
+        #expect(reloadedSourceClip.frames[0].jointPositions.count == 3)
+        #expect(reloadedSourceClip.frames[0].jointPositions[1] == sourceClip.frames[0].jointPositions[1])
+        #expect(reloadedSourceClip.frames[0].jointRotations?[0] == sourceClip.frames[0].jointRotations?[0])
+    }
+
+    @MainActor
     @Test func archiveStoreAcceptsOnlyOneTakePerSession() throws {
         let modelConfiguration = ModelConfiguration(isStoredInMemoryOnly: true)
         let container = try ModelContainer(
@@ -1819,6 +1887,7 @@ struct OdoroTests {
         let archiveStore = MotionArchiveStore(
             modelContainer: container,
             payloadFileStore: MotionPayloadFileStore(baseDirectoryURL: tempDirectory),
+            sourceClipFileStore: MotionSourceClipFileStore(baseDirectoryURL: tempDirectory),
             hintsFileStore: MotionPlaybackHintsFileStore(baseDirectoryURL: tempDirectory)
         )
         let runtimeClip = MotionClip(frames: [
@@ -1873,6 +1942,7 @@ struct OdoroTests {
         let archiveStore = MotionArchiveStore(
             modelContainer: container,
             payloadFileStore: MotionPayloadFileStore(baseDirectoryURL: tempDirectory),
+            sourceClipFileStore: MotionSourceClipFileStore(baseDirectoryURL: tempDirectory),
             hintsFileStore: MotionPlaybackHintsFileStore(baseDirectoryURL: tempDirectory)
         )
         let runtimeClip = MotionClip(frames: [

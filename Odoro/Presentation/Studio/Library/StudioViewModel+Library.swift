@@ -32,7 +32,7 @@ extension StudioViewModel {
             storedHints = storedTake.hints
             storedRigClip = storedTake.rigClip
             stageRenderer.setUsesProceduralMockPlayback(take.captureMode == .mock)
-            interactor.replaceCurrentClip(storedTake.clip)
+            interactor.replaceCurrentClip(storedTake.clip, sourceClip: storedTake.sourceClip)
             try refreshCurrentSessionTakes()
             interactor.enterStageMode()
         } catch {
@@ -105,6 +105,7 @@ extension StudioViewModel {
                 .prepareCapturedClip(clip)
             let saveResult = try archiveStore.saveTake(
                 clip: normalizedClip,
+                sourceClip: clip,
                 clipIsCanonical: true,
                 captureMode: .importedVideo,
                 recordingContext: recordingContext,
@@ -121,7 +122,7 @@ extension StudioViewModel {
             storedHints = storedTake.hints
             storedRigClip = storedTake.rigClip
             stageRenderer.setUsesProceduralMockPlayback(false)
-            interactor.replaceCurrentClip(storedTake.clip, sourceClip: clip)
+            interactor.replaceCurrentClip(storedTake.clip, sourceClip: storedTake.sourceClip ?? clip)
             try refreshCurrentSessionTakes()
             refreshLibrary()
             interactor.setStatusText(L10n.statusVideoImportComplete)
@@ -179,7 +180,7 @@ extension StudioViewModel {
         stageRenderer.setUsesProceduralMockPlayback(captureMode == .mock)
         interactor.replaceCurrentClip(
             playbackClip(for: clip, savedClip: storedTake.clip, captureMode: captureMode),
-            sourceClip: interactor.sourceClip
+            sourceClip: storedTake.sourceClip ?? interactor.sourceClip
         )
         try refreshCurrentSessionTakes()
     }
@@ -211,6 +212,7 @@ extension StudioViewModel {
 
         let saveResult = try archiveStore.saveTake(
             clip: currentClip,
+            sourceClip: interactor.sourceClip,
             clipIsCanonical: true,
             captureMode: captureMode,
             recordingContext: recordingContext,

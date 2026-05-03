@@ -63,6 +63,7 @@ struct MotionTakeSummary: Identifiable, Sendable {
 final class MotionArchiveStore {
     private let modelContainer: ModelContainer
     private let payloadFileStore: MotionPayloadFileStore
+    private let sourceClipFileStore: MotionSourceClipFileStore
     private let hintsFileStore: MotionPlaybackHintsFileStore
     private let hintsBuilder: MotionPlaybackHintsBuilder
     private let rigClipFileStore: MotionRigClipFileStore
@@ -70,12 +71,14 @@ final class MotionArchiveStore {
     init(
         modelContainer: ModelContainer,
         payloadFileStore: MotionPayloadFileStore? = nil,
+        sourceClipFileStore: MotionSourceClipFileStore? = nil,
         hintsFileStore: MotionPlaybackHintsFileStore? = nil,
         hintsBuilder: MotionPlaybackHintsBuilder = MotionPlaybackHintsBuilder(),
         rigClipFileStore: MotionRigClipFileStore? = nil
     ) {
         self.modelContainer = modelContainer
         self.payloadFileStore = payloadFileStore ?? MotionPayloadFileStore()
+        self.sourceClipFileStore = sourceClipFileStore ?? MotionSourceClipFileStore()
         self.hintsFileStore = hintsFileStore ?? MotionPlaybackHintsFileStore()
         self.hintsBuilder = hintsBuilder
         self.rigClipFileStore = rigClipFileStore ?? MotionRigClipFileStore()
@@ -106,8 +109,15 @@ final class MotionArchiveStore {
             sourceBackend: sourceBackendName(for: captureMode)
         )
         let payloadURL: URL
+        let sourceBackend = sourceBackendName(for: captureMode)
         do {
             payloadURL = try payloadFileStore.write(payload, for: takeID)
+            _ = try sourceClipFileStore.write(
+                sourceClip,
+                for: takeID,
+                captureMode: captureMode,
+                sourceBackend: sourceBackend
+            )
             let storedClip = payload.makeMotionClip()
             let hints = hintsBuilder.build(
                 playbackClip: storedClip,
@@ -124,6 +134,7 @@ final class MotionArchiveStore {
             )
         } catch {
             try? payloadFileStore.removePayload(for: takeID)
+            try? sourceClipFileStore.removeSourceClip(for: takeID)
             try? hintsFileStore.removeHints(for: takeID)
             try? rigClipFileStore.removeRigClip(for: takeID)
             throw error
@@ -150,6 +161,7 @@ final class MotionArchiveStore {
             try context.save()
         } catch {
             try? payloadFileStore.removePayload(for: takeID)
+            try? sourceClipFileStore.removeSourceClip(for: takeID)
             try? hintsFileStore.removeHints(for: takeID)
             try? rigClipFileStore.removeRigClip(for: takeID)
             throw error
@@ -173,10 +185,12 @@ final class MotionArchiveStore {
     ) throws -> StoredMotionTake {
         let payloadURL = URL(fileURLWithPath: localFilePath)
         let clip = try payloadFileStore.read(from: payloadURL).makeMotionClip()
+        let sourceClip = try sourceClipFileStore.read(for: takeID)
         let hints = try hintsFileStore.read(for: takeID)
         let rigClip = try rigClipFileStore.read(for: takeID)
         return StoredMotionTake(
             clip: clip,
+            sourceClip: sourceClip,
             rigClip: rigClip,
             hints: hints
         )

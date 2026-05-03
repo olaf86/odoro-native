@@ -74,6 +74,7 @@ struct MotionPlaybackHints: Codable, Sendable, Equatable {
 
 struct StoredMotionTake: Sendable {
     let clip: MotionClip
+    let sourceClip: MotionClip?
     let rigClip: MotionClip?
     let hints: MotionPlaybackHints?
 }
