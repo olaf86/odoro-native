@@ -85,7 +85,7 @@ extension StudioViewModel {
         stageRenderer.setAvatarOption(option)
 
         if option.source == .localDevelopment, option.runtimeFormat == .glb {
-            showFeatureNotice("Local GLB import stays available for rig inspection, but stage playback now expects installed USDZ assets.")
+            showFeatureNotice("Local GLB import stays available for rig inspection, but stage playback now expects installed USD assets.")
         }
 
         if state.isPlaying {
