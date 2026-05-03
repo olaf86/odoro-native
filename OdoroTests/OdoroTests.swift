@@ -249,9 +249,92 @@ struct OdoroTests {
             _ = try await store.installDownloadableAvatar(from: variant)
             Issue.record("Expected installDownloadableAvatar to fail when remote URLs are missing.")
         } catch let error as AvatarAssetStore.StoreError {
-            #expect(error == .missingRemoteAssetURL("runtime asset"))
+            #expect(error == .missingRemoteBaseURL)
             #expect(store.fetchInstalledAvatarOptions().isEmpty)
         }
+    }
+
+    @MainActor @Test func avatarAssetStoreBuildsRemoteURLsFromRelativePathsWhenBaseURLIsConfigured() async throws {
+        let fileManager = FileManager.default
+        let tempRootURL = fileManager.temporaryDirectory.appending(path: UUID().uuidString, directoryHint: .isDirectory)
+        let sourceFilesURL = tempRootURL.appending(path: "remote", directoryHint: .isDirectory)
+        let installRootURL = tempRootURL.appending(path: "installed", directoryHint: .isDirectory)
+        defer { try? fileManager.removeItem(at: tempRootURL) }
+
+        try fileManager.createDirectory(at: sourceFilesURL, withIntermediateDirectories: true)
+
+        let packageManifest = AvatarPackageManifest(
+            schemaVersion: 1,
+            avatarID: "avatar-sample-a",
+            variantID: "avatar-sample-a-usdc-v1",
+            displayName: "Avatar Sample A",
+            source: .downloadable,
+            version: "1.0.0",
+            runtimeFormat: .usdc,
+            runtimeAssetFilename: "model.usdc",
+            generatedRigProfileID: "avatar-sample-a.v1",
+            installedAt: Date(timeIntervalSince1970: 1_776_556_800),
+            sourceFilename: "Avatar Sample A.usdc",
+            sourceFileByteCount: 16,
+            detectedNodeNames: ["Hips"]
+        )
+        let rigProfile = AvatarRigProfile(
+            id: "avatar-sample-a.v1",
+            displayName: "Avatar Sample A Rig",
+            skeletonId: OdoroSkeletonDefinition.id,
+            sourceFormat: .usdc,
+            runtimeFormat: .usdc,
+            runtimeAssetRelativePath: "model.usdc",
+            rootBoneName: "Hips",
+            bindings: [],
+            scaleCompensation: 1,
+            floorOffset: 0,
+            schemaVersion: 1
+        )
+        let rigDocument = AvatarRigProfileDocument(schemaVersion: 1, profile: rigProfile)
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        encoder.dateEncodingStrategy = .iso8601
+
+        let modelURL = sourceFilesURL.appending(path: "model.usdc", directoryHint: .notDirectory)
+        let packageManifestURL = sourceFilesURL.appending(path: "package_manifest.json", directoryHint: .notDirectory)
+        let rigProfileURL = sourceFilesURL.appending(path: "rig_profile.json", directoryHint: .notDirectory)
+
+        try Data("test-usdc-payload".utf8).write(to: modelURL)
+        try encoder.encode(packageManifest).write(to: packageManifestURL)
+        try encoder.encode(rigDocument).write(to: rigProfileURL)
+
+        let store = AvatarAssetStore(
+            fileManager: fileManager,
+            baseDirectoryURL: installRootURL,
+            remoteBaseURL: URL(string: "https://example.com/assets")
+        ) { remoteURL async throws in
+            sourceFilesURL.appending(path: remoteURL.lastPathComponent, directoryHint: .notDirectory)
+        }
+        let variant = AvatarAssetVariant(
+            id: "avatar-sample-a-usdc-v1",
+            avatarID: "avatar-sample-a",
+            version: "1.0.0",
+            runtimeFormat: .usdc,
+            runtimeAssetRelativePath: "avatars/avatar-sample-a/1.0.0/model.usdc",
+            runtimeAssetRemoteURL: nil,
+            runtimeAssetChecksum: nil,
+            runtimeAssetSizeBytes: 17,
+            packageManifestRelativePath: "avatars/avatar-sample-a/1.0.0/package_manifest.json",
+            packageManifestRemoteURL: nil,
+            rigProfileID: "avatar-sample-a.v1",
+            rigProfileRelativePath: "avatars/avatar-sample-a/1.0.0/rig_profile.json",
+            rigProfileRemoteURL: nil,
+            minimumAppVersion: nil,
+            minimumOSVersion: "26.4",
+            installState: .notInstalled
+        )
+
+        let installedOption = try await store.installDownloadableAvatar(from: variant)
+
+        #expect(installedOption.installState == .installed)
+        #expect(installedOption.runtimeFormat == .usdc)
+        #expect(installedOption.runtimeAssetURL?.lastPathComponent == "model.usdc")
     }
 
     @Test func appConfigurationTreatsMissingAvatarStorageBaseURLAsUnset() {

@@ -12,6 +12,7 @@ struct AvatarAssetStore {
         case unsupportedFileExtension(String)
         case unsupportedRuntimeFormat(AvatarRuntimeFormat)
         case invalidGLBFile
+        case missingRemoteBaseURL
         case missingRemoteAssetURL(String)
         case invalidRemoteAssetURL(String)
         case invalidPackageManifest
@@ -24,6 +25,8 @@ struct AvatarAssetStore {
                 "Unsupported downloadable avatar format: \(format.rawValue)"
             case .invalidGLBFile:
                 "The selected GLB file could not be parsed."
+            case .missingRemoteBaseURL:
+                "OdoroAvatarStorageBaseURL is not configured for downloadable avatars."
             case let .missingRemoteAssetURL(label):
                 "Avatar package is missing a remote \(label) URL."
             case let .invalidRemoteAssetURL(label):
@@ -37,14 +40,17 @@ struct AvatarAssetStore {
     private let fileManager: FileManager
     private let baseDirectoryURL: URL
     private let remoteFileDownloader: RemoteFileDownloader
+    private let remoteBaseURL: URL?
 
     init(
         fileManager: FileManager = .default,
         baseDirectoryURL: URL? = nil,
+        remoteBaseURL: URL? = AppConfiguration.current.avatarStorageBaseURL,
         remoteFileDownloader: @escaping RemoteFileDownloader = Self.defaultRemoteFileDownloader
     ) {
         self.fileManager = fileManager
         self.remoteFileDownloader = remoteFileDownloader
+        self.remoteBaseURL = remoteBaseURL
         if let baseDirectoryURL {
             self.baseDirectoryURL = baseDirectoryURL
         } else {
@@ -77,7 +83,7 @@ struct AvatarAssetStore {
 
         try ensureBaseDirectoryExists()
 
-        let remoteURLs = try Self.remoteAssetURLs(for: variant)
+        let remoteURLs = try remoteAssetURLs(for: variant)
 
         let downloadedPackageManifestURL = try await remoteFileDownloader(remoteURLs.packageManifestURL)
         let downloadedRigProfileURL = try await remoteFileDownloader(remoteURLs.rigProfileURL)
@@ -378,42 +384,68 @@ struct AvatarAssetStore {
         return collapsed.trimmingCharacters(in: CharacterSet(charactersIn: "-"))
     }
 
-    private static func remoteAssetURLs(for variant: AvatarAssetVariant) throws -> (
+    private func remoteAssetURLs(for variant: AvatarAssetVariant) throws -> (
         runtimeAssetURL: URL,
         packageManifestURL: URL,
         rigProfileURL: URL
     ) {
         let runtimeAssetURL = try resolvedRemoteURL(
             from: variant.runtimeAssetRemoteURL,
+            relativePath: variant.runtimeAssetRelativePath,
             label: "runtime asset"
         )
         let packageManifestURL = try resolvedRemoteURL(
             from: variant.packageManifestRemoteURL,
+            relativePath: variant.packageManifestRelativePath,
             label: "package manifest"
         )
         let rigProfileURL = try resolvedRemoteURL(
             from: variant.rigProfileRemoteURL,
+            relativePath: variant.rigProfileRelativePath,
             label: "rig profile"
         )
 
         return (runtimeAssetURL, packageManifestURL, rigProfileURL)
     }
 
-    private static func resolvedRemoteURL(from remoteURLString: String?, label: String) throws -> URL {
+    private func resolvedRemoteURL(
+        from remoteURLString: String?,
+        relativePath: String?,
+        label: String
+    ) throws -> URL {
+        if let remoteURL = Self.validRemoteURL(from: remoteURLString) {
+            return remoteURL
+        }
+
+        if let relativePath = relativePath?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !relativePath.isEmpty {
+            guard let remoteBaseURL else {
+                throw StoreError.missingRemoteBaseURL
+            }
+
+            return remoteBaseURL.appending(path: relativePath, directoryHint: .notDirectory)
+        }
+
         guard let remoteURLString = remoteURLString?.trimmingCharacters(in: .whitespacesAndNewlines),
               !remoteURLString.isEmpty else {
             throw StoreError.missingRemoteAssetURL(label)
         }
 
-        guard let remoteURL = URL(string: remoteURLString),
+        throw StoreError.invalidRemoteAssetURL(label)
+    }
+
+    private static func validRemoteURL(from remoteURLString: String?) -> URL? {
+        guard let remoteURLString = remoteURLString?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !remoteURLString.isEmpty,
+              let remoteURL = URL(string: remoteURLString),
               let scheme = remoteURL.scheme,
               !scheme.isEmpty else {
-            throw StoreError.invalidRemoteAssetURL(label)
+            return nil
         }
 
         if ["http", "https"].contains(scheme.lowercased()) {
             guard let host = remoteURL.host, !host.isEmpty else {
-                throw StoreError.invalidRemoteAssetURL(label)
+                return nil
             }
         }
 
