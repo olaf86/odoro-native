@@ -17,6 +17,25 @@ final class StagePlaybackRenderer: NSObject {
     nonisolated private static let stageCameraFieldOfViewDegrees: Float = 60
     nonisolated private static let defaultStageLookAt = SIMD3<Float>(0, 0.95, 0)
     nonisolated private static let defaultStageCameraPosition = SIMD3<Float>(0, 1.35, 3.4)
+    private enum StageFloorStyle {
+        nonisolated static let extent: Float = 8.0
+        nonisolated static let inset: Float = 0.28
+        nonisolated static let surfaceY: Float = -0.01
+        nonisolated static let slabThickness: Float = 0.008
+        nonisolated static let accentThickness: Float = 0.004
+        nonisolated static let lineThickness: Float = 0.005
+        nonisolated static let lineLift: Float = 0.003
+        nonisolated static let minorSpacing: Float = 0.25
+        nonisolated static let majorSpacing: Float = 1.0
+        nonisolated static let majorLineWidth: Float = 0.028
+        nonisolated static let minorLineWidth: Float = 0.01
+        nonisolated static let accentExtent: Float = 3.2
+        nonisolated static let accentRotation = simd_quatf(angle: .pi / 4, axis: SIMD3<Float>(0, 1, 0))
+        nonisolated static let baseColor = UIColor(red: 0.16, green: 0.22, blue: 0.34, alpha: 0.28)
+        nonisolated static let accentColor = UIColor(red: 0.36, green: 0.85, blue: 0.98, alpha: 0.1)
+        nonisolated static let majorLineColor = UIColor(red: 0.5, green: 0.92, blue: 1.0, alpha: 0.7)
+        nonisolated static let minorLineColor = UIColor(red: 0.4, green: 0.8, blue: 0.95, alpha: 0.28)
+    }
     private enum RigPlaybackCorrectionTuning {
         // Rotation — calibrated to match MotionClipStageStabilizer rotation tuning
         nonisolated static let smallRotationDelta: Float = 0.08
@@ -418,12 +437,9 @@ final class StagePlaybackRenderer: NSObject {
         limbEntities.removeAll()
         footDirectionEntities.removeAll()
 
-        let floor = ModelEntity(
-            mesh: .generateBox(size: [8.0, 0.04, 8.0]),
-            materials: [UnlitMaterial(color: UIColor(red: 0.1, green: 0.13, blue: 0.19, alpha: 1))]
-        )
-        floor.position = [0, -0.02, 0]
-        stageAnchor.addChild(floor)
+        let stageFloor = makeStageFloorEntity()
+        stageFloor.position = .zero
+        stageAnchor.addChild(stageFloor)
 
         buildDancerHierarchy()
         stageAnchor.addChild(dancerRoot)
@@ -433,6 +449,63 @@ final class StagePlaybackRenderer: NSObject {
         stageAnchor.addChild(stageCameraEntity)
 
         view.scene.addAnchor(stageAnchor)
+    }
+
+    private func makeStageFloorEntity() -> Entity {
+        let root = Entity()
+        let slabCenterY = StageFloorStyle.surfaceY - (StageFloorStyle.slabThickness * 0.5)
+        let accentCenterY = StageFloorStyle.surfaceY - (StageFloorStyle.accentThickness * 0.5)
+        let lineCenterY = StageFloorStyle.surfaceY + StageFloorStyle.lineLift
+        let gridExtent = StageFloorStyle.extent - (StageFloorStyle.inset * 2)
+
+        let slab = ModelEntity(
+            mesh: .generateBox(size: [StageFloorStyle.extent, StageFloorStyle.slabThickness, StageFloorStyle.extent]),
+            materials: [UnlitMaterial(color: StageFloorStyle.baseColor)]
+        )
+        slab.position = [0, slabCenterY, 0]
+        root.addChild(slab)
+
+        let accent = ModelEntity(
+            mesh: .generateBox(
+                size: [StageFloorStyle.accentExtent, StageFloorStyle.accentThickness, StageFloorStyle.accentExtent]
+            ),
+            materials: [UnlitMaterial(color: StageFloorStyle.accentColor)]
+        )
+        accent.position = [0, accentCenterY, 0]
+        accent.orientation = StageFloorStyle.accentRotation
+        root.addChild(accent)
+
+        for position in stride(from: -gridExtent * 0.5, through: gridExtent * 0.5, by: StageFloorStyle.minorSpacing) {
+            let isMajor = isApproximatelyMultiple(position, of: StageFloorStyle.majorSpacing)
+            let lineWidth = isMajor ? StageFloorStyle.majorLineWidth : StageFloorStyle.minorLineWidth
+            let lineColor = isMajor ? StageFloorStyle.majorLineColor : StageFloorStyle.minorLineColor
+            let material = UnlitMaterial(color: lineColor)
+
+            let depthLine = ModelEntity(
+                mesh: .generateBox(size: [lineWidth, StageFloorStyle.lineThickness, gridExtent]),
+                materials: [material]
+            )
+            depthLine.position = [position, lineCenterY, 0]
+            root.addChild(depthLine)
+
+            let widthLine = ModelEntity(
+                mesh: .generateBox(size: [gridExtent, StageFloorStyle.lineThickness, lineWidth]),
+                materials: [material]
+            )
+            widthLine.position = [0, lineCenterY, position]
+            root.addChild(widthLine)
+        }
+
+        return root
+    }
+
+    private func isApproximatelyMultiple(_ value: Float, of divisor: Float) -> Bool {
+        guard divisor != 0 else {
+            return false
+        }
+
+        let ratio = value / divisor
+        return abs(ratio.rounded() - ratio) < 0.001
     }
 
     nonisolated static func makeStageCameraComponent() -> PerspectiveCameraComponent {
