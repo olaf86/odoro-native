@@ -15,6 +15,8 @@ extension StudioViewModel {
             return
         }
 
+        awaitsRecordedSourceClip = false
+        hasPendingRecordedClipPersistence = false
         dismissSwipeHints()
         stopAudioPreview()
         attachCurrentSourceIfPossible()

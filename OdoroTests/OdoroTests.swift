@@ -2016,6 +2016,49 @@ struct OdoroTests {
     }
 
     @MainActor
+    @Test func studioViewModelPersistsRecordedClipWhenEnteringStage() async throws {
+        let modelConfiguration = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(
+            for: RecordingSessionRecord.self,
+            MotionTakeRecord.self,
+            configurations: modelConfiguration
+        )
+        let tempDirectory = FileManager.default.temporaryDirectory
+            .appending(path: UUID().uuidString, directoryHint: .isDirectory)
+        let archiveStore = MotionArchiveStore(
+            modelContainer: container,
+            payloadFileStore: MotionPayloadFileStore(baseDirectoryURL: tempDirectory),
+            sourceClipFileStore: MotionSourceClipFileStore(baseDirectoryURL: tempDirectory),
+            hintsFileStore: MotionPlaybackHintsFileStore(baseDirectoryURL: tempDirectory)
+        )
+        let source = TestMotionSource()
+        let studio = StudioViewModel(
+            archiveStore: archiveStore,
+            audioPlaybackController: TestAudioPlaybackController(),
+            motionSourceFactory: { _ in source }
+        )
+
+        defer {
+            try? FileManager.default.removeItem(at: tempDirectory)
+        }
+
+        studio.beginRecording()
+        source.emitFrame(at: 0, joints: 2)
+        source.emitFrame(at: 0.1, joints: 2)
+        await Task.yield()
+
+        studio.stopRecording()
+        for _ in 0..<20 where studio.libraryClips.isEmpty || studio.currentSessionTakes.isEmpty {
+            await Task.yield()
+        }
+
+        #expect(studio.screen == .stage)
+        #expect(studio.currentSessionTakes.count == 1)
+        #expect(studio.libraryClips.count == 1)
+        #expect(studio.currentTakeID == studio.currentSessionTakes.first?.id)
+    }
+
+    @MainActor
     @Test func motionStudioInteractorStopsRecordingAtConfiguredDuration() async {
         let source = TestMotionSource()
         var clock: TimeInterval = 0

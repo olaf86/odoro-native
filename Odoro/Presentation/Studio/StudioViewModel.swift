@@ -60,6 +60,8 @@ final class StudioViewModel: ObservableObject {
     var preparedStagePlayback: StagePreparedPlayback?
     var storedHints: MotionPlaybackHints?
     var storedRigClip: MotionClip?
+    var awaitsRecordedSourceClip = false
+    var hasPendingRecordedClipPersistence = false
 
     // MARK: - Initialization
 
@@ -110,7 +112,11 @@ final class StudioViewModel: ObservableObject {
             self?.applyStageDebugPresentation()
         }
 
-        interactor.onSourceClipChange = { [weak self] _ in
+        interactor.onSourceClipChange = { [weak self] sourceClip in
+            if self?.awaitsRecordedSourceClip == true, sourceClip != nil {
+                self?.awaitsRecordedSourceClip = false
+                self?.hasPendingRecordedClipPersistence = true
+            }
             self?.rebuildPreparedStagePlayback()
             self?.applyStageDebugPresentation()
         }
@@ -122,13 +128,17 @@ final class StudioViewModel: ObservableObject {
 
         if previousState.isRecording, !newState.isRecording {
             stopAudioPlayback()
+            awaitsRecordedSourceClip = true
         }
 
         if previousState.presentation != .stage, newState.presentation == .stage {
+            let shouldPersistRecordedClip = hasPendingRecordedClipPersistence
+            awaitsRecordedSourceClip = false
+            hasPendingRecordedClipPersistence = false
             playbackCaptureMode = captureMode
             navigate(to: .stage, transition: .fromLeading)
 
-            if previousState.isRecording {
+            if shouldPersistRecordedClip {
                 Task { @MainActor in
                     isPreparingPlayback = true
                     await Task.yield()
