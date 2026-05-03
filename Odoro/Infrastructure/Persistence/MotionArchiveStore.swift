@@ -67,6 +67,7 @@ final class MotionArchiveStore {
     private let hintsFileStore: MotionPlaybackHintsFileStore
     private let hintsBuilder: MotionPlaybackHintsBuilder
     private let rigClipFileStore: MotionRigClipFileStore
+    private let derivationBuilder: MotionTakeDerivationBuilder
 
     init(
         modelContainer: ModelContainer,
@@ -74,7 +75,8 @@ final class MotionArchiveStore {
         sourceClipFileStore: MotionSourceClipFileStore? = nil,
         hintsFileStore: MotionPlaybackHintsFileStore? = nil,
         hintsBuilder: MotionPlaybackHintsBuilder = MotionPlaybackHintsBuilder(),
-        rigClipFileStore: MotionRigClipFileStore? = nil
+        rigClipFileStore: MotionRigClipFileStore? = nil,
+        derivationBuilder: MotionTakeDerivationBuilder? = nil
     ) {
         self.modelContainer = modelContainer
         self.payloadFileStore = payloadFileStore ?? MotionPayloadFileStore()
@@ -82,6 +84,7 @@ final class MotionArchiveStore {
         self.hintsFileStore = hintsFileStore ?? MotionPlaybackHintsFileStore()
         self.hintsBuilder = hintsBuilder
         self.rigClipFileStore = rigClipFileStore ?? MotionRigClipFileStore()
+        self.derivationBuilder = derivationBuilder ?? MotionTakeDerivationBuilder(hintsBuilder: hintsBuilder)
     }
 
     func saveTake(
@@ -100,14 +103,36 @@ final class MotionArchiveStore {
             context: context
         )
         let takeID = UUID()
+        let storedPlaybackClip: MotionClip
+        let resolvedRigClip: MotionClip?
+        let resolvedHints: MotionPlaybackHints?
+        let resolvedClipIsCanonical: Bool
+
+        if let sourceClip {
+            let derived = derivationBuilder.deriveArtifacts(
+                from: sourceClip,
+                captureMode: captureMode
+            )
+            storedPlaybackClip = derived.playbackClip
+            resolvedRigClip = derived.rigClip
+            resolvedHints = derived.hints
+            resolvedClipIsCanonical = true
+        } else {
+            storedPlaybackClip = clip
+            resolvedRigClip = nil
+            resolvedHints = nil
+            resolvedClipIsCanonical = clipIsCanonical
+        }
+
         let payload = MotionPayload(
-            clip: clip,
-            clipIsCanonical: clipIsCanonical,
+            clip: storedPlaybackClip,
+            clipIsCanonical: resolvedClipIsCanonical,
             captureMode: captureMode,
             recordingContext: recordingContext,
             sourcePlatform: "iOS",
             sourceBackend: sourceBackendName(for: captureMode)
         )
+        let cachedPlaybackClip = payload.makeMotionClip()
         let payloadURL: URL
         let sourceBackend = sourceBackendName(for: captureMode)
         do {
@@ -118,16 +143,13 @@ final class MotionArchiveStore {
                 captureMode: captureMode,
                 sourceBackend: sourceBackend
             )
-            let storedClip = payload.makeMotionClip()
-            let hints = hintsBuilder.build(
-                playbackClip: storedClip,
+            let hints = resolvedHints ?? hintsBuilder.build(
+                playbackClip: cachedPlaybackClip,
                 captureMode: captureMode
             )
             _ = try hintsFileStore.write(hints, for: takeID)
-
-            let rigClip = sourceClip.map { $0.rigNormalizedForStage() }
             _ = try rigClipFileStore.write(
-                rigClip,
+                resolvedRigClip,
                 for: takeID,
                 captureMode: captureMode,
                 recordingContext: recordingContext
@@ -147,9 +169,9 @@ final class MotionArchiveStore {
                 clipName: defaultClipName(for: takeIndex),
                 takeIndex: takeIndex,
                 captureMode: captureMode,
-                durationSeconds: clip.duration,
-                frameCount: clip.frameCount,
-                nominalFrameRate: clip.estimatedFrameRate,
+                durationSeconds: cachedPlaybackClip.duration,
+                frameCount: cachedPlaybackClip.frameCount,
+                nominalFrameRate: cachedPlaybackClip.estimatedFrameRate,
                 barLength: recordingContext.targetBarCount,
                 beatLength: recordingContext.beatLength,
                 startBeatOffset: startBeatOffset,
@@ -184,15 +206,17 @@ final class MotionArchiveStore {
         fromLocalFilePath localFilePath: String
     ) throws -> StoredMotionTake {
         let payloadURL = URL(fileURLWithPath: localFilePath)
-        let clip = try payloadFileStore.read(from: payloadURL).makeMotionClip()
+        let payload = try payloadFileStore.read(from: payloadURL)
+        let cachedPlaybackClip = payload.makeMotionClip()
         let sourceClip = try sourceClipFileStore.read(for: takeID)
-        let hints = try hintsFileStore.read(for: takeID)
-        let rigClip = try rigClipFileStore.read(for: takeID)
-        return StoredMotionTake(
-            clip: clip,
+        let cachedHints = try hintsFileStore.read(for: takeID)
+        let cachedRigClip = try rigClipFileStore.read(for: takeID)
+        return derivationBuilder.resolveStoredTake(
+            cachedPlaybackClip: cachedPlaybackClip,
             sourceClip: sourceClip,
-            rigClip: rigClip,
-            hints: hints
+            cachedRigClip: cachedRigClip,
+            cachedHints: cachedHints,
+            captureMode: payload.captureMode
         )
     }
 

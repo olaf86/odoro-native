@@ -1827,8 +1827,8 @@ struct OdoroTests {
             Self.canonicalFrame(
                 time: 0,
                 overrides: [
-                    .root: SIMD3<Float>(0, 1, 0),
-                    .head: SIMD3<Float>(0, 1.55, 0.05),
+                    .root: SIMD3<Float>(9, 9, 9),
+                    .head: SIMD3<Float>(9, 9.5, 9),
                 ]
             )
         ])
@@ -1847,6 +1847,8 @@ struct OdoroTests {
                 ]
             )
         ])
+        let expectedPlaybackClip = MotionPlaybackClipDeriver(captureMode: .rearBody3D)
+            .prepareCapturedClip(sourceClip)
 
         defer {
             try? FileManager.default.removeItem(at: tempDirectory)
@@ -1872,6 +1874,9 @@ struct OdoroTests {
         #expect(reloadedSourceClip.frames[0].jointPositions.count == 3)
         #expect(reloadedSourceClip.frames[0].jointPositions[1] == sourceClip.frames[0].jointPositions[1])
         #expect(reloadedSourceClip.frames[0].jointRotations?[0] == sourceClip.frames[0].jointRotations?[0])
+        #expect(storedTake.clip.frameCount == expectedPlaybackClip.frameCount)
+        #expect(storedTake.clip.frames[0].jointPositions == expectedPlaybackClip.frames[0].jointPositions)
+        #expect(storedTake.clip.frames[0].jointPositions != playbackClip.frames[0].jointPositions)
     }
 
     @MainActor

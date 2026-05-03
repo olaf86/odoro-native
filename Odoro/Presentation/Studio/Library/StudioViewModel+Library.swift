@@ -178,24 +178,8 @@ extension StudioViewModel {
         storedHints = storedTake.hints
         storedRigClip = storedTake.rigClip
         stageRenderer.setUsesProceduralMockPlayback(captureMode == .mock)
-        interactor.replaceCurrentClip(
-            playbackClip(for: clip, savedClip: storedTake.clip, captureMode: captureMode),
-            sourceClip: storedTake.sourceClip ?? interactor.sourceClip
-        )
+        interactor.replaceCurrentClip(storedTake.clip, sourceClip: storedTake.sourceClip ?? interactor.sourceClip)
         try refreshCurrentSessionTakes()
-    }
-
-    private func playbackClip(
-        for sourceClip: MotionClip,
-        savedClip: MotionClip,
-        captureMode: CaptureMode
-    ) -> MotionClip {
-        switch captureMode {
-        case .rearBody3D:
-            sourceClip
-        case .frontUpperBody, .mock, .importedVideo:
-            savedClip
-        }
     }
 
     func ensureCurrentTakeForConfirmation() throws -> MotionTakeSummary {
