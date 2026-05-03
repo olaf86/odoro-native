@@ -20,16 +20,12 @@ final class StagePlaybackRenderer: NSObject {
     private enum StageFloorStyle {
         nonisolated static let extent: Float = 8.0
         nonisolated static let inset: Float = 0.28
-        nonisolated static let slabThickness: Float = 0.04
-        nonisolated static let slabCenterY: Float = -(slabThickness * 0.5)
-        nonisolated static let slabTopY: Float = slabCenterY + (slabThickness * 0.5)
-        nonisolated static let lineThickness: Float = 0.005
-        nonisolated static let lineLift: Float = 0.003
+        nonisolated static let lineThickness: Float = 0.003
+        nonisolated static let lineCenterY: Float = lineThickness * 0.5
         nonisolated static let minorSpacing: Float = 0.25
         nonisolated static let majorSpacing: Float = 1.0
         nonisolated static let majorLineWidth: Float = 0.028
         nonisolated static let minorLineWidth: Float = 0.01
-        nonisolated static let baseColor = UIColor(red: 0.1, green: 0.13, blue: 0.19, alpha: 1)
         nonisolated static let majorLineColor = UIColor(red: 0.5, green: 0.92, blue: 1.0, alpha: 0.88)
         nonisolated static let minorLineColor = UIColor(red: 0.4, green: 0.8, blue: 0.95, alpha: 0.4)
     }
@@ -450,15 +446,7 @@ final class StagePlaybackRenderer: NSObject {
 
     private func makeStageFloorEntity() -> Entity {
         let root = Entity()
-        let lineCenterY = StageFloorStyle.slabTopY + StageFloorStyle.lineLift
         let gridExtent = StageFloorStyle.extent - (StageFloorStyle.inset * 2)
-
-        let slab = ModelEntity(
-            mesh: .generateBox(size: [StageFloorStyle.extent, StageFloorStyle.slabThickness, StageFloorStyle.extent]),
-            materials: [UnlitMaterial(color: StageFloorStyle.baseColor)]
-        )
-        slab.position = [0, StageFloorStyle.slabCenterY, 0]
-        root.addChild(slab)
 
         for position in stride(from: -gridExtent * 0.5, through: gridExtent * 0.5, by: StageFloorStyle.minorSpacing) {
             let isMajor = isApproximatelyMultiple(position, of: StageFloorStyle.majorSpacing)
@@ -470,14 +458,14 @@ final class StagePlaybackRenderer: NSObject {
                 mesh: .generateBox(size: [lineWidth, StageFloorStyle.lineThickness, gridExtent]),
                 materials: [material]
             )
-            depthLine.position = [position, lineCenterY, 0]
+            depthLine.position = [position, StageFloorStyle.lineCenterY, 0]
             root.addChild(depthLine)
 
             let widthLine = ModelEntity(
                 mesh: .generateBox(size: [gridExtent, StageFloorStyle.lineThickness, lineWidth]),
                 materials: [material]
             )
-            widthLine.position = [0, lineCenterY, position]
+            widthLine.position = [0, StageFloorStyle.lineCenterY, position]
             root.addChild(widthLine)
         }
 
