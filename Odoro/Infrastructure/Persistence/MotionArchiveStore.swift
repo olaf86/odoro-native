@@ -189,13 +189,26 @@ final class MotionArchiveStore {
     }
 
     func loadStoredTake(withID takeID: UUID) throws -> StoredMotionTake {
-        let sourceClip = try sourceClipFileStore.read(for: takeID)
         guard let summary = try fetchTakeSummary(withID: takeID) else {
             throw ArchiveStoreError.missingTake(takeID)
         }
-        return artifactsBuilder.buildStoredTake(
-            from: sourceClip,
-            captureMode: summary.captureMode
+
+        if let sourceClip = try? sourceClipFileStore.read(for: takeID) {
+            return artifactsBuilder.buildStoredTake(from: sourceClip, captureMode: summary.captureMode)
+        }
+
+        // Source clip file is absent for takes recorded before source-clip persistence was
+        // introduced. Fall back to the cached playback clip stored in the payload file.
+        let payloadURL = URL(fileURLWithPath: summary.localFilePath)
+        let payloadClip = try payloadFileStore.read(from: payloadURL).makeMotionClip()
+        let rigClip = (try? rigClipFileStore.read(for: takeID)) ?? payloadClip.rigNormalizedForStage()
+        let hints = (try? hintsFileStore.read(for: takeID))
+            ?? artifactsBuilder.hintsBuilder.build(playbackClip: payloadClip, captureMode: summary.captureMode)
+        return StoredMotionTake(
+            clip: payloadClip,
+            sourceClip: payloadClip,
+            rigClip: rigClip,
+            hints: hints
         )
     }
 
