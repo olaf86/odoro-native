@@ -26,12 +26,12 @@ final class StagePlaybackRenderer: NSObject {
         nonisolated static let headMaximumRotationAlpha: Float = 0.65
 
         // Translation for root position — thresholds derived from skeleton center speed limits at 30 fps
-        // skeleton centerFullSpeedUpperBound 3.5 m/s ÷ 30 ≈ 0.117 m/frame
-        // skeleton centerDegradedSpeedUpperBound 7 m/s ÷ 30 ≈ 0.233 m/frame
-        nonisolated static let smallTranslationDelta: Float = 0.10  // ~3 m/s at 30 fps
-        nonisolated static let largeTranslationDelta: Float = 0.22  // ~6.6 m/s at 30 fps
+        // skeleton centerFullSpeedUpperBound 2.5 m/s ÷ 30 ≈ 0.083 m/frame
+        // skeleton centerDegradedSpeedUpperBound 5.0 m/s ÷ 30 ≈ 0.167 m/frame
+        nonisolated static let smallTranslationDelta: Float = 0.08  // ~2.4 m/s at 30 fps
+        nonisolated static let largeTranslationDelta: Float = 0.16  // ~4.8 m/s at 30 fps
         nonisolated static let minimumTranslationAlpha: Float = 0.08  // skeleton centerAlphaFloor
-        nonisolated static let maximumTranslationAlpha: Float = 0.84  // skeleton center effective max
+        nonisolated static let maximumTranslationAlpha: Float = 0.78  // skeleton centerAlphaCeiling effective max
     }
     enum SkeletonDebugLayout: Equatable {
         case rawARKit
