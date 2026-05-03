@@ -183,11 +183,12 @@ struct OdoroTests {
         #expect(installedOptions[0].selection == installedOption.selection)
     }
 
-    @Test func appConfigurationRejectsPlaceholderAvatarStorageBaseURL() {
+    @Test func appConfigurationTreatsMissingAvatarStorageBaseURLAsUnset() {
         #expect(
-            AppConfiguration.resolvedAvatarStorageBaseURL(
-                from: "https://storage.googleapis.com/YOUR_BUCKET_NAME"
-            ) == nil
+            AppConfiguration.resolvedAvatarStorageBaseURL(from: nil) == nil
+        )
+        #expect(
+            AppConfiguration.resolvedAvatarStorageBaseURL(from: "   ") == nil
         )
         #expect(
             AppConfiguration.resolvedAvatarStorageBaseURL(

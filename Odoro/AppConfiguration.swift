@@ -7,7 +7,6 @@ import Foundation
 
 struct AppConfiguration {
     static let current = AppConfiguration(bundle: .main)
-    private static let placeholderBucketToken = "YOUR_BUCKET_NAME"
 
     let environmentName: String
     let avatarStorageBaseURL: URL?
@@ -34,7 +33,6 @@ struct AppConfiguration {
     static func resolvedAvatarStorageBaseURL(from rawValue: String?) -> URL? {
         guard let baseURLString = rawValue?.trimmingCharacters(in: .whitespacesAndNewlines),
               !baseURLString.isEmpty,
-              !baseURLString.contains(placeholderBucketToken),
               let parsedURL = URL(string: baseURLString),
               parsedURL.scheme != nil else {
             return nil
