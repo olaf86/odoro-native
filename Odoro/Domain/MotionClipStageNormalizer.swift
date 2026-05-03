@@ -115,10 +115,16 @@ private extension MotionClipStageNormalizer {
                 return correction.act(position - pivot) + pivot
             }
 
+            // Apply the same correction to world-space joint rotations so the avatar
+            // rig bone orientations match the corrected positions.
+            let correctedRotations: [MotionJointRotation?]? = frame.jointRotations.map { rotations in
+                rotations.map { $0.map { MotionJointRotation(correction * $0.simdValue) } }
+            }
+
             return MotionFrame(
                 time: frame.time,
                 jointPositions: correctedPositions,
-                jointRotations: frame.jointRotations
+                jointRotations: correctedRotations
             )
         }
     }
