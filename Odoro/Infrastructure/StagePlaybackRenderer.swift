@@ -20,21 +20,17 @@ final class StagePlaybackRenderer: NSObject {
     private enum StageFloorStyle {
         nonisolated static let extent: Float = 8.0
         nonisolated static let inset: Float = 0.28
-        nonisolated static let surfaceY: Float = -0.01
-        nonisolated static let slabThickness: Float = 0.008
-        nonisolated static let accentThickness: Float = 0.004
+        nonisolated static let slabThickness: Float = 0.04
+        nonisolated static let surfaceY: Float = -(slabThickness * 0.5)
         nonisolated static let lineThickness: Float = 0.005
         nonisolated static let lineLift: Float = 0.003
         nonisolated static let minorSpacing: Float = 0.25
         nonisolated static let majorSpacing: Float = 1.0
         nonisolated static let majorLineWidth: Float = 0.028
         nonisolated static let minorLineWidth: Float = 0.01
-        nonisolated static let accentExtent: Float = 3.2
-        nonisolated static let accentRotation = simd_quatf(angle: .pi / 4, axis: SIMD3<Float>(0, 1, 0))
-        nonisolated static let baseColor = UIColor(red: 0.16, green: 0.22, blue: 0.34, alpha: 0.28)
-        nonisolated static let accentColor = UIColor(red: 0.36, green: 0.85, blue: 0.98, alpha: 0.1)
-        nonisolated static let majorLineColor = UIColor(red: 0.5, green: 0.92, blue: 1.0, alpha: 0.7)
-        nonisolated static let minorLineColor = UIColor(red: 0.4, green: 0.8, blue: 0.95, alpha: 0.28)
+        nonisolated static let baseColor = UIColor(red: 0.1, green: 0.13, blue: 0.19, alpha: 1)
+        nonisolated static let majorLineColor = UIColor(red: 0.5, green: 0.92, blue: 1.0, alpha: 0.88)
+        nonisolated static let minorLineColor = UIColor(red: 0.4, green: 0.8, blue: 0.95, alpha: 0.4)
     }
     private enum RigPlaybackCorrectionTuning {
         // Rotation — calibrated to match MotionClipStageStabilizer rotation tuning
@@ -453,8 +449,6 @@ final class StagePlaybackRenderer: NSObject {
 
     private func makeStageFloorEntity() -> Entity {
         let root = Entity()
-        let slabCenterY = StageFloorStyle.surfaceY - (StageFloorStyle.slabThickness * 0.5)
-        let accentCenterY = StageFloorStyle.surfaceY - (StageFloorStyle.accentThickness * 0.5)
         let lineCenterY = StageFloorStyle.surfaceY + StageFloorStyle.lineLift
         let gridExtent = StageFloorStyle.extent - (StageFloorStyle.inset * 2)
 
@@ -462,18 +456,8 @@ final class StagePlaybackRenderer: NSObject {
             mesh: .generateBox(size: [StageFloorStyle.extent, StageFloorStyle.slabThickness, StageFloorStyle.extent]),
             materials: [UnlitMaterial(color: StageFloorStyle.baseColor)]
         )
-        slab.position = [0, slabCenterY, 0]
+        slab.position = [0, StageFloorStyle.surfaceY, 0]
         root.addChild(slab)
-
-        let accent = ModelEntity(
-            mesh: .generateBox(
-                size: [StageFloorStyle.accentExtent, StageFloorStyle.accentThickness, StageFloorStyle.accentExtent]
-            ),
-            materials: [UnlitMaterial(color: StageFloorStyle.accentColor)]
-        )
-        accent.position = [0, accentCenterY, 0]
-        accent.orientation = StageFloorStyle.accentRotation
-        root.addChild(accent)
 
         for position in stride(from: -gridExtent * 0.5, through: gridExtent * 0.5, by: StageFloorStyle.minorSpacing) {
             let isMajor = isApproximatelyMultiple(position, of: StageFloorStyle.majorSpacing)
