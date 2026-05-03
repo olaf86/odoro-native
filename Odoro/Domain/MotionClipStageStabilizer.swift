@@ -43,20 +43,20 @@ struct MotionClipStageStabilizer: Sendable {
         let minimumFrameCount = 3
         let fallbackDeltaTime: TimeInterval = 1.0 / 30.0
 
-        let centerFullSpeedUpperBound: Float = 3.5
-        let centerDegradedSpeedUpperBound: Float = 7
-        let centerMinimumPenalty: Float = 0.18
+        let centerFullSpeedUpperBound: Float = 2.5
+        let centerDegradedSpeedUpperBound: Float = 5.0
+        let centerMinimumPenalty: Float = 0.24
         let centerAlphaFloor: Float = 0.08
-        let centerAlphaBase: Float = 0.12
+        let centerAlphaBase: Float = 0.08
         let centerAlphaScale: Float = 0.72
-        let centerAlphaCeiling: Float = 0.92
+        let centerAlphaCeiling: Float = 0.82
         let centerVelocityBlendAlpha: Float = 0.35
-        let centerContinuityFullSpeedUpperBound: Float = 1.8
-        let centerContinuityDegradedSpeedUpperBound: Float = 4.2
-        let centerContinuityMinimumPenalty: Float = 0.05
-        let centerContinuityPredictionErrorFullUpperBound: Float = 0.08
-        let centerContinuityPredictionErrorDegradedUpperBound: Float = 0.32
-        let centerContinuityPredictionErrorMinimumPenalty: Float = 0.05
+        let centerContinuityFullSpeedUpperBound: Float = 1.2
+        let centerContinuityDegradedSpeedUpperBound: Float = 2.8
+        let centerContinuityMinimumPenalty: Float = 0.08
+        let centerContinuityPredictionErrorFullUpperBound: Float = 0.05
+        let centerContinuityPredictionErrorDegradedUpperBound: Float = 0.18
+        let centerContinuityPredictionErrorMinimumPenalty: Float = 0.08
 
         let localDeltaFullPenaltyUpperBound: Float = 0.35
         let localDeltaDegradedPenaltyUpperBound: Float = 1.0
