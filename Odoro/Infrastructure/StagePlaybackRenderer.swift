@@ -21,7 +21,8 @@ final class StagePlaybackRenderer: NSObject {
         nonisolated static let extent: Float = 8.0
         nonisolated static let inset: Float = 0.28
         nonisolated static let slabThickness: Float = 0.04
-        nonisolated static let surfaceY: Float = -(slabThickness * 0.5)
+        nonisolated static let slabCenterY: Float = -(slabThickness * 0.5)
+        nonisolated static let slabTopY: Float = slabCenterY + (slabThickness * 0.5)
         nonisolated static let lineThickness: Float = 0.005
         nonisolated static let lineLift: Float = 0.003
         nonisolated static let minorSpacing: Float = 0.25
@@ -449,14 +450,14 @@ final class StagePlaybackRenderer: NSObject {
 
     private func makeStageFloorEntity() -> Entity {
         let root = Entity()
-        let lineCenterY = StageFloorStyle.surfaceY + StageFloorStyle.lineLift
+        let lineCenterY = StageFloorStyle.slabTopY + StageFloorStyle.lineLift
         let gridExtent = StageFloorStyle.extent - (StageFloorStyle.inset * 2)
 
         let slab = ModelEntity(
             mesh: .generateBox(size: [StageFloorStyle.extent, StageFloorStyle.slabThickness, StageFloorStyle.extent]),
             materials: [UnlitMaterial(color: StageFloorStyle.baseColor)]
         )
-        slab.position = [0, StageFloorStyle.surfaceY, 0]
+        slab.position = [0, StageFloorStyle.slabCenterY, 0]
         root.addChild(slab)
 
         for position in stride(from: -gridExtent * 0.5, through: gridExtent * 0.5, by: StageFloorStyle.minorSpacing) {
