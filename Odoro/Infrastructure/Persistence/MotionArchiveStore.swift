@@ -63,23 +63,27 @@ struct MotionTakeSummary: Identifiable, Sendable {
 final class MotionArchiveStore {
     private let modelContainer: ModelContainer
     private let payloadFileStore: MotionPayloadFileStore
-    private let playbackArtifactsFileStore: MotionPlaybackArtifactsFileStore
-    private let playbackArtifactsBuilder: MotionPlaybackArtifactsBuilder
+    private let hintsFileStore: MotionPlaybackHintsFileStore
+    private let hintsBuilder: MotionPlaybackHintsBuilder
+    private let rigClipFileStore: MotionRigClipFileStore
 
     init(
         modelContainer: ModelContainer,
         payloadFileStore: MotionPayloadFileStore? = nil,
-        playbackArtifactsFileStore: MotionPlaybackArtifactsFileStore? = nil,
-        playbackArtifactsBuilder: MotionPlaybackArtifactsBuilder = MotionPlaybackArtifactsBuilder()
+        hintsFileStore: MotionPlaybackHintsFileStore? = nil,
+        hintsBuilder: MotionPlaybackHintsBuilder = MotionPlaybackHintsBuilder(),
+        rigClipFileStore: MotionRigClipFileStore? = nil
     ) {
         self.modelContainer = modelContainer
         self.payloadFileStore = payloadFileStore ?? MotionPayloadFileStore()
-        self.playbackArtifactsFileStore = playbackArtifactsFileStore ?? MotionPlaybackArtifactsFileStore()
-        self.playbackArtifactsBuilder = playbackArtifactsBuilder
+        self.hintsFileStore = hintsFileStore ?? MotionPlaybackHintsFileStore()
+        self.hintsBuilder = hintsBuilder
+        self.rigClipFileStore = rigClipFileStore ?? MotionRigClipFileStore()
     }
 
     func saveTake(
         clip: MotionClip,
+        sourceClip: MotionClip? = nil,
         clipIsCanonical: Bool = false,
         captureMode: CaptureMode,
         recordingContext: MotionRecordingContext,
@@ -105,14 +109,23 @@ final class MotionArchiveStore {
         do {
             payloadURL = try payloadFileStore.write(payload, for: takeID)
             let storedClip = payload.makeMotionClip()
-            let playbackArtifacts = playbackArtifactsBuilder.build(
+            let hints = hintsBuilder.build(
                 playbackClip: storedClip,
                 captureMode: captureMode
             )
-            _ = try playbackArtifactsFileStore.write(playbackArtifacts, for: takeID)
+            _ = try hintsFileStore.write(hints, for: takeID)
+
+            let rigClip = sourceClip.map { $0.rigNormalizedForStage() }
+            _ = try rigClipFileStore.write(
+                rigClip,
+                for: takeID,
+                captureMode: captureMode,
+                recordingContext: recordingContext
+            )
         } catch {
             try? payloadFileStore.removePayload(for: takeID)
-            try? playbackArtifactsFileStore.removeArtifacts(for: takeID)
+            try? hintsFileStore.removeHints(for: takeID)
+            try? rigClipFileStore.removeRigClip(for: takeID)
             throw error
         }
 
@@ -137,7 +150,8 @@ final class MotionArchiveStore {
             try context.save()
         } catch {
             try? payloadFileStore.removePayload(for: takeID)
-            try? playbackArtifactsFileStore.removeArtifacts(for: takeID)
+            try? hintsFileStore.removeHints(for: takeID)
+            try? rigClipFileStore.removeRigClip(for: takeID)
             throw error
         }
 
@@ -159,10 +173,12 @@ final class MotionArchiveStore {
     ) throws -> StoredMotionTake {
         let payloadURL = URL(fileURLWithPath: localFilePath)
         let clip = try payloadFileStore.read(from: payloadURL).makeMotionClip()
-        let playbackArtifacts = try playbackArtifactsFileStore.read(for: takeID)
+        let hints = try hintsFileStore.read(for: takeID)
+        let rigClip = try rigClipFileStore.read(for: takeID)
         return StoredMotionTake(
             clip: clip,
-            playbackArtifacts: playbackArtifacts
+            rigClip: rigClip,
+            hints: hints
         )
     }
 

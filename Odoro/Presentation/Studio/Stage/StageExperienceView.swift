@@ -19,6 +19,10 @@ struct StageExperienceView: View {
             StagePlaybackView(studio: studio)
                 .ignoresSafeArea()
 
+            if viewModel.isPreparingPlayback {
+                preparingOverlay
+            }
+
             VStack(spacing: 0) {
                 Spacer()
             }
@@ -41,6 +45,16 @@ struct StageExperienceView: View {
         .onDisappear {
             viewModel.pausePlayback()
         }
+    }
+
+    private var preparingOverlay: some View {
+        ProgressView()
+            .progressViewStyle(.circular)
+            .tint(.white)
+            .scaleEffect(1.4)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color.black.opacity(0.45))
+            .ignoresSafeArea()
     }
 }
 
@@ -114,7 +128,7 @@ private struct StageBottomBar: View {
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(StageActionButtonStyle(fill: Color.white.opacity(0.16)))
-                .disabled(!viewModel.hasClip)
+                .disabled(!viewModel.hasClip || viewModel.isPreparingPlayback)
 
                 Button {
                     viewModel.saveCurrentClipToArchive()
@@ -123,7 +137,7 @@ private struct StageBottomBar: View {
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(StageActionButtonStyle(fill: Color.red.opacity(0.88)))
-                .disabled(!viewModel.hasClip)
+                .disabled(!viewModel.hasClip || viewModel.isPreparingPlayback)
             }
         }
         .padding(18)

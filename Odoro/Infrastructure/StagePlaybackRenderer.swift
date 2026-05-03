@@ -17,6 +17,22 @@ final class StagePlaybackRenderer: NSObject {
     nonisolated private static let stageCameraFieldOfViewDegrees: Float = 60
     nonisolated private static let defaultStageLookAt = SIMD3<Float>(0, 0.95, 0)
     nonisolated private static let defaultStageCameraPosition = SIMD3<Float>(0, 1.35, 3.4)
+    private enum RigPlaybackCorrectionTuning {
+        // Rotation — calibrated to match MotionClipStageStabilizer rotation tuning
+        nonisolated static let smallRotationDelta: Float = 0.08
+        nonisolated static let largeRotationDelta: Float = 0.75
+        nonisolated static let minimumRotationAlpha: Float = 0.08   // skeleton rotationAlphaFloor
+        nonisolated static let maximumRotationAlpha: Float = 0.88   // skeleton rotationAlphaCeiling minus quality weight
+        nonisolated static let headMaximumRotationAlpha: Float = 0.65
+
+        // Translation for root position — thresholds derived from skeleton center speed limits at 30 fps
+        // skeleton centerFullSpeedUpperBound 3.5 m/s ÷ 30 ≈ 0.117 m/frame
+        // skeleton centerDegradedSpeedUpperBound 7 m/s ÷ 30 ≈ 0.233 m/frame
+        nonisolated static let smallTranslationDelta: Float = 0.10  // ~3 m/s at 30 fps
+        nonisolated static let largeTranslationDelta: Float = 0.22  // ~6.6 m/s at 30 fps
+        nonisolated static let minimumTranslationAlpha: Float = 0.08  // skeleton centerAlphaFloor
+        nonisolated static let maximumTranslationAlpha: Float = 0.84  // skeleton center effective max
+    }
     enum SkeletonDebugLayout: Equatable {
         case rawARKit
         case canonical
@@ -117,7 +133,7 @@ final class StagePlaybackRenderer: NSObject {
 
     private weak var view: ARView?
     private var clip: MotionClip?
-    private var avatarRigClip: MotionClip?
+    private var rigClip: MotionClip?
     private var appendagePoses: MotionClipAppendagePoses?
     private var stageCameraPreset: StagePlaybackCameraPreset?
     private var playbackTimer: Timer?
@@ -135,6 +151,7 @@ final class StagePlaybackRenderer: NSObject {
     private var characterEntity: Entity?
     private var skeletalModelEntity: ModelEntity?
     private var skeletalBindPoseTransforms: [Transform] = []
+    private var precomputedRigFrames: [[Transform]]?
     private var activeRigProfile: AvatarRigProfile?
     private var hasStoppedBuiltInAnimation = false
     private var skeletonDebugLayout: SkeletonDebugLayout = .canonical
@@ -155,14 +172,18 @@ final class StagePlaybackRenderer: NSObject {
 
     func setClip(_ clip: MotionClip?) {
         self.clip = clip
+        precomputedRigFrames = nil
+        precomputeRigFramesIfReady()
 
         if let firstFrame = clip?.frames.first, !jointEntities.isEmpty, !limbEntities.isEmpty {
             render(frame: firstFrame, frameIndex: 0)
         }
     }
 
-    func setAvatarRigClip(_ clip: MotionClip?) {
-        avatarRigClip = clip
+    func setRigClip(_ clip: MotionClip?) {
+        rigClip = clip
+        precomputedRigFrames = nil
+        precomputeRigFramesIfReady()
 
         if let currentClip = self.clip, let firstFrame = currentClip.frames.first {
             render(frame: firstFrame, frameIndex: 0)
@@ -235,6 +256,7 @@ final class StagePlaybackRenderer: NSObject {
         characterEntity = nil
         skeletalModelEntity = nil
         skeletalBindPoseTransforms = []
+        precomputedRigFrames = nil
         activeRigProfile = nil
 
         guard
@@ -309,6 +331,7 @@ final class StagePlaybackRenderer: NSObject {
         let bindingCount = activeRigProfile?.bindings.count ?? 0
         let jointCount = skeletalModelEntity?.jointNames.count ?? 0
         Self.logger.info("avatar loaded — asset: \(assetName), skeletal model: \(self.skeletalModelEntity != nil), joints: \(jointCount), bindings: \(bindingCount), animations: \(animCount)")
+        precomputeRigFramesIfReady()
 
         if let view {
             let wasPlaying = playbackTimer != nil
@@ -383,6 +406,7 @@ final class StagePlaybackRenderer: NSObject {
 
     private func configureScene(in view: ARView) {
         pause()
+        precomputedRigFrames = nil
 
         view.backgroundColor = UIColor(red: 0.03, green: 0.03, blue: 0.06, alpha: 1)
         view.scene.anchors.removeAll()
@@ -539,20 +563,19 @@ final class StagePlaybackRenderer: NSObject {
     private func render(frame: MotionFrame, frameIndex: Int) {
         if currentAvatarOption.selection.kind == .avatar, characterEntity != nil {
             renderFootDirections(frameIndex: frameIndex, isVisible: false)
-            let avatarFrame = resolvedAvatarRigFrame(for: frame, frameIndex: frameIndex)
-            if let rigProfile = activeRigProfile,
-               Self.hasUsableJointRotations(avatarFrame.jointRotations),
-               renderCharacter(frame: avatarFrame, rigProfile: rigProfile) {
+            if let rigIndex = resolvedRigFrameIndex(for: frame, displayFrameIndex: frameIndex),
+               renderCharacter(rigFrameIndex: rigIndex) {
                 return
             }
 
-            if avatarFrame.jointPositions.contains(where: Self.isValidMotionPosition) {
+            let fallbackFrame = resolvedAvatarRigFrame(for: frame, frameIndex: frameIndex)
+            if fallbackFrame.jointPositions.contains(where: Self.isValidMotionPosition) {
                 // Front-camera or other source: real positions available but no rotations.
-                renderCharacterAtRoot(frame: avatarFrame)
+                renderCharacterAtRoot(frame: fallbackFrame)
             } else {
                 // Simulator / MockMotionSource: all positions invalid (y = -10).
                 // Drive the skeleton procedurally so the character animates.
-                renderCharacterFallback(frame: avatarFrame)
+                renderCharacterFallback(frame: fallbackFrame)
             }
             return
         }
@@ -606,20 +629,136 @@ final class StagePlaybackRenderer: NSObject {
     }
 
     private func resolvedAvatarRigFrame(for displayFrame: MotionFrame, frameIndex: Int) -> MotionFrame {
-        guard let avatarRigClip else {
+        guard let rigClip else {
             return displayFrame
         }
 
-        if avatarRigClip.frames.indices.contains(frameIndex) {
-            return avatarRigClip.frames[frameIndex]
+        if rigClip.frames.indices.contains(frameIndex) {
+            return rigClip.frames[frameIndex]
         }
 
-        let matchedIndex = avatarRigClip.frames.lastIndex(where: { $0.time <= displayFrame.time }) ?? 0
-        guard avatarRigClip.frames.indices.contains(matchedIndex) else {
+        let matchedIndex = rigClip.frames.lastIndex(where: { $0.time <= displayFrame.time }) ?? 0
+        guard rigClip.frames.indices.contains(matchedIndex) else {
             return displayFrame
         }
 
-        return avatarRigClip.frames[matchedIndex]
+        return rigClip.frames[matchedIndex]
+    }
+
+    // Returns the index into precomputedRigFrames for a given display frame.
+    // Mirrors the resolvedAvatarRigFrame lookup so the two stay in sync.
+    private func resolvedRigFrameIndex(for displayFrame: MotionFrame, displayFrameIndex: Int) -> Int? {
+        guard let precomputedRigFrames, !precomputedRigFrames.isEmpty else {
+            return nil
+        }
+
+        if precomputedRigFrames.indices.contains(displayFrameIndex) {
+            return displayFrameIndex
+        }
+
+        let sourceClip = rigClip ?? clip
+        return sourceClip?.frames.lastIndex(where: { $0.time <= displayFrame.time })
+    }
+
+    // MARK: - Rig frame pre-computation
+
+    private func precomputeRigFramesIfReady() {
+        let sourceClip = rigClip ?? clip
+        guard
+            let sourceClip,
+            let modelEntity = skeletalModelEntity,
+            let rigProfile = activeRigProfile
+        else { return }
+
+        precomputedRigFrames = buildRigFrames(
+            clip: sourceClip,
+            modelEntity: modelEntity,
+            rigProfile: rigProfile
+        )
+        Self.logger.debug("Precomputed rig frames: \(self.precomputedRigFrames?.count ?? 0) frames")
+    }
+
+    private func buildRigFrames(
+        clip: MotionClip,
+        modelEntity: ModelEntity,
+        rigProfile: AvatarRigProfile
+    ) -> [[Transform]] {
+        let bindPoseTransforms = skeletalBindPoseTransforms.count == modelEntity.jointTransforms.count
+            ? skeletalBindPoseTransforms
+            : modelEntity.jointTransforms
+        guard !bindPoseTransforms.isEmpty else {
+            return []
+        }
+
+        let modelJointIndices = Dictionary(
+            uniqueKeysWithValues: modelEntity.jointNames.enumerated().map { ($0.element, $0.offset) }
+        )
+
+        var result: [[Transform]] = []
+        result.reserveCapacity(clip.frames.count)
+        var previousTransforms: [Transform]? = nil
+
+        for frame in clip.frames {
+            var jointTransforms = bindPoseTransforms
+            var resolvedCount = 0
+
+            for binding in rigProfile.bindings {
+                guard
+                    let targetIndex = modelJointIndices[binding.boneName],
+                    jointTransforms.indices.contains(targetIndex),
+                    let worldPos = position(for: binding.sourceJoint, in: frame),
+                    let worldRot = rotation(for: binding.sourceJoint, in: frame)?.simdValue
+                else { continue }
+
+                let parentWorldRotationAndPosition: (rotation: simd_quatf, position: SIMD3<Float>)?
+                if let parentReference = binding.parentSourceJoint,
+                   let parentWorldRot = rotation(for: parentReference, in: frame)?.simdValue,
+                   let parentPos = position(for: parentReference, in: frame) {
+                    parentWorldRotationAndPosition = (rotation: parentWorldRot, position: parentPos)
+                } else {
+                    parentWorldRotationAndPosition = nil
+                }
+
+                let resolvedRotation = binding.rotationOffset.map { worldRot * $0.simdValue } ?? worldRot
+                let targetLocalTransform = Self.makeRigLocalTransform(
+                    preserving: bindPoseTransforms[targetIndex],
+                    worldRotation: resolvedRotation,
+                    worldPosition: worldPos,
+                    parentWorldRotation: parentWorldRotationAndPosition?.rotation,
+                    parentWorldPosition: parentWorldRotationAndPosition?.position,
+                    floorOffset: rigProfile.floorOffset,
+                    translationMode: binding.translationMode,
+                    preservesBindPoseRotation: Self.shouldPreserveBindPoseRotation(for: binding),
+                    sourceNeutralLocalRotation: neutralLocalRotation(for: binding.sourceJoint, in: frame),
+                    rotationWeight: binding.weight
+                )
+
+                let isRootJoint = binding.translationMode == .direct
+                    && binding.sourceJoint.canonicalJoint == .root
+                let isHeadJoint = binding.sourceJoint.canonicalJoint == .head
+                let maxRotAlpha = isHeadJoint
+                    ? RigPlaybackCorrectionTuning.headMaximumRotationAlpha
+                    : RigPlaybackCorrectionTuning.maximumRotationAlpha
+                jointTransforms[targetIndex] = Self.stabilizedRigLocalTransform(
+                    previous: previousTransforms.flatMap {
+                        $0.indices.contains(targetIndex) ? $0[targetIndex] : nil
+                    },
+                    target: targetLocalTransform,
+                    smoothsTranslation: isRootJoint,
+                    maximumRotationAlpha: maxRotAlpha
+                )
+                resolvedCount += 1
+            }
+
+            if resolvedCount > 0 {
+                result.append(jointTransforms)
+                previousTransforms = jointTransforms
+            } else {
+                result.append(bindPoseTransforms)
+            }
+        }
+
+        return result
     }
 
     private func renderFootDirections(frameIndex: Int, isVisible: Bool) {
@@ -863,74 +1002,20 @@ final class StagePlaybackRenderer: NSObject {
         }
     }
 
-    /// Drives the skeleton joint transforms using the active rig profile.
-    private func renderCharacter(frame: MotionFrame, rigProfile: AvatarRigProfile) -> Bool {
-        guard let modelEntity = skeletalModelEntity else { return false }
-        var jointTransforms = modelEntity.jointTransforms
-        guard !jointTransforms.isEmpty else {
-            Self.logger.debug("Skipping skeletal avatar pose because the model exposes no joint transforms")
-            return false
-        }
-        let bindPoseTransforms = skeletalBindPoseTransforms.count == jointTransforms.count
-            ? skeletalBindPoseTransforms
-            : jointTransforms
+    /// Applies pre-computed joint transforms for the given rig frame index.
+    private func renderCharacter(rigFrameIndex: Int) -> Bool {
+        guard
+            let precomputedRigFrames,
+            precomputedRigFrames.indices.contains(rigFrameIndex),
+            let modelEntity = skeletalModelEntity
+        else { return false }
 
-        let modelJointIndices = Dictionary(
-            uniqueKeysWithValues: modelEntity.jointNames.enumerated().map { ($0.element, $0.offset) }
-        )
-        var resolvedJointCount = 0
-
-        for binding in rigProfile.bindings {
-            guard
-                let targetIndex = modelJointIndices[binding.boneName],
-                jointTransforms.indices.contains(targetIndex),
-                let worldPos = position(for: binding.sourceJoint, in: frame)
-            else {
-                continue
-            }
-
-            let parentWorldRotationAndPosition: (rotation: simd_quatf, position: SIMD3<Float>)?
-            if let parentReference = binding.parentSourceJoint,
-               let parentWorldRot = rotation(for: parentReference, in: frame)?.simdValue,
-               let parentPos = position(for: parentReference, in: frame) {
-                parentWorldRotationAndPosition = (rotation: parentWorldRot, position: parentPos)
-            } else {
-                parentWorldRotationAndPosition = nil
-            }
-
-            if let worldRot = rotation(for: binding.sourceJoint, in: frame)?.simdValue {
-                let resolvedRotation = binding.rotationOffset.map { worldRot * $0.simdValue } ?? worldRot
-                jointTransforms[targetIndex] = Self.makeRigLocalTransform(
-                    preserving: bindPoseTransforms[targetIndex],
-                    worldRotation: resolvedRotation,
-                    worldPosition: worldPos,
-                    parentWorldRotation: parentWorldRotationAndPosition?.rotation,
-                    parentWorldPosition: parentWorldRotationAndPosition?.position,
-                    floorOffset: rigProfile.floorOffset,
-                    translationMode: binding.translationMode,
-                    preservesBindPoseRotation: Self.shouldPreserveBindPoseRotation(for: binding),
-                    sourceNeutralLocalRotation: neutralLocalRotation(for: binding.sourceJoint, in: frame),
-                    rotationWeight: binding.weight
-                )
-            } else {
-                continue
-            }
-            resolvedJointCount += 1
-        }
-
-        guard resolvedJointCount > 0 else {
-            Self.logger.debug("Skipping skeletal avatar pose because no rig bindings resolved for this frame")
-            return false
-        }
-
-        // Stop the built-in animation the first time ARKit data drives the joints
-        // so it doesn't overwrite the live joint transforms.
         if !hasStoppedBuiltInAnimation {
             characterEntity?.stopAllAnimations()
             hasStoppedBuiltInAnimation = true
         }
 
-        modelEntity.jointTransforms = jointTransforms
+        modelEntity.jointTransforms = precomputedRigFrames[rigFrameIndex]
         return true
     }
 
@@ -1087,6 +1172,47 @@ final class StagePlaybackRenderer: NSObject {
         return simd_slerp(simd_quatf(angle: 0, axis: SIMD3<Float>(0, 1, 0)), rotation, clampedWeight)
     }
 
+    nonisolated static func stabilizedRigLocalTransform(
+        previous: Transform?,
+        target: Transform,
+        smoothsTranslation: Bool = false,
+        maximumRotationAlpha: Float = RigPlaybackCorrectionTuning.maximumRotationAlpha
+    ) -> Transform {
+        guard let previous else {
+            return target
+        }
+
+        let rotationDelta = angleBetween(previous.rotation, target.rotation)
+        let rotationAlpha = continuityBlendAlpha(
+            delta: rotationDelta,
+            smallDelta: RigPlaybackCorrectionTuning.smallRotationDelta,
+            largeDelta: RigPlaybackCorrectionTuning.largeRotationDelta,
+            minimumAlpha: RigPlaybackCorrectionTuning.minimumRotationAlpha,
+            maximumAlpha: maximumRotationAlpha
+        )
+
+        let smoothedTranslation: SIMD3<Float>
+        if smoothsTranslation {
+            let translationDelta = simd_length(target.translation - previous.translation)
+            let translationAlpha = continuityBlendAlpha(
+                delta: translationDelta,
+                smallDelta: RigPlaybackCorrectionTuning.smallTranslationDelta,
+                largeDelta: RigPlaybackCorrectionTuning.largeTranslationDelta,
+                minimumAlpha: RigPlaybackCorrectionTuning.minimumTranslationAlpha,
+                maximumAlpha: RigPlaybackCorrectionTuning.maximumTranslationAlpha
+            )
+            smoothedTranslation = previous.translation + (target.translation - previous.translation) * translationAlpha
+        } else {
+            smoothedTranslation = target.translation
+        }
+
+        return Transform(
+            scale: target.scale,
+            rotation: simd_slerp(previous.rotation, target.rotation, rotationAlpha),
+            translation: smoothedTranslation
+        )
+    }
+
     /// Moves the character entity using the procedural hip position.
     /// Used in Simulator where MockMotionSource produces no valid ARKit joint positions.
     /// The character stays in its USD bind pose but translates with the animation rhythm,
@@ -1147,5 +1273,33 @@ final class StagePlaybackRenderer: NSObject {
 
     nonisolated private static func isValidMotionPosition(_ position: SIMD3<Float>) -> Bool {
         position.x.isFinite && position.y.isFinite && position.z.isFinite && position.y > -5
+    }
+
+    nonisolated private static func continuityBlendAlpha(
+        delta: Float,
+        smallDelta: Float,
+        largeDelta: Float,
+        minimumAlpha: Float,
+        maximumAlpha: Float
+    ) -> Float {
+        guard largeDelta > smallDelta else {
+            return maximumAlpha
+        }
+
+        if delta <= smallDelta {
+            return maximumAlpha
+        }
+
+        if delta >= largeDelta {
+            return minimumAlpha
+        }
+
+        let progress = (delta - smallDelta) / (largeDelta - smallDelta)
+        return maximumAlpha + (minimumAlpha - maximumAlpha) * progress
+    }
+
+    nonisolated private static func angleBetween(_ lhs: simd_quatf, _ rhs: simd_quatf) -> Float {
+        let dot = abs(simd_dot(lhs.vector, rhs.vector))
+        return 2 * acos(min(max(dot, -1), 1))
     }
 }

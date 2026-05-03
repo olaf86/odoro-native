@@ -1,11 +1,11 @@
 //
-//  MotionPlaybackArtifactsFileStore.swift
+//  MotionPlaybackHintsFileStore.swift
 //  Odoro
 //
 
 import Foundation
 
-struct MotionPlaybackArtifactsFileStore {
+struct MotionPlaybackHintsFileStore {
     private let fileManager: FileManager
     private let baseDirectoryURL: URL
 
@@ -19,43 +19,43 @@ struct MotionPlaybackArtifactsFileStore {
         }
     }
 
-    func artifactsURL(for takeID: UUID) -> URL {
-        baseDirectoryURL.appending(path: "\(takeID.uuidString).odoro.artifacts", directoryHint: .notDirectory)
+    func hintsURL(for takeID: UUID) -> URL {
+        baseDirectoryURL.appending(path: "\(takeID.uuidString).odoro.hints", directoryHint: .notDirectory)
     }
 
     @discardableResult
-    func write(_ artifacts: MotionPlaybackArtifacts?, for takeID: UUID) throws -> URL? {
-        guard let artifacts else {
+    func write(_ hints: MotionPlaybackHints?, for takeID: UUID) throws -> URL? {
+        guard let hints else {
             return nil
         }
 
         try ensureBaseDirectoryExists()
-        let artifactsURL = artifactsURL(for: takeID)
+        let hintsURL = hintsURL(for: takeID)
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
-        let data = try encoder.encode(artifacts)
-        try data.write(to: artifactsURL, options: .atomic)
-        return artifactsURL
+        let data = try encoder.encode(hints)
+        try data.write(to: hintsURL, options: .atomic)
+        return hintsURL
     }
 
-    func read(for takeID: UUID) throws -> MotionPlaybackArtifacts? {
-        let artifactsURL = artifactsURL(for: takeID)
-        guard fileManager.fileExists(atPath: artifactsURL.path()) else {
+    func read(for takeID: UUID) throws -> MotionPlaybackHints? {
+        let hintsURL = hintsURL(for: takeID)
+        guard fileManager.fileExists(atPath: hintsURL.path()) else {
             return nil
         }
 
         let decoder = JSONDecoder()
-        let data = try Data(contentsOf: artifactsURL)
-        return try decoder.decode(MotionPlaybackArtifacts.self, from: data)
+        let data = try Data(contentsOf: hintsURL)
+        return try decoder.decode(MotionPlaybackHints.self, from: data)
     }
 
-    func removeArtifacts(for takeID: UUID) throws {
-        let artifactsURL = artifactsURL(for: takeID)
-        guard fileManager.fileExists(atPath: artifactsURL.path()) else {
+    func removeHints(for takeID: UUID) throws {
+        let hintsURL = hintsURL(for: takeID)
+        guard fileManager.fileExists(atPath: hintsURL.path()) else {
             return
         }
 
-        try fileManager.removeItem(at: artifactsURL)
+        try fileManager.removeItem(at: hintsURL)
     }
 
     private func ensureBaseDirectoryExists() throws {

@@ -29,7 +29,8 @@ extension StudioViewModel {
             currentSessionID = take.sessionID
             currentTakeID = take.id
             playbackCaptureMode = take.captureMode
-            storedPlaybackArtifacts = storedTake.playbackArtifacts
+            storedHints = storedTake.hints
+            storedRigClip = storedTake.rigClip
             stageRenderer.setUsesProceduralMockPlayback(take.captureMode == .mock)
             interactor.replaceCurrentClip(storedTake.clip)
             try refreshCurrentSessionTakes()
@@ -117,7 +118,8 @@ extension StudioViewModel {
                 withID: saveResult.takeID,
                 fromLocalFilePath: saveResult.localFilePath
             )
-            storedPlaybackArtifacts = storedTake.playbackArtifacts
+            storedHints = storedTake.hints
+            storedRigClip = storedTake.rigClip
             stageRenderer.setUsesProceduralMockPlayback(false)
             interactor.replaceCurrentClip(storedTake.clip, sourceClip: clip)
             try refreshCurrentSessionTakes()
@@ -141,26 +143,25 @@ extension StudioViewModel {
     }
 
     func persistCurrentClipIfPossible() {
-        guard
-            let currentClip = interactor.currentClip
-        else {
+        guard let currentClip = interactor.currentClip else {
             return
         }
 
         do {
-            try persistClip(currentClip, captureMode: captureMode)
+            try persistClip(currentClip, sourceClip: interactor.sourceClip, captureMode: captureMode)
         } catch {
             print("Failed to persist motion take: \(error)")
         }
     }
 
-    func persistClip(_ clip: MotionClip, captureMode: CaptureMode) throws {
+    func persistClip(_ clip: MotionClip, sourceClip: MotionClip? = nil, captureMode: CaptureMode) throws {
         guard let archiveStore else {
             return
         }
 
         let saveResult = try archiveStore.saveTake(
             clip: clip,
+            sourceClip: sourceClip,
             clipIsCanonical: true,
             captureMode: captureMode,
             recordingContext: recordingContext,
@@ -173,7 +174,8 @@ extension StudioViewModel {
             withID: saveResult.takeID,
             fromLocalFilePath: saveResult.localFilePath
         )
-        storedPlaybackArtifacts = storedTake.playbackArtifacts
+        storedHints = storedTake.hints
+        storedRigClip = storedTake.rigClip
         stageRenderer.setUsesProceduralMockPlayback(captureMode == .mock)
         interactor.replaceCurrentClip(
             playbackClip(for: clip, savedClip: storedTake.clip, captureMode: captureMode),
@@ -220,7 +222,8 @@ extension StudioViewModel {
             withID: saveResult.takeID,
             fromLocalFilePath: saveResult.localFilePath
         )
-        storedPlaybackArtifacts = storedTake.playbackArtifacts
+        storedHints = storedTake.hints
+        storedRigClip = storedTake.rigClip
         try refreshCurrentSessionTakes()
 
         guard let persistedTake = currentTake else {

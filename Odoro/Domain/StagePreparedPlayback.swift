@@ -233,7 +233,7 @@ struct StagePreparedPlaybackBuilder: Sendable {
         let sourceClip: MotionClip?
         let playbackClip: MotionClip?
         let captureMode: CaptureMode
-        let playbackArtifacts: MotionPlaybackArtifacts?
+        let hints: MotionPlaybackHints?
     }
 
     private enum VariantClipSeed {
@@ -312,18 +312,18 @@ struct StagePreparedPlaybackBuilder: Sendable {
         case stabilized
 
         nonisolated
-        func storedArtifacts(in context: VariantBuildContext) -> StagePlaybackClipArtifacts? {
-            guard let stagePlayback = context.playbackArtifacts?.stagePlayback else {
+        func storedArtifacts(in context: VariantBuildContext) -> StagePlaybackClipHints? {
+            guard let stage = context.hints?.stage else {
                 return nil
             }
 
             return switch self {
             case .raw:
-                stagePlayback.raw
+                stage.raw
             case .canonical:
-                stagePlayback.canonical
+                stage.canonical
             case .stabilized:
-                stagePlayback.stabilized
+                stage.stabilized
             }
         }
     }
@@ -560,13 +560,13 @@ struct StagePreparedPlaybackBuilder: Sendable {
         sourceClip: MotionClip?,
         playbackClip: MotionClip?,
         captureMode: CaptureMode,
-        playbackArtifacts: MotionPlaybackArtifacts? = nil
+        hints: MotionPlaybackHints? = nil
     ) -> StagePreparedPlayback {
         let context = VariantBuildContext(
             sourceClip: sourceClip,
             playbackClip: playbackClip,
             captureMode: captureMode,
-            playbackArtifacts: playbackArtifacts
+            hints: hints
         )
 
         let variants = VariantRecipe.all.compactMap { recipe in

@@ -45,6 +45,10 @@ final class StageViewModel: ObservableObject {
         studio.state.hasClip
     }
 
+    var isPreparingPlayback: Bool {
+        studio.isPreparingPlayback
+    }
+
     func goBack() {
         studio.goBack()
     }
