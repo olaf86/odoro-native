@@ -22,10 +22,7 @@ extension StudioViewModel {
                 interactor.updateMaximumCaptureDuration(recordingContext.fixedCaptureDuration)
             }
 
-            let storedTake = try archiveStore.loadStoredTake(
-                withID: take.id,
-                fromLocalFilePath: take.localFilePath
-            )
+            let storedTake = try archiveStore.loadStoredTake(withID: take.id)
             currentSessionID = take.sessionID
             currentTakeID = take.id
             playbackCaptureMode = take.captureMode
@@ -100,13 +97,8 @@ extension StudioViewModel {
                 return
             }
 
-            let normalizedClip = Self
-                .makeCapturedClipPreparer(for: .importedVideo)
-                .prepareCapturedClip(clip)
             let saveResult = try archiveStore.saveTake(
-                clip: normalizedClip,
                 sourceClip: clip,
-                clipIsCanonical: true,
                 captureMode: .importedVideo,
                 recordingContext: recordingContext,
                 existingSessionID: currentSessionID
@@ -115,14 +107,11 @@ extension StudioViewModel {
             currentSessionID = saveResult.sessionID
             currentTakeID = saveResult.takeID
             playbackCaptureMode = .importedVideo
-            let storedTake = try archiveStore.loadStoredTake(
-                withID: saveResult.takeID,
-                fromLocalFilePath: saveResult.localFilePath
-            )
+            let storedTake = try archiveStore.loadStoredTake(withID: saveResult.takeID)
             storedHints = storedTake.hints
             storedRigClip = storedTake.rigClip
             stageRenderer.setUsesProceduralMockPlayback(false)
-            interactor.replaceCurrentClip(storedTake.clip, sourceClip: storedTake.sourceClip ?? clip)
+            interactor.replaceCurrentClip(storedTake.clip, sourceClip: storedTake.sourceClip)
             try refreshCurrentSessionTakes()
             refreshLibrary()
             interactor.setStatusText(L10n.statusVideoImportComplete)
@@ -144,26 +133,24 @@ extension StudioViewModel {
     }
 
     func persistCurrentClipIfPossible() {
-        guard let currentClip = interactor.currentClip else {
+        guard let sourceClip = interactor.sourceClip else {
             return
         }
 
         do {
-            try persistClip(currentClip, sourceClip: interactor.sourceClip, captureMode: captureMode)
+            try persistClip(sourceClip, captureMode: captureMode)
         } catch {
             print("Failed to persist motion take: \(error)")
         }
     }
 
-    func persistClip(_ clip: MotionClip, sourceClip: MotionClip? = nil, captureMode: CaptureMode) throws {
+    func persistClip(_ sourceClip: MotionClip, captureMode: CaptureMode) throws {
         guard let archiveStore else {
             return
         }
 
         let saveResult = try archiveStore.saveTake(
-            clip: clip,
             sourceClip: sourceClip,
-            clipIsCanonical: true,
             captureMode: captureMode,
             recordingContext: recordingContext,
             existingSessionID: currentSessionID
@@ -171,14 +158,11 @@ extension StudioViewModel {
         currentSessionID = saveResult.sessionID
         currentTakeID = saveResult.takeID
         playbackCaptureMode = captureMode
-        let storedTake = try archiveStore.loadStoredTake(
-            withID: saveResult.takeID,
-            fromLocalFilePath: saveResult.localFilePath
-        )
+        let storedTake = try archiveStore.loadStoredTake(withID: saveResult.takeID)
         storedHints = storedTake.hints
         storedRigClip = storedTake.rigClip
         stageRenderer.setUsesProceduralMockPlayback(captureMode == .mock)
-        interactor.replaceCurrentClip(storedTake.clip, sourceClip: storedTake.sourceClip ?? interactor.sourceClip)
+        interactor.replaceCurrentClip(storedTake.clip, sourceClip: storedTake.sourceClip)
         try refreshCurrentSessionTakes()
     }
 
@@ -189,25 +173,20 @@ extension StudioViewModel {
 
         guard
             let archiveStore,
-            let currentClip = interactor.currentClip
+            let sourceClip = interactor.sourceClip
         else {
-            throw ConfirmationError.missingClip
+            throw ConfirmationError.missingSourceClip
         }
 
         let saveResult = try archiveStore.saveTake(
-            clip: currentClip,
-            sourceClip: interactor.sourceClip,
-            clipIsCanonical: true,
+            sourceClip: sourceClip,
             captureMode: captureMode,
             recordingContext: recordingContext,
             existingSessionID: currentSessionID
         )
         currentSessionID = saveResult.sessionID
         currentTakeID = saveResult.takeID
-        let storedTake = try archiveStore.loadStoredTake(
-            withID: saveResult.takeID,
-            fromLocalFilePath: saveResult.localFilePath
-        )
+        let storedTake = try archiveStore.loadStoredTake(withID: saveResult.takeID)
         storedHints = storedTake.hints
         storedRigClip = storedTake.rigClip
         try refreshCurrentSessionTakes()
@@ -252,6 +231,6 @@ extension StudioViewModel {
 }
 
 private enum ConfirmationError: Error {
-    case missingClip
+    case missingSourceClip
     case missingTakeAfterSave
 }

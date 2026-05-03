@@ -1,11 +1,11 @@
 //
-//  MotionTakeDerivation.swift
+//  MotionTakeArtifacts.swift
 //  Odoro
 //
 
 import Foundation
 
-struct MotionPlaybackClipDeriver: CapturedClipPreparing, Sendable {
+struct MotionPlaybackClipPreparer: CapturedClipPreparing, Sendable {
     let captureMode: CaptureMode
 
     nonisolated func prepareCapturedClip(_ clip: MotionClip) -> MotionClip {
@@ -20,13 +20,13 @@ struct MotionPlaybackClipDeriver: CapturedClipPreparing, Sendable {
     }
 }
 
-struct MotionTakeDerivedArtifacts: Sendable {
+struct MotionTakeArtifacts: Sendable {
     let playbackClip: MotionClip
     let rigClip: MotionClip?
     let hints: MotionPlaybackHints?
 }
 
-struct MotionTakeDerivationBuilder: Sendable {
+struct MotionTakeArtifactsBuilder: Sendable {
     let hintsBuilder: MotionPlaybackHintsBuilder
 
     nonisolated init(
@@ -35,15 +35,15 @@ struct MotionTakeDerivationBuilder: Sendable {
         self.hintsBuilder = hintsBuilder
     }
 
-    nonisolated func deriveArtifacts(
+    nonisolated func buildArtifacts(
         from sourceClip: MotionClip,
         captureMode: CaptureMode
-    ) -> MotionTakeDerivedArtifacts {
-        let playbackClip = MotionPlaybackClipDeriver(captureMode: captureMode)
+    ) -> MotionTakeArtifacts {
+        let playbackClip = MotionPlaybackClipPreparer(captureMode: captureMode)
             .prepareCapturedClip(sourceClip)
         let rigClip = sourceClip.rigNormalizedForStage()
 
-        return MotionTakeDerivedArtifacts(
+        return MotionTakeArtifacts(
             playbackClip: playbackClip,
             rigClip: rigClip,
             hints: hintsBuilder.build(
@@ -53,26 +53,11 @@ struct MotionTakeDerivationBuilder: Sendable {
         )
     }
 
-    nonisolated func resolveStoredTake(
-        cachedPlaybackClip: MotionClip,
-        sourceClip: MotionClip?,
-        cachedRigClip: MotionClip?,
-        cachedHints: MotionPlaybackHints?,
+    nonisolated func buildStoredTake(
+        from sourceClip: MotionClip,
         captureMode: CaptureMode
     ) -> StoredMotionTake {
-        guard let sourceClip else {
-            return StoredMotionTake(
-                clip: cachedPlaybackClip,
-                sourceClip: nil,
-                rigClip: cachedRigClip,
-                hints: cachedHints ?? hintsBuilder.build(
-                    playbackClip: cachedPlaybackClip,
-                    captureMode: captureMode
-                )
-            )
-        }
-
-        let derived = deriveArtifacts(from: sourceClip, captureMode: captureMode)
+        let derived = buildArtifacts(from: sourceClip, captureMode: captureMode)
         return StoredMotionTake(
             clip: derived.playbackClip,
             sourceClip: sourceClip,

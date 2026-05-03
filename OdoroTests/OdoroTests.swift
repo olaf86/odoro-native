@@ -1777,14 +1777,11 @@ struct OdoroTests {
         }
 
         let saveResult = try archiveStore.saveTake(
-            clip: runtimeClip,
+            sourceClip: runtimeClip,
             captureMode: .rearBody3D,
             recordingContext: .defaultMetronomeLoop
         )
-        let storedTake = try archiveStore.loadStoredTake(
-            withID: saveResult.takeID,
-            fromLocalFilePath: saveResult.localFilePath
-        )
+        let storedTake = try archiveStore.loadStoredTake(withID: saveResult.takeID)
         let reloadedClip = storedTake.clip
 
         #expect(reloadedClip.frameCount == 1)
@@ -1793,7 +1790,7 @@ struct OdoroTests {
         #expect(storedTake.hints?.stage?.stabilized.appendagePoses != nil)
 
         let secondSaveResult = try archiveStore.saveTake(
-            clip: runtimeClip,
+            sourceClip: runtimeClip,
             captureMode: .rearBody3D,
             recordingContext: .defaultMetronomeLoop,
             existingSessionID: saveResult.sessionID
@@ -1823,15 +1820,6 @@ struct OdoroTests {
             sourceClipFileStore: MotionSourceClipFileStore(baseDirectoryURL: tempDirectory),
             hintsFileStore: MotionPlaybackHintsFileStore(baseDirectoryURL: tempDirectory)
         )
-        let playbackClip = MotionClip(frames: [
-            Self.canonicalFrame(
-                time: 0,
-                overrides: [
-                    .root: SIMD3<Float>(9, 9, 9),
-                    .head: SIMD3<Float>(9, 9.5, 9),
-                ]
-            )
-        ])
         let sourceClip = MotionClip(frames: [
             MotionFrame(
                 time: 0,
@@ -1847,7 +1835,7 @@ struct OdoroTests {
                 ]
             )
         ])
-        let expectedPlaybackClip = MotionPlaybackClipDeriver(captureMode: .rearBody3D)
+        let expectedPlaybackClip = MotionPlaybackClipPreparer(captureMode: .rearBody3D)
             .prepareCapturedClip(sourceClip)
 
         defer {
@@ -1855,28 +1843,22 @@ struct OdoroTests {
         }
 
         let saveResult = try archiveStore.saveTake(
-            clip: playbackClip,
             sourceClip: sourceClip,
-            clipIsCanonical: true,
             captureMode: .rearBody3D,
             recordingContext: .defaultMetronomeLoop
         )
         let sourceClipFileStore = MotionSourceClipFileStore(baseDirectoryURL: tempDirectory)
         let sourceClipData = try Data(contentsOf: sourceClipFileStore.sourceClipURL(for: saveResult.takeID))
-        let storedTake = try archiveStore.loadStoredTake(
-            withID: saveResult.takeID,
-            fromLocalFilePath: saveResult.localFilePath
-        )
+        let storedTake = try archiveStore.loadStoredTake(withID: saveResult.takeID)
 
         #expect(sourceClipData.starts(with: Data("OSRC".utf8)))
-        let reloadedSourceClip = try #require(storedTake.sourceClip)
+        let reloadedSourceClip = storedTake.sourceClip
         #expect(reloadedSourceClip.frameCount == 1)
         #expect(reloadedSourceClip.frames[0].jointPositions.count == 3)
         #expect(reloadedSourceClip.frames[0].jointPositions[1] == sourceClip.frames[0].jointPositions[1])
         #expect(reloadedSourceClip.frames[0].jointRotations?[0] == sourceClip.frames[0].jointRotations?[0])
         #expect(storedTake.clip.frameCount == expectedPlaybackClip.frameCount)
         #expect(storedTake.clip.frames[0].jointPositions == expectedPlaybackClip.frames[0].jointPositions)
-        #expect(storedTake.clip.frames[0].jointPositions != playbackClip.frames[0].jointPositions)
     }
 
     @MainActor
@@ -1910,12 +1892,12 @@ struct OdoroTests {
         }
 
         let firstSave = try archiveStore.saveTake(
-            clip: runtimeClip,
+            sourceClip: runtimeClip,
             captureMode: .rearBody3D,
             recordingContext: .defaultMetronomeLoop
         )
         let secondSave = try archiveStore.saveTake(
-            clip: runtimeClip,
+            sourceClip: runtimeClip,
             captureMode: .rearBody3D,
             recordingContext: .defaultMetronomeLoop,
             existingSessionID: firstSave.sessionID
@@ -1972,15 +1954,12 @@ struct OdoroTests {
         }
 
         let saveResult = try archiveStore.saveTake(
-            clip: runtimeClip,
+            sourceClip: runtimeClip,
             captureMode: .importedVideo,
             recordingContext: .defaultMetronomeLoop
         )
         let summaries = try archiveStore.fetchTakeSummaries(inSessionID: saveResult.sessionID)
-        let storedTake = try archiveStore.loadStoredTake(
-            withID: saveResult.takeID,
-            fromLocalFilePath: saveResult.localFilePath
-        )
+        let storedTake = try archiveStore.loadStoredTake(withID: saveResult.takeID)
 
         #expect(summaries.count == 1)
         #expect(summaries.first?.captureMode == .importedVideo)

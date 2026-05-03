@@ -465,7 +465,7 @@
 				DEVELOPMENT_TEAM = 48C76HC76Y;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = Configs/Odoro-Info.plist;
+				INFOPLIST_FILE = "Configs/Odoro-Info.plist";
 				INFOPLIST_KEY_CFBundleIconName = AppIcon;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Camera access is required to capture body motion.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -501,7 +501,7 @@
 				DEVELOPMENT_TEAM = 48C76HC76Y;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = Configs/Odoro-Info.plist;
+				INFOPLIST_FILE = "Configs/Odoro-Info.plist";
 				INFOPLIST_KEY_CFBundleIconName = AppIcon;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Camera access is required to capture body motion.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -744,7 +744,7 @@
 				DEVELOPMENT_TEAM = 48C76HC76Y;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = Configs/Odoro-Info.plist;
+				INFOPLIST_FILE = "Configs/Odoro-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = Odoro;
 				INFOPLIST_KEY_CFBundleIconName = AppIcon;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Camera access is required to capture body motion.";
@@ -783,7 +783,7 @@
 				DEVELOPMENT_TEAM = 48C76HC76Y;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = Configs/Odoro-Info.plist;
+				INFOPLIST_FILE = "Configs/Odoro-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = Odoro;
 				INFOPLIST_KEY_CFBundleIconName = AppIcon;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Camera access is required to capture body motion.";
@@ -908,7 +908,7 @@
 				DEVELOPMENT_TEAM = 48C76HC76Y;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = Configs/Odoro-Info.plist;
+				INFOPLIST_FILE = "Configs/Odoro-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "Odoro Staging";
 				INFOPLIST_KEY_CFBundleIconName = AppIcon;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Camera access is required to capture body motion.";
@@ -947,7 +947,7 @@
 				DEVELOPMENT_TEAM = 48C76HC76Y;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = Configs/Odoro-Info.plist;
+				INFOPLIST_FILE = "Configs/Odoro-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "Odoro Staging";
 				INFOPLIST_KEY_CFBundleIconName = AppIcon;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Camera access is required to capture body motion.";
@@ -986,7 +986,7 @@
 				DEVELOPMENT_TEAM = 48C76HC76Y;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = Configs/Odoro-Info.plist;
+				INFOPLIST_FILE = "Configs/Odoro-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "Odoro Staging";
 				INFOPLIST_KEY_CFBundleIconName = AppIcon;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Camera access is required to capture body motion.";
@@ -1025,7 +1025,7 @@
 				DEVELOPMENT_TEAM = 48C76HC76Y;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = Configs/Odoro-Info.plist;
+				INFOPLIST_FILE = "Configs/Odoro-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "Odoro Staging";
 				INFOPLIST_KEY_CFBundleIconName = AppIcon;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Camera access is required to capture body motion.";

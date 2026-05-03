@@ -61,13 +61,23 @@ struct MotionTakeSummary: Identifiable, Sendable {
 
 @MainActor
 final class MotionArchiveStore {
+    enum ArchiveStoreError: LocalizedError {
+        case missingTake(UUID)
+
+        var errorDescription: String? {
+            switch self {
+            case let .missingTake(takeID):
+                "The motion take \(takeID.uuidString) could not be found."
+            }
+        }
+    }
+
     private let modelContainer: ModelContainer
     private let payloadFileStore: MotionPayloadFileStore
     private let sourceClipFileStore: MotionSourceClipFileStore
     private let hintsFileStore: MotionPlaybackHintsFileStore
-    private let hintsBuilder: MotionPlaybackHintsBuilder
     private let rigClipFileStore: MotionRigClipFileStore
-    private let derivationBuilder: MotionTakeDerivationBuilder
+    private let artifactsBuilder: MotionTakeArtifactsBuilder
 
     init(
         modelContainer: ModelContainer,
@@ -76,21 +86,18 @@ final class MotionArchiveStore {
         hintsFileStore: MotionPlaybackHintsFileStore? = nil,
         hintsBuilder: MotionPlaybackHintsBuilder = MotionPlaybackHintsBuilder(),
         rigClipFileStore: MotionRigClipFileStore? = nil,
-        derivationBuilder: MotionTakeDerivationBuilder? = nil
+        artifactsBuilder: MotionTakeArtifactsBuilder? = nil
     ) {
         self.modelContainer = modelContainer
         self.payloadFileStore = payloadFileStore ?? MotionPayloadFileStore()
         self.sourceClipFileStore = sourceClipFileStore ?? MotionSourceClipFileStore()
         self.hintsFileStore = hintsFileStore ?? MotionPlaybackHintsFileStore()
-        self.hintsBuilder = hintsBuilder
         self.rigClipFileStore = rigClipFileStore ?? MotionRigClipFileStore()
-        self.derivationBuilder = derivationBuilder ?? MotionTakeDerivationBuilder(hintsBuilder: hintsBuilder)
+        self.artifactsBuilder = artifactsBuilder ?? MotionTakeArtifactsBuilder(hintsBuilder: hintsBuilder)
     }
 
     func saveTake(
-        clip: MotionClip,
-        sourceClip: MotionClip? = nil,
-        clipIsCanonical: Bool = false,
+        sourceClip: MotionClip,
         captureMode: CaptureMode,
         recordingContext: MotionRecordingContext,
         existingSessionID: UUID? = nil,
@@ -103,30 +110,14 @@ final class MotionArchiveStore {
             context: context
         )
         let takeID = UUID()
-        let storedPlaybackClip: MotionClip
-        let resolvedRigClip: MotionClip?
-        let resolvedHints: MotionPlaybackHints?
-        let resolvedClipIsCanonical: Bool
-
-        if let sourceClip {
-            let derived = derivationBuilder.deriveArtifacts(
-                from: sourceClip,
-                captureMode: captureMode
-            )
-            storedPlaybackClip = derived.playbackClip
-            resolvedRigClip = derived.rigClip
-            resolvedHints = derived.hints
-            resolvedClipIsCanonical = true
-        } else {
-            storedPlaybackClip = clip
-            resolvedRigClip = nil
-            resolvedHints = nil
-            resolvedClipIsCanonical = clipIsCanonical
-        }
+        let artifacts = artifactsBuilder.buildArtifacts(
+            from: sourceClip,
+            captureMode: captureMode
+        )
 
         let payload = MotionPayload(
-            clip: storedPlaybackClip,
-            clipIsCanonical: resolvedClipIsCanonical,
+            clip: artifacts.playbackClip,
+            clipIsCanonical: true,
             captureMode: captureMode,
             recordingContext: recordingContext,
             sourcePlatform: "iOS",
@@ -143,13 +134,9 @@ final class MotionArchiveStore {
                 captureMode: captureMode,
                 sourceBackend: sourceBackend
             )
-            let hints = resolvedHints ?? hintsBuilder.build(
-                playbackClip: cachedPlaybackClip,
-                captureMode: captureMode
-            )
-            _ = try hintsFileStore.write(hints, for: takeID)
+            _ = try hintsFileStore.write(artifacts.hints, for: takeID)
             _ = try rigClipFileStore.write(
-                resolvedRigClip,
+                artifacts.rigClip,
                 for: takeID,
                 captureMode: captureMode,
                 recordingContext: recordingContext
@@ -201,22 +188,14 @@ final class MotionArchiveStore {
         return try payloadFileStore.read(from: payloadURL).makeMotionClip()
     }
 
-    func loadStoredTake(
-        withID takeID: UUID,
-        fromLocalFilePath localFilePath: String
-    ) throws -> StoredMotionTake {
-        let payloadURL = URL(fileURLWithPath: localFilePath)
-        let payload = try payloadFileStore.read(from: payloadURL)
-        let cachedPlaybackClip = payload.makeMotionClip()
+    func loadStoredTake(withID takeID: UUID) throws -> StoredMotionTake {
         let sourceClip = try sourceClipFileStore.read(for: takeID)
-        let cachedHints = try hintsFileStore.read(for: takeID)
-        let cachedRigClip = try rigClipFileStore.read(for: takeID)
-        return derivationBuilder.resolveStoredTake(
-            cachedPlaybackClip: cachedPlaybackClip,
-            sourceClip: sourceClip,
-            cachedRigClip: cachedRigClip,
-            cachedHints: cachedHints,
-            captureMode: payload.captureMode
+        guard let summary = try fetchTakeSummary(withID: takeID) else {
+            throw ArchiveStoreError.missingTake(takeID)
+        }
+        return artifactsBuilder.buildStoredTake(
+            from: sourceClip,
+            captureMode: summary.captureMode
         )
     }
 
@@ -252,6 +231,16 @@ final class MotionArchiveStore {
         let context = ModelContext(modelContainer)
         let descriptor = FetchDescriptor<MotionTakeRecord>()
         return try makeTakeSummaries(from: context.fetch(descriptor), fallbackSessionID: nil)
+    }
+
+    private func fetchTakeSummary(withID takeID: UUID) throws -> MotionTakeSummary? {
+        let context = ModelContext(modelContainer)
+        let descriptor = FetchDescriptor<MotionTakeRecord>(
+            predicate: #Predicate { take in
+                take.id == takeID
+            }
+        )
+        return try makeTakeSummaries(from: context.fetch(descriptor), fallbackSessionID: nil).first
     }
 
     func acceptTake(withID takeID: UUID, inSessionID sessionID: UUID) throws {

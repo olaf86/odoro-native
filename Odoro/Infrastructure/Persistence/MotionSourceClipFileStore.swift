@@ -5,63 +5,6 @@
 
 import Foundation
 
-private struct MotionSourceClipPayload: Codable, Sendable {
-    static let currentSchemaVersion = 1
-
-    var schemaVersion: Int
-    var skeletonId: String
-    var jointCount: Int
-    var captureMode: CaptureMode
-    var sourcePlatform: String
-    var sourceBackend: String
-    var frames: [MotionPayloadFrame]
-
-    init(
-        clip: MotionClip,
-        captureMode: CaptureMode,
-        sourcePlatform: String,
-        sourceBackend: String
-    ) {
-        self.schemaVersion = Self.currentSchemaVersion
-        self.skeletonId = MotionSourceClipBinaryCodec.skeletonIdentifier(
-            for: captureMode,
-            jointCount: clip.frames.first?.jointPositions.count ?? 0
-        )
-        self.jointCount = clip.frames.first?.jointPositions.count ?? 0
-        self.captureMode = captureMode
-        self.sourcePlatform = sourcePlatform
-        self.sourceBackend = sourceBackend
-        self.frames = clip.frames.map { frame in
-            let rotations = frame.jointRotations?.count == frame.jointPositions.count
-                ? frame.jointRotations?.map { $0.map(MotionPayloadQuaternion.init) }
-                : nil
-            return MotionPayloadFrame(
-                timeSeconds: frame.time,
-                timeBeats: 0,
-                positions: frame.jointPositions.map(MotionPayloadVector3.init),
-                rotations: rotations,
-                confidences: nil,
-                jointStatuses: nil
-            )
-        }
-    }
-
-    func makeMotionClip() -> MotionClip {
-        MotionClip(
-            frames: frames.map { frame in
-                let rotations = frame.rotations?.count == frame.positions.count
-                    ? frame.rotations?.map { $0?.motionValue }
-                    : nil
-                return MotionFrame(
-                    time: frame.timeSeconds,
-                    jointPositions: frame.positions.map(\.simdValue),
-                    jointRotations: rotations
-                )
-            }
-        )
-    }
-}
-
 private enum MotionSourceClipBinaryCodec {
     static let magic = Data("OSRC".utf8)
     static let currentSchemaVersion: UInt32 = 2
@@ -150,11 +93,6 @@ private enum MotionSourceClipBinaryCodec {
     }
 
     static func decode(_ data: Data) throws -> MotionClip {
-        let isLegacyJSON = data.first == UInt8(ascii: "{")
-        if isLegacyJSON {
-            return try JSONDecoder().decode(MotionSourceClipPayload.self, from: data).makeMotionClip()
-        }
-
         var reader = DataReader(data: data)
         let magic = try reader.readData(count: Self.magic.count)
         guard magic == Self.magic else {
@@ -331,6 +269,17 @@ private struct DataReader {
 }
 
 struct MotionSourceClipFileStore {
+    enum FileStoreError: LocalizedError {
+        case missingSourceClip(UUID)
+
+        var errorDescription: String? {
+            switch self {
+            case let .missingSourceClip(takeID):
+                "The source clip is missing for take \(takeID.uuidString)."
+            }
+        }
+    }
+
     private let fileManager: FileManager
     private let baseDirectoryURL: URL
 
@@ -350,15 +299,11 @@ struct MotionSourceClipFileStore {
 
     @discardableResult
     func write(
-        _ clip: MotionClip?,
+        _ clip: MotionClip,
         for takeID: UUID,
         captureMode: CaptureMode,
         sourceBackend: String
-    ) throws -> URL? {
-        guard let clip else {
-            return nil
-        }
-
+    ) throws -> URL {
         try ensureBaseDirectoryExists()
         let sourceClipURL = sourceClipURL(for: takeID)
         let data = try MotionSourceClipBinaryCodec.encode(
@@ -371,10 +316,10 @@ struct MotionSourceClipFileStore {
         return sourceClipURL
     }
 
-    func read(for takeID: UUID) throws -> MotionClip? {
+    func read(for takeID: UUID) throws -> MotionClip {
         let sourceClipURL = sourceClipURL(for: takeID)
         guard fileManager.fileExists(atPath: sourceClipURL.path()) else {
-            return nil
+            throw FileStoreError.missingSourceClip(takeID)
         }
 
         let data = try Data(contentsOf: sourceClipURL)
