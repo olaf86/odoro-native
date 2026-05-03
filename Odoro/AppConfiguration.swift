@@ -13,16 +13,9 @@ struct AppConfiguration {
 
     init(bundle: Bundle) {
         environmentName = Self.stringValue(for: "OdoroEnvironment", in: bundle) ?? "prod"
-
-        if let baseURLString = Self.stringValue(for: "OdoroAvatarStorageBaseURL", in: bundle)?
-            .trimmingCharacters(in: .whitespacesAndNewlines),
-           !baseURLString.isEmpty,
-           let parsedURL = URL(string: baseURLString),
-           parsedURL.scheme != nil {
-            avatarStorageBaseURL = parsedURL
-        } else {
-            avatarStorageBaseURL = nil
-        }
+        avatarStorageBaseURL = Self.resolvedAvatarStorageBaseURL(
+            from: Self.stringValue(for: "OdoroAvatarStorageBaseURL", in: bundle)
+        )
     }
 
     var remoteAvatarCatalogManifestURL: URL? {
@@ -35,6 +28,17 @@ struct AppConfiguration {
 
     func remoteAvatarAssetURLString(path: String) -> String {
         remoteAvatarAssetURL(path: path)?.absoluteString ?? path
+    }
+
+    static func resolvedAvatarStorageBaseURL(from rawValue: String?) -> URL? {
+        guard let baseURLString = rawValue?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !baseURLString.isEmpty,
+              let parsedURL = URL(string: baseURLString),
+              parsedURL.scheme != nil else {
+            return nil
+        }
+
+        return parsedURL
     }
 
     private static func stringValue(for key: String, in bundle: Bundle) -> String? {

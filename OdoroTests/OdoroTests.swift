@@ -128,6 +128,75 @@ struct OdoroTests {
         #expect(installedOptions[0].runtimeAssetURL?.lastPathComponent == "model.usdz")
     }
 
+    @MainActor @Test func avatarAssetStoreInstallsBundledFallbackWhenRemoteStorageIsUnavailable() async throws {
+        let fileManager = FileManager.default
+        let tempRootURL = fileManager.temporaryDirectory.appending(path: UUID().uuidString, directoryHint: .isDirectory)
+        let installRootURL = tempRootURL.appending(path: "installed", directoryHint: .isDirectory)
+        let fallbackAssetURL = tempRootURL.appending(path: "robot.usdz", directoryHint: .notDirectory)
+        defer { try? fileManager.removeItem(at: tempRootURL) }
+
+        try fileManager.createDirectory(at: tempRootURL, withIntermediateDirectories: true)
+        try Data("bundled-fallback".utf8).write(to: fallbackAssetURL)
+
+        let store = AvatarAssetStore(
+            fileManager: fileManager,
+            baseDirectoryURL: installRootURL,
+            downloadableAvatarFallbackProvider: { variant in
+                var rigProfile = AvatarCatalog.robotRigProfile
+                rigProfile.id = variant.rigProfileID
+                rigProfile.displayName = "Fallback Rig"
+                rigProfile.runtimeAssetRelativePath = "model.usdz"
+
+                return AvatarAssetStore.DownloadableAvatarFallback(
+                    runtimeAssetURL: fallbackAssetURL,
+                    rigProfile: rigProfile,
+                    displayName: "Avatar Sample A"
+                )
+            }
+        )
+        let variant = AvatarAssetVariant(
+            id: "avatar-sample-a-usdz-v1",
+            avatarID: "avatar-sample-a",
+            version: "1.0.0",
+            runtimeFormat: .usdz,
+            runtimeAssetRelativePath: "avatars/avatar-sample-a/1.0.0/model.usdz",
+            runtimeAssetRemoteURL: nil,
+            runtimeAssetChecksum: nil,
+            runtimeAssetSizeBytes: 16,
+            packageManifestRelativePath: "avatars/avatar-sample-a/1.0.0/package_manifest.json",
+            packageManifestRemoteURL: nil,
+            rigProfileID: "avatar-sample-a.v1",
+            rigProfileRelativePath: "avatars/avatar-sample-a/1.0.0/rig_profile.json",
+            rigProfileRemoteURL: nil,
+            minimumAppVersion: nil,
+            minimumOSVersion: "26.4",
+            installState: .notInstalled
+        )
+
+        let installedOption = try await store.installDownloadableAvatar(from: variant)
+        let installedOptions = store.fetchInstalledAvatarOptions()
+
+        #expect(installedOption.installState == .installed)
+        #expect(installedOption.runtimeAssetURL?.lastPathComponent == "model.usdz")
+        #expect(installedOption.rigProfileID == variant.rigProfileID)
+        #expect(installedOptions.count == 1)
+        #expect(installedOptions[0].selection == installedOption.selection)
+    }
+
+    @Test func appConfigurationTreatsMissingAvatarStorageBaseURLAsUnset() {
+        #expect(
+            AppConfiguration.resolvedAvatarStorageBaseURL(from: nil) == nil
+        )
+        #expect(
+            AppConfiguration.resolvedAvatarStorageBaseURL(from: "   ") == nil
+        )
+        #expect(
+            AppConfiguration.resolvedAvatarStorageBaseURL(
+                from: "https://storage.googleapis.com/odoro-assets"
+            )?.absoluteString == "https://storage.googleapis.com/odoro-assets"
+        )
+    }
+
     @Test func recordingContextComputesBeatLengthFromBarsAndMeter() {
         let context = MotionRecordingContext(
             tempoSourceType: .metronome,

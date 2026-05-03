@@ -126,6 +126,23 @@ struct AvatarAssetVariant: Codable, Hashable, Identifiable, Sendable {
     var minimumAppVersion: String?
     var minimumOSVersion: String?
     var installState: AvatarInstallState
+
+    var hasRemotePackageURLs: Bool {
+        [
+            runtimeAssetRemoteURL,
+            packageManifestRemoteURL,
+            rigProfileRemoteURL,
+        ]
+        .allSatisfy { remoteURLString in
+            guard let remoteURLString,
+                  let remoteURL = URL(string: remoteURLString),
+                  remoteURL.scheme != nil else {
+                return false
+            }
+
+            return true
+        }
+    }
 }
 
 struct AvatarCatalogItem: Codable, Hashable, Identifiable, Sendable {
@@ -261,8 +278,8 @@ enum AvatarCatalog {
         } ?? builtInStageOptions[0]
     }
 
-    private static func gcsURL(path: String) -> String {
-        AppConfiguration.current.remoteAvatarAssetURLString(path: path)
+    private static func gcsURL(path: String) -> String? {
+        AppConfiguration.current.remoteAvatarAssetURL(path: path)?.absoluteString
     }
 
     private static func downloadableUSDZVariant(
@@ -294,7 +311,7 @@ enum AvatarCatalog {
         )
     }
 
-    static let robotRigProfile = AvatarRigProfile(
+    nonisolated static let robotRigProfile = AvatarRigProfile(
         id: robotRigProfileID,
         displayName: "Robot Performer",
         skeletonId: OdoroSkeletonDefinition.id,
