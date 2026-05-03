@@ -1,7 +1,6 @@
 //
 //  MotionClipStageNormalizer.swift
 //  Odoro
-//
 
 import Foundation
 import simd
@@ -50,39 +49,22 @@ struct MotionClipStageNormalizer: Sendable {
 private extension MotionClipStageNormalizer {
     /// Removes systematic world-space body tilt by analysing the spine axis across all frames.
     ///
-    /// ARKit body tracking occasionally produces a clip where the whole body leans in one
-    /// direction relative to the true vertical. This pass collects the spine vector
-    /// (head − root) for every frame, finds the median direction, and rotates every joint
-    /// around the root pivot so that median spine aligns with world Y. Intentional per-frame
-    /// leaning is preserved because the correction is a single global rotation derived from
-    /// the clip median, not a per-frame straightening.
+    /// Works for both canonical 19-joint clips and raw ARKit 91-joint clips:
+    /// - Canonical: spine = head − root (named joint indices)
+    /// - Raw: spine = centroid of top-decile joints − centroid of bottom-decile joints
+    ///   (physical layout — top joints are head/neck, bottom joints are ankles/feet)
+    ///
+    /// A single correction quaternion derived from the clip-wide median is applied to both
+    /// positions (pivoting around the hip/body-center) and world-space rotations, so the
+    /// skeleton and the avatar rig bone orientations stay consistent.
     nonisolated func tiltCorrected(_ frames: [MotionFrame]) -> [MotionFrame] {
-        guard frames.count >= 3,
-              let firstFrame = frames.first,
-              firstFrame.jointPositions.count == OdoroSkeletonDefinition.jointCount
-        else {
-            return frames
-        }
+        guard frames.count >= 3 else { return frames }
 
-        let headIndex = OdoroSkeletonDefinition.index(of: .head)
-        let rootIndex = OdoroSkeletonDefinition.index(of: .root)
+        let isCanonical = frames.first?.jointPositions.count == OdoroSkeletonDefinition.jointCount
 
         // Collect normalised spine vectors across all frames.
         let spineVectors: [SIMD3<Float>] = frames.compactMap { frame in
-            guard frame.jointPositions.indices.contains(headIndex),
-                  frame.jointPositions.indices.contains(rootIndex)
-            else { return nil }
-
-            let head = frame.jointPositions[headIndex]
-            let root = frame.jointPositions[rootIndex]
-            guard qualityEvaluator.isValidStagePosition(head),
-                  qualityEvaluator.isValidStagePosition(root)
-            else { return nil }
-
-            let vec = head - root
-            let len = simd_length(vec)
-            guard len > 0.1 else { return nil }
-            return vec / len
+            isCanonical ? canonicalSpineVector(from: frame) : physicalSpineVector(from: frame)
         }
 
         guard spineVectors.count >= 3 else { return frames }
@@ -101,14 +83,17 @@ private extension MotionClipStageNormalizer {
         guard simd_dot(normalizedSpine, worldUp) < 0.9998 else { return frames }
 
         let correction = quaternionFromTo(normalizedSpine, worldUp)
+        let rootIndex = isCanonical ? OdoroSkeletonDefinition.index(of: .root) : nil
 
         return frames.map { frame in
-            guard frame.jointPositions.count == OdoroSkeletonDefinition.jointCount,
-                  frame.jointPositions.indices.contains(rootIndex)
-            else { return frame }
-
-            let pivot = frame.jointPositions[rootIndex]
-            guard qualityEvaluator.isValidStagePosition(pivot) else { return frame }
+            let pivot: SIMD3<Float>
+            if let rootIndex,
+               frame.jointPositions.indices.contains(rootIndex),
+               qualityEvaluator.isValidStagePosition(frame.jointPositions[rootIndex]) {
+                pivot = frame.jointPositions[rootIndex]
+            } else {
+                pivot = qualityEvaluator.robustCenter(of: frame.jointPositions) ?? .zero
+            }
 
             let correctedPositions = frame.jointPositions.map { position -> SIMD3<Float> in
                 guard qualityEvaluator.isValidStagePosition(position) else { return position }
@@ -127,6 +112,41 @@ private extension MotionClipStageNormalizer {
                 jointRotations: correctedRotations
             )
         }
+    }
+
+    /// Spine vector from named canonical joints (head − root).
+    nonisolated func canonicalSpineVector(from frame: MotionFrame) -> SIMD3<Float>? {
+        let headIndex = OdoroSkeletonDefinition.index(of: .head)
+        let rootIndex = OdoroSkeletonDefinition.index(of: .root)
+        guard frame.jointPositions.indices.contains(headIndex),
+              frame.jointPositions.indices.contains(rootIndex)
+        else { return nil }
+        let head = frame.jointPositions[headIndex]
+        let root = frame.jointPositions[rootIndex]
+        guard qualityEvaluator.isValidStagePosition(head),
+              qualityEvaluator.isValidStagePosition(root)
+        else { return nil }
+        let vec = head - root
+        let len = simd_length(vec)
+        guard len > 0.1 else { return nil }
+        return vec / len
+    }
+
+    /// Spine vector estimated from joint layout for arbitrary-count clips (e.g. raw ARKit 91-joint).
+    /// The top-decile joints by Y ≈ head/neck; the bottom-decile ≈ ankles/feet.
+    nonisolated func physicalSpineVector(from frame: MotionFrame) -> SIMD3<Float>? {
+        let valid = frame.jointPositions.filter(qualityEvaluator.isValidStagePosition)
+        guard valid.count >= 6 else { return nil }
+
+        let sorted = valid.sorted { $0.y < $1.y }
+        let band = max(2, sorted.count / 10)
+        let topCenter = sorted.suffix(band).reduce(SIMD3<Float>.zero, +) / Float(band)
+        let bottomCenter = sorted.prefix(band).reduce(SIMD3<Float>.zero, +) / Float(band)
+
+        let vec = topCenter - bottomCenter
+        let len = simd_length(vec)
+        guard len > 0.3 else { return nil }
+        return vec / len
     }
 
     /// Returns the shortest-arc quaternion that rotates unit vector `from` to unit vector `to`.
