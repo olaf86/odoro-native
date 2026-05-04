@@ -29,22 +29,6 @@ final class StagePlaybackRenderer: NSObject {
         nonisolated static let majorLineColor = UIColor(red: 0.5, green: 0.92, blue: 1.0, alpha: 0.88)
         nonisolated static let minorLineColor = UIColor(red: 0.4, green: 0.8, blue: 0.95, alpha: 0.4)
     }
-    private enum RigPlaybackCorrectionTuning {
-        // Rotation — calibrated to match MotionClipStageStabilizer rotation tuning
-        nonisolated static let smallRotationDelta: Float = 0.08
-        nonisolated static let largeRotationDelta: Float = 0.75
-        nonisolated static let minimumRotationAlpha: Float = 0.08   // skeleton rotationAlphaFloor
-        nonisolated static let maximumRotationAlpha: Float = 0.88   // skeleton rotationAlphaCeiling minus quality weight
-        nonisolated static let headMaximumRotationAlpha: Float = 0.65
-
-        // Translation for root position — thresholds derived from skeleton center speed limits at 30 fps
-        // skeleton centerFullSpeedUpperBound 2.5 m/s ÷ 30 ≈ 0.083 m/frame
-        // skeleton centerDegradedSpeedUpperBound 5.0 m/s ÷ 30 ≈ 0.167 m/frame
-        nonisolated static let smallTranslationDelta: Float = 0.08  // ~2.4 m/s at 30 fps
-        nonisolated static let largeTranslationDelta: Float = 0.16  // ~4.8 m/s at 30 fps
-        nonisolated static let minimumTranslationAlpha: Float = 0.08  // skeleton centerAlphaFloor
-        nonisolated static let maximumTranslationAlpha: Float = 0.78  // skeleton centerAlphaCeiling effective max
-    }
     enum SkeletonDebugLayout: Equatable {
         case rawARKit
         case canonical
@@ -61,10 +45,7 @@ final class StagePlaybackRenderer: NSObject {
     }
 
     private let skeletonDefinition = ARSkeletonDefinition.defaultBody3D
-    private let sourceNeutralLocalRotations: [simd_quatf] = {
-        let neutralLocalTransforms = ARSkeletonDefinition.defaultBody3D.neutralBodySkeleton3D?.jointLocalTransforms ?? []
-        return neutralLocalTransforms.map(simd_quaternion)
-    }()
+    private let poseSampler = AvatarPoseSampler()
     private let canonicalRenderJointNames: [OdoroJointName] = [
         .root,
         .head,
@@ -732,9 +713,7 @@ final class StagePlaybackRenderer: NSObject {
         let bindPoseTransforms = skeletalBindPoseTransforms.count == modelEntity.jointTransforms.count
             ? skeletalBindPoseTransforms
             : modelEntity.jointTransforms
-        guard !bindPoseTransforms.isEmpty else {
-            return []
-        }
+        guard !bindPoseTransforms.isEmpty else { return [] }
 
         // USD skeletons store joint names as hierarchical paths (e.g. "root/J_Bip_C_Hips"),
         // while rig profiles authored from GLB use just the leaf name ("J_Bip_C_Hips").
@@ -748,68 +727,22 @@ final class StagePlaybackRenderer: NSObject {
             }
         }
 
+        let retargeter = AvatarRigRetargeter(
+            profile: rigProfile,
+            bindPoseTransforms: bindPoseTransforms,
+            modelJointIndices: modelJointIndices,
+            tPose: poseSampler.tPose
+        )
+
         var result: [[Transform]] = []
         result.reserveCapacity(clip.frames.count)
         var previousTransforms: [Transform]? = nil
 
         for frame in clip.frames {
-            var jointTransforms = bindPoseTransforms
-            var resolvedCount = 0
-
-            for binding in rigProfile.bindings {
-                guard
-                    let targetIndex = modelJointIndices[binding.boneName],
-                    jointTransforms.indices.contains(targetIndex),
-                    let worldPos = position(for: binding.sourceJoint, in: frame),
-                    let worldRot = rotation(for: binding.sourceJoint, in: frame)?.simdValue
-                else { continue }
-
-                let parentWorldRotationAndPosition: (rotation: simd_quatf, position: SIMD3<Float>)?
-                if let parentReference = binding.parentSourceJoint,
-                   let parentWorldRot = rotation(for: parentReference, in: frame)?.simdValue,
-                   let parentPos = position(for: parentReference, in: frame) {
-                    parentWorldRotationAndPosition = (rotation: parentWorldRot, position: parentPos)
-                } else {
-                    parentWorldRotationAndPosition = nil
-                }
-
-                let resolvedRotation = binding.rotationOffset.map { worldRot * $0.simdValue } ?? worldRot
-                let targetLocalTransform = Self.makeRigLocalTransform(
-                    preserving: bindPoseTransforms[targetIndex],
-                    worldRotation: resolvedRotation,
-                    worldPosition: worldPos,
-                    parentWorldRotation: parentWorldRotationAndPosition?.rotation,
-                    parentWorldPosition: parentWorldRotationAndPosition?.position,
-                    floorOffset: rigProfile.floorOffset,
-                    translationMode: binding.translationMode,
-                    preservesBindPoseRotation: Self.shouldPreserveBindPoseRotation(for: binding),
-                    sourceNeutralLocalRotation: neutralLocalRotation(for: binding.sourceJoint, in: frame),
-                    rotationWeight: binding.weight
-                )
-
-                let isRootJoint = binding.translationMode == .direct
-                    && binding.sourceJoint.canonicalJoint == .root
-                let isHeadJoint = binding.sourceJoint.canonicalJoint == .head
-                let maxRotAlpha = isHeadJoint
-                    ? RigPlaybackCorrectionTuning.headMaximumRotationAlpha
-                    : RigPlaybackCorrectionTuning.maximumRotationAlpha
-                jointTransforms[targetIndex] = Self.stabilizedRigLocalTransform(
-                    previous: previousTransforms.flatMap {
-                        $0.indices.contains(targetIndex) ? $0[targetIndex] : nil
-                    },
-                    target: targetLocalTransform,
-                    smoothsTranslation: isRootJoint,
-                    maximumRotationAlpha: maxRotAlpha
-                )
-                resolvedCount += 1
-            }
-
-            if resolvedCount > 0 {
-                result.append(jointTransforms)
-                previousTransforms = jointTransforms
-            } else {
-                result.append(bindPoseTransforms)
-            }
+            let pose = poseSampler.pose(from: frame)
+            let transforms = retargeter.retargetFrame(pose, previousTransforms: previousTransforms)
+            result.append(transforms)
+            previousTransforms = transforms
         }
 
         return result
@@ -912,22 +845,6 @@ final class StagePlaybackRenderer: NSObject {
         return position
     }
 
-    private func canonicalRotation(for jointName: OdoroJointName, in frame: MotionFrame) -> MotionJointRotation? {
-        guard
-            frame.jointPositions.count == OdoroSkeletonDefinition.jointCount,
-            let rotations = frame.jointRotations
-        else {
-            return nil
-        }
-
-        let index = OdoroSkeletonDefinition.index(of: jointName)
-        guard rotations.indices.contains(index) else {
-            return nil
-        }
-
-        return rotations[index]
-    }
-
     private func shouldUseProceduralFallback(for jointPositions: [SIMD3<Float>?]) -> Bool {
         if usesProceduralMockPlayback {
             return true
@@ -1003,46 +920,6 @@ final class StagePlaybackRenderer: NSObject {
         return jointRotations[index]
     }
 
-    private func position(for reference: AvatarRigJointReference, in frame: MotionFrame) -> SIMD3<Float>? {
-        if let canonicalJoint = reference.canonicalJoint,
-           let position = canonicalPosition(for: canonicalJoint, in: frame) {
-            return position
-        }
-
-        if let rawJointName = reference.rawJointName,
-           let position = position(for: ARSkeleton.JointName(rawValue: rawJointName), in: frame) {
-            return position
-        }
-
-        // rawJointName may be a model bone name (e.g. VRoid "J_Bip_C_Hips") rather than an
-        // ARKit joint name. Fall back to the ARKit joint that corresponds to the canonical joint.
-        if let canonicalJoint = reference.canonicalJoint {
-            return position(for: Self.sourceJointName(for: canonicalJoint), in: frame)
-        }
-
-        return nil
-    }
-
-    private func rotation(for reference: AvatarRigJointReference, in frame: MotionFrame) -> MotionJointRotation? {
-        if let canonicalJoint = reference.canonicalJoint,
-           let rotation = canonicalRotation(for: canonicalJoint, in: frame) {
-            return rotation
-        }
-
-        if let rawJointName = reference.rawJointName,
-           let rotation = rotation(for: ARSkeleton.JointName(rawValue: rawJointName), in: frame) {
-            return rotation
-        }
-
-        // rawJointName may be a model bone name rather than an ARKit joint name.
-        // Fall back to the ARKit joint that corresponds to the canonical joint.
-        if let canonicalJoint = reference.canonicalJoint {
-            return rotation(for: Self.sourceJointName(for: canonicalJoint), in: frame)
-        }
-
-        return nil
-    }
-
     // MARK: - Character model rendering
 
     /// Positions the character at floor level (y = 0) tracking the hip's x/z,
@@ -1085,202 +962,6 @@ final class StagePlaybackRenderer: NSObject {
 
         modelEntity.jointTransforms = precomputedRigFrames[rigFrameIndex]
         return true
-    }
-
-    nonisolated static func makeRigLocalTransform(
-        preserving baseTransform: Transform,
-        worldRotation: simd_quatf,
-        worldPosition: SIMD3<Float>,
-        parentWorldRotation: simd_quatf?,
-        parentWorldPosition: SIMD3<Float>?,
-        floorOffset: Float,
-        translationMode: AvatarTranslationMode,
-        preservesBindPoseRotation: Bool,
-        sourceNeutralLocalRotation: simd_quatf?,
-        rotationWeight: Float
-    ) -> Transform {
-        var localTransform = baseTransform
-
-        func resolvedLocalRotation(
-            from sourceLocalRotation: simd_quatf,
-            baseRotation: simd_quatf
-        ) -> simd_quatf {
-            if translationMode == .bindPose, let sourceNeutralLocalRotation {
-                let motionDeltaRotation = sourceNeutralLocalRotation.inverse * sourceLocalRotation
-                return baseRotation * weightedRotation(motionDeltaRotation, weight: rotationWeight)
-            }
-
-            let weightedLocalRotation = weightedRotation(sourceLocalRotation, weight: rotationWeight)
-            return preservesBindPoseRotation
-                ? baseRotation * weightedLocalRotation
-                : weightedLocalRotation
-        }
-
-        if let parentWorldRotation, let parentWorldPosition {
-            let parentRotationInverse = parentWorldRotation.inverse
-            localTransform.rotation = resolvedLocalRotation(
-                from: parentRotationInverse * worldRotation,
-                baseRotation: baseTransform.rotation
-            )
-
-            if translationMode == .direct {
-                localTransform.translation = simd_act(
-                    parentRotationInverse,
-                    worldPosition - parentWorldPosition
-                )
-            }
-        } else {
-            localTransform.rotation = resolvedLocalRotation(
-                from: worldRotation,
-                baseRotation: baseTransform.rotation
-            )
-
-            if translationMode == .direct {
-                localTransform.translation = worldPosition - SIMD3<Float>(0, floorOffset, 0)
-            }
-        }
-
-        return localTransform
-    }
-
-    private func neutralLocalRotation(for reference: AvatarRigJointReference, in frame: MotionFrame) -> simd_quatf? {
-        if let rawJointName = reference.rawJointName {
-            let rawReference = ARSkeleton.JointName(rawValue: rawJointName)
-            if rotation(for: rawReference, in: frame) != nil,
-               let rotation = neutralLocalRotation(for: rawReference) {
-                return rotation
-            }
-        }
-
-        guard let canonicalJoint = reference.canonicalJoint else {
-            return nil
-        }
-
-        if canonicalRotation(for: canonicalJoint, in: frame) != nil {
-            return neutralLocalRotation(for: Self.sourceJointName(for: canonicalJoint))
-        }
-
-        if let rawJointName = reference.rawJointName,
-           let result = neutralLocalRotation(for: ARSkeleton.JointName(rawValue: rawJointName)) {
-            return result
-        }
-
-        // rawJointName may be a model bone name rather than an ARKit joint name.
-        return neutralLocalRotation(for: Self.sourceJointName(for: canonicalJoint))
-    }
-
-    private func neutralLocalRotation(for jointName: ARSkeleton.JointName) -> simd_quatf? {
-        let index = skeletonDefinition.index(for: jointName)
-        guard index != NSNotFound, sourceNeutralLocalRotations.indices.contains(index) else {
-            return nil
-        }
-
-        return sourceNeutralLocalRotations[index]
-    }
-
-    nonisolated private static func sourceJointName(for canonicalJoint: OdoroJointName) -> ARSkeleton.JointName {
-        switch canonicalJoint {
-        case .root:
-            return .root
-        case .head, .nose:
-            return .head
-        case .leftShoulder:
-            return .leftShoulder
-        case .rightShoulder:
-            return .rightShoulder
-        case .leftUpperArm:
-            return ARSkeleton.JointName(rawValue: "left_arm_joint")
-        case .rightUpperArm:
-            return ARSkeleton.JointName(rawValue: "right_arm_joint")
-        case .leftElbow:
-            return ARSkeleton.JointName(rawValue: "left_forearm_joint")
-        case .rightElbow:
-            return ARSkeleton.JointName(rawValue: "right_forearm_joint")
-        case .leftWrist:
-            return .leftHand
-        case .rightWrist:
-            return .rightHand
-        case .leftHip:
-            return ARSkeleton.JointName(rawValue: "left_upLeg_joint")
-        case .rightHip:
-            return ARSkeleton.JointName(rawValue: "right_upLeg_joint")
-        case .leftKnee:
-            return ARSkeleton.JointName(rawValue: "left_leg_joint")
-        case .rightKnee:
-            return ARSkeleton.JointName(rawValue: "right_leg_joint")
-        case .leftAnkle, .leftFoot:
-            return .leftFoot
-        case .rightAnkle, .rightFoot:
-            return .rightFoot
-        }
-    }
-
-    nonisolated static func shouldPreserveBindPoseRotation(for binding: AvatarBoneBinding) -> Bool {
-        guard binding.translationMode == .bindPose else {
-            return false
-        }
-
-        if binding.sourceJoint.canonicalJoint == binding.parentSourceJoint?.canonicalJoint {
-            return true
-        }
-
-        switch binding.sourceJoint.canonicalJoint {
-        case .root?,
-             .head?:
-            return true
-        default:
-            return false
-        }
-    }
-
-    nonisolated static func weightedRotation(_ rotation: simd_quatf, weight: Float) -> simd_quatf {
-        let clampedWeight = min(max(weight, 0), 1)
-        guard clampedWeight < 0.999 else {
-            return rotation
-        }
-
-        return simd_slerp(simd_quatf(angle: 0, axis: SIMD3<Float>(0, 1, 0)), rotation, clampedWeight)
-    }
-
-    nonisolated static func stabilizedRigLocalTransform(
-        previous: Transform?,
-        target: Transform,
-        smoothsTranslation: Bool = false,
-        maximumRotationAlpha: Float = RigPlaybackCorrectionTuning.maximumRotationAlpha
-    ) -> Transform {
-        guard let previous else {
-            return target
-        }
-
-        let rotationDelta = angleBetween(previous.rotation, target.rotation)
-        let rotationAlpha = continuityBlendAlpha(
-            delta: rotationDelta,
-            smallDelta: RigPlaybackCorrectionTuning.smallRotationDelta,
-            largeDelta: RigPlaybackCorrectionTuning.largeRotationDelta,
-            minimumAlpha: RigPlaybackCorrectionTuning.minimumRotationAlpha,
-            maximumAlpha: maximumRotationAlpha
-        )
-
-        let smoothedTranslation: SIMD3<Float>
-        if smoothsTranslation {
-            let translationDelta = simd_length(target.translation - previous.translation)
-            let translationAlpha = continuityBlendAlpha(
-                delta: translationDelta,
-                smallDelta: RigPlaybackCorrectionTuning.smallTranslationDelta,
-                largeDelta: RigPlaybackCorrectionTuning.largeTranslationDelta,
-                minimumAlpha: RigPlaybackCorrectionTuning.minimumTranslationAlpha,
-                maximumAlpha: RigPlaybackCorrectionTuning.maximumTranslationAlpha
-            )
-            smoothedTranslation = previous.translation + (target.translation - previous.translation) * translationAlpha
-        } else {
-            smoothedTranslation = target.translation
-        }
-
-        return Transform(
-            scale: target.scale,
-            rotation: simd_slerp(previous.rotation, target.rotation, rotationAlpha),
-            translation: smoothedTranslation
-        )
     }
 
     /// Moves the character entity using the procedural hip position.
@@ -1343,33 +1024,5 @@ final class StagePlaybackRenderer: NSObject {
 
     nonisolated private static func isValidMotionPosition(_ position: SIMD3<Float>) -> Bool {
         position.x.isFinite && position.y.isFinite && position.z.isFinite && position.y > -5
-    }
-
-    nonisolated private static func continuityBlendAlpha(
-        delta: Float,
-        smallDelta: Float,
-        largeDelta: Float,
-        minimumAlpha: Float,
-        maximumAlpha: Float
-    ) -> Float {
-        guard largeDelta > smallDelta else {
-            return maximumAlpha
-        }
-
-        if delta <= smallDelta {
-            return maximumAlpha
-        }
-
-        if delta >= largeDelta {
-            return minimumAlpha
-        }
-
-        let progress = (delta - smallDelta) / (largeDelta - smallDelta)
-        return maximumAlpha + (minimumAlpha - maximumAlpha) * progress
-    }
-
-    nonisolated private static func angleBetween(_ lhs: simd_quatf, _ rhs: simd_quatf) -> Float {
-        let dot = abs(simd_dot(lhs.vector, rhs.vector))
-        return 2 * acos(min(max(dot, -1), 1))
     }
 }

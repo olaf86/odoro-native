@@ -1359,7 +1359,7 @@ struct OdoroTests {
         #expect(profile.bindings.first(where: { $0.boneName.hasSuffix("/right_shoulder_1_joint") })?.weight == RobotRigTuning.shoulderRotationWeight)
     }
 
-    @Test func stageRendererBindPoseTranslationKeepsExistingJointOffset() {
+    @Test func retargeterBindPoseTranslationKeepsExistingJointOffset() {
         let baseTransform = Transform(
             scale: SIMD3<Float>(1.2, 1.2, 1.2),
             rotation: simd_quatf(angle: 0.05, axis: SIMD3<Float>(0, 1, 0)),
@@ -1367,17 +1367,18 @@ struct OdoroTests {
         )
         let worldRotation = simd_quatf(angle: 0.4, axis: SIMD3<Float>(0, 0, 1))
         let parentWorldRotation = simd_quatf(angle: -0.2, axis: SIMD3<Float>(0, 1, 0))
-        let localTransform = StagePlaybackRenderer.makeRigLocalTransform(
-            preserving: baseTransform,
+        let tPoseWorldRotation = simd_quatf(angle: 0, axis: SIMD3<Float>(0, 1, 0))
+        let localTransform = AvatarRigRetargeter.retargetedLocalTransform(
+            baseTransform: baseTransform,
             worldRotation: worldRotation,
             worldPosition: SIMD3<Float>(1.0, 1.8, 0.3),
             parentWorldRotation: parentWorldRotation,
             parentWorldPosition: SIMD3<Float>(0.9, 1.0, 0.1),
-            floorOffset: 0.977,
+            tPoseWorldRotation: tPoseWorldRotation,
+            tPoseParentWorldRotation: nil,
             translationMode: .bindPose,
-            preservesBindPoseRotation: false,
-            sourceNeutralLocalRotation: nil,
-            rotationWeight: 1
+            rotationWeight: 1,
+            floorOffset: 0.977
         )
 
         #expect(localTransform.translation == baseTransform.translation)
@@ -1385,36 +1386,37 @@ struct OdoroTests {
         #expect(localTransform.rotation != baseTransform.rotation)
     }
 
-    @Test func stageRendererBindPoseRotationPreservesBaseOrientationAtRest() {
+    @Test func retargeterAtTPoseProducesBindPoseRotation() {
+        let baseRotation = simd_quatf(angle: .pi / 2, axis: SIMD3<Float>(1, 0, 0))
         let baseTransform = Transform(
             scale: .one,
-            rotation: simd_quatf(angle: .pi / 2, axis: SIMD3<Float>(1, 0, 0)),
+            rotation: baseRotation,
             translation: SIMD3<Float>(0, 0.3, 0)
         )
-
-        let localTransform = StagePlaybackRenderer.makeRigLocalTransform(
-            preserving: baseTransform,
-            worldRotation: simd_quatf(angle: 0, axis: SIMD3<Float>(0, 1, 0)),
+        let tPoseRotation = simd_quatf(angle: 0.3, axis: SIMD3<Float>(0, 0, 1))
+        let localTransform = AvatarRigRetargeter.retargetedLocalTransform(
+            baseTransform: baseTransform,
+            worldRotation: tPoseRotation,
             worldPosition: .zero,
             parentWorldRotation: nil,
             parentWorldPosition: nil,
-            floorOffset: 0.977,
+            tPoseWorldRotation: tPoseRotation,
+            tPoseParentWorldRotation: nil,
             translationMode: .bindPose,
-            preservesBindPoseRotation: true,
-            sourceNeutralLocalRotation: nil,
-            rotationWeight: 1
+            rotationWeight: 1,
+            floorOffset: 0
         )
 
-        #expect(localTransform.rotation == baseTransform.rotation)
+        #expect(Self.rotationAngle(baseRotation.inverse * localTransform.rotation) < 0.0001)
         #expect(localTransform.translation == baseTransform.translation)
     }
 
-    @Test func stageRendererRotationWeightDampensAppliedLocalRotation() {
-        let fullRotation = StagePlaybackRenderer.weightedRotation(
+    @Test func retargeterRotationWeightDampensAppliedLocalRotation() {
+        let fullRotation = AvatarRigRetargeter.weightedRotation(
             simd_quatf(angle: .pi / 2, axis: SIMD3<Float>(0, 0, 1)),
             weight: 1
         )
-        let dampedRotation = StagePlaybackRenderer.weightedRotation(
+        let dampedRotation = AvatarRigRetargeter.weightedRotation(
             simd_quatf(angle: .pi / 2, axis: SIMD3<Float>(0, 0, 1)),
             weight: RobotRigTuning.shoulderRotationWeight
         )
@@ -1423,7 +1425,7 @@ struct OdoroTests {
         #expect(Self.rotationAngle(dampedRotation) > 0)
     }
 
-    @Test func stageRendererRigContinuityCorrectionDampensLargeRotationJumps() {
+    @Test func retargeterContinuityCorrectionDampensLargeRotationJumps() {
         let previous = Transform(
             scale: .one,
             rotation: simd_quatf(angle: 0, axis: SIMD3<Float>(0, 1, 0)),
@@ -1435,7 +1437,7 @@ struct OdoroTests {
             translation: SIMD3<Float>(0.4, 0.6, -0.2)
         )
 
-        let stabilized = StagePlaybackRenderer.stabilizedRigLocalTransform(
+        let stabilized = AvatarRigRetargeter.stabilizedLocalTransform(
             previous: previous,
             target: target
         )
@@ -1445,7 +1447,7 @@ struct OdoroTests {
         #expect(stabilized.translation == target.translation)
     }
 
-    @Test func stageRendererRigContinuityTranslationSmoothingDampensRootPositionSpikes() {
+    @Test func retargeterContinuityTranslationSmoothingDampensRootPositionSpikes() {
         let previous = Transform(
             scale: .one,
             rotation: simd_quatf(angle: 0, axis: SIMD3<Float>(0, 1, 0)),
@@ -1457,12 +1459,12 @@ struct OdoroTests {
             translation: SIMD3<Float>(0.4, 0.6, 0)
         )
 
-        let withoutSmoothing = StagePlaybackRenderer.stabilizedRigLocalTransform(
+        let withoutSmoothing = AvatarRigRetargeter.stabilizedLocalTransform(
             previous: previous,
             target: spikeTarget,
             smoothsTranslation: false
         )
-        let withSmoothing = StagePlaybackRenderer.stabilizedRigLocalTransform(
+        let withSmoothing = AvatarRigRetargeter.stabilizedLocalTransform(
             previous: previous,
             target: spikeTarget,
             smoothsTranslation: true
@@ -1473,7 +1475,7 @@ struct OdoroTests {
         #expect(simd_length(withSmoothing.translation) > 0)
     }
 
-    @Test func stageRendererRigContinuityHeadRotationAlphaProducesLessMotionThanDefault() {
+    @Test func retargeterContinuityHeadRotationAlphaProducesLessMotionThanDefault() {
         let previous = Transform(
             scale: .one,
             rotation: simd_quatf(angle: 0, axis: SIMD3<Float>(0, 1, 0)),
@@ -1485,11 +1487,11 @@ struct OdoroTests {
             translation: .zero
         )
 
-        let defaultStabilized = StagePlaybackRenderer.stabilizedRigLocalTransform(
+        let defaultStabilized = AvatarRigRetargeter.stabilizedLocalTransform(
             previous: previous,
             target: target
         )
-        let headStabilized = StagePlaybackRenderer.stabilizedRigLocalTransform(
+        let headStabilized = AvatarRigRetargeter.stabilizedLocalTransform(
             previous: previous,
             target: target,
             maximumRotationAlpha: 0.62
@@ -1499,7 +1501,7 @@ struct OdoroTests {
         #expect(Self.rotationAngle(headStabilized.rotation) > 0)
     }
 
-    @Test func stageRendererRigContinuityTranslationSmoothingPassesThroughSmallDeltas() {
+    @Test func retargeterContinuityTranslationSmoothingPassesThroughSmallDeltas() {
         let previous = Transform(
             scale: .one,
             rotation: simd_quatf(angle: 0, axis: SIMD3<Float>(0, 1, 0)),
@@ -1511,26 +1513,25 @@ struct OdoroTests {
             translation: SIMD3<Float>(0.115, 0, 0)
         )
 
-        let smoothed = StagePlaybackRenderer.stabilizedRigLocalTransform(
+        let smoothed = AvatarRigRetargeter.stabilizedLocalTransform(
             previous: previous,
             target: smallTarget,
             smoothsTranslation: true
         )
 
-        // Small movement (1.5cm) should follow at high alpha — well above 70% of target distance
         let targetDist = simd_length(smallTarget.translation - previous.translation)
         let smoothedDist = simd_length(smoothed.translation - previous.translation)
         #expect(smoothedDist / targetDist > 0.7)
     }
 
-    @Test func stageRendererRigContinuityCorrectionPassesThroughFirstTargetPose() {
+    @Test func retargeterContinuityCorrectionPassesThroughFirstTargetPose() {
         let target = Transform(
             scale: SIMD3<Float>(1.2, 0.9, 1.1),
             rotation: simd_quatf(angle: .pi / 3, axis: SIMD3<Float>(1, 0, 0)),
             translation: SIMD3<Float>(0.1, 0.3, -0.1)
         )
 
-        let stabilized = StagePlaybackRenderer.stabilizedRigLocalTransform(
+        let stabilized = AvatarRigRetargeter.stabilizedLocalTransform(
             previous: nil,
             target: target
         )
@@ -1538,104 +1539,46 @@ struct OdoroTests {
         #expect(stabilized == target)
     }
 
-    @Test func stageRendererBindPoseNeutralRotationKeepsBindPoseAtSourceRest() {
+    @Test func retargeterDeltaRotationKeepsBindPoseAtTPoseInput() {
         let baseRotation = simd_quatf(angle: .pi / 2, axis: SIMD3<Float>(1, 0, 0))
-        let sourceNeutralLocalRotation = simd_quatf(angle: .pi / 3, axis: SIMD3<Float>(0, 1, 0))
-        let localTransform = StagePlaybackRenderer.makeRigLocalTransform(
-            preserving: Transform(scale: .one, rotation: baseRotation, translation: SIMD3<Float>(0.1, 0.2, 0.3)),
-            worldRotation: sourceNeutralLocalRotation,
+        let tPoseWorldRotation = simd_quatf(angle: .pi / 3, axis: SIMD3<Float>(0, 1, 0))
+        let localTransform = AvatarRigRetargeter.retargetedLocalTransform(
+            baseTransform: Transform(scale: .one, rotation: baseRotation, translation: SIMD3<Float>(0.1, 0.2, 0.3)),
+            worldRotation: tPoseWorldRotation,
             worldPosition: .zero,
             parentWorldRotation: nil,
             parentWorldPosition: nil,
-            floorOffset: 0,
+            tPoseWorldRotation: tPoseWorldRotation,
+            tPoseParentWorldRotation: nil,
             translationMode: .bindPose,
-            preservesBindPoseRotation: false,
-            sourceNeutralLocalRotation: sourceNeutralLocalRotation,
-            rotationWeight: 1
+            rotationWeight: 1,
+            floorOffset: 0
         )
 
         #expect(Self.rotationAngle(baseRotation.inverse * localTransform.rotation) < 0.0001)
         #expect(localTransform.translation == SIMD3<Float>(0.1, 0.2, 0.3))
     }
 
-    @Test func stageRendererBindPoseNeutralRotationAppliesOnlyMotionDeltaOnTopOfBindPose() {
+    @Test func retargeterDeltaRotationAppliesOnlyMotionDeltaOnTopOfBindPose() {
         let parentWorldRotation = simd_quatf(angle: .pi / 4, axis: SIMD3<Float>(0, 1, 0))
         let baseRotation = simd_quatf(angle: .pi / 2, axis: SIMD3<Float>(1, 0, 0))
-        let sourceNeutralLocalRotation = simd_quatf(angle: .pi / 6, axis: SIMD3<Float>(0, 0, 1))
+        let tPoseLocalRotation = simd_quatf(angle: .pi / 6, axis: SIMD3<Float>(0, 0, 1))
         let motionDelta = simd_quatf(angle: .pi / 5, axis: SIMD3<Float>(1, 0, 0))
-        let localTransform = StagePlaybackRenderer.makeRigLocalTransform(
-            preserving: Transform(scale: .one, rotation: baseRotation, translation: .zero),
-            worldRotation: parentWorldRotation * sourceNeutralLocalRotation * motionDelta,
+        let localTransform = AvatarRigRetargeter.retargetedLocalTransform(
+            baseTransform: Transform(scale: .one, rotation: baseRotation, translation: .zero),
+            worldRotation: parentWorldRotation * tPoseLocalRotation * motionDelta,
             worldPosition: .zero,
             parentWorldRotation: parentWorldRotation,
             parentWorldPosition: .zero,
-            floorOffset: 0,
+            tPoseWorldRotation: tPoseLocalRotation,
+            tPoseParentWorldRotation: nil,
             translationMode: .bindPose,
-            preservesBindPoseRotation: false,
-            sourceNeutralLocalRotation: sourceNeutralLocalRotation,
-            rotationWeight: 1
+            rotationWeight: 1,
+            floorOffset: 0
         )
 
         let expectedRotation = baseRotation * motionDelta
         #expect(Self.rotationAngle(expectedRotation.inverse * localTransform.rotation) < 0.002)
-    }
-
-    @Test func stageRendererPreservesBindPoseRotationForTorsoHeadAndSharedCanonicalBindings() {
-        #expect(
-            StagePlaybackRenderer.shouldPreserveBindPoseRotation(
-                for: AvatarBoneBinding(
-                    boneName: "spine",
-                    sourceJoint: .init(canonicalJoint: .root),
-                    translationMode: .bindPose
-                )
-            )
-        )
-        #expect(
-            StagePlaybackRenderer.shouldPreserveBindPoseRotation(
-                for: AvatarBoneBinding(
-                    boneName: "head",
-                    sourceJoint: .init(canonicalJoint: .head),
-                    translationMode: .bindPose
-                )
-            )
-        )
-        #expect(
-            StagePlaybackRenderer.shouldPreserveBindPoseRotation(
-                for: AvatarBoneBinding(
-                    boneName: "left_hand",
-                    sourceJoint: .init(canonicalJoint: .leftWrist, rawJointName: "left_hand_joint"),
-                    parentSourceJoint: .init(canonicalJoint: .leftWrist, rawJointName: "left_forearm_joint"),
-                    translationMode: .bindPose
-                )
-            )
-        )
-        #expect(
-            !StagePlaybackRenderer.shouldPreserveBindPoseRotation(
-                for: AvatarBoneBinding(
-                    boneName: "left_shoulder",
-                    sourceJoint: .init(canonicalJoint: .leftShoulder),
-                    translationMode: .bindPose
-                )
-            )
-        )
-        #expect(
-            !StagePlaybackRenderer.shouldPreserveBindPoseRotation(
-                for: AvatarBoneBinding(
-                    boneName: "left_arm",
-                    sourceJoint: .init(canonicalJoint: .leftElbow),
-                    translationMode: .bindPose
-                )
-            )
-        )
-        #expect(
-            !StagePlaybackRenderer.shouldPreserveBindPoseRotation(
-                for: AvatarBoneBinding(
-                    boneName: "hips",
-                    sourceJoint: .init(canonicalJoint: .root),
-                    translationMode: .direct
-                )
-            )
-        )
     }
 
     @Test func motionPayloadRoundTripPreservesMappedRotations() {
