@@ -199,7 +199,10 @@ final class MotionArchiveStore {
 
         // Source clip file is absent for takes recorded before source-clip persistence was
         // introduced. Fall back to the cached playback clip stored in the payload file.
-        let payloadURL = URL(fileURLWithPath: summary.localFilePath)
+        // Use payloadURL(for:) rather than the stored localFilePath so the path is always
+        // resolved relative to the current app container (localFilePath becomes stale after
+        // app reinstall because the container UUID changes).
+        let payloadURL = payloadFileStore.payloadURL(for: takeID)
         let payloadClip = try payloadFileStore.read(from: payloadURL).makeMotionClip()
         let rigClip = (try? rigClipFileStore.read(for: takeID)) ?? payloadClip.rigNormalizedForStage()
         let hints = (try? hintsFileStore.read(for: takeID))
