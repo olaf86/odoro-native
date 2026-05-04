@@ -76,6 +76,12 @@ struct AvatarAssetStore {
         }
     }
 
+    func removeInstalledAvatar(avatarID: String) throws {
+        let avatarDirectoryURL = baseDirectoryURL.appending(path: avatarID, directoryHint: .isDirectory)
+        guard fileManager.fileExists(atPath: avatarDirectoryURL.path()) else { return }
+        try fileManager.removeItem(at: avatarDirectoryURL)
+    }
+
     func installDownloadableAvatar(from variant: AvatarAssetVariant) async throws -> StageAvatarOption {
         guard variant.runtimeFormat.isUSD else {
             throw StoreError.unsupportedRuntimeFormat(variant.runtimeFormat)
@@ -544,6 +550,16 @@ struct AvatarAssetStore {
 
         let rootBoneName = resolver.firstMatch(for: ["hips", "pelvis"]) ?? "Hips"
 
+        // Non-root joints must use bindPose translation: models with deeper hierarchies
+        // (spine chain, neck, etc.) than the canonical skeleton will fly apart if world-space
+        // positions are forced onto bones whose actual parent differs from the canonical parent.
+        let normalizedBindings = bindings.map { binding -> AvatarBoneBinding in
+            guard binding.boneName != rootBoneName else { return binding }
+            var b = binding
+            b.translationMode = .bindPose
+            return b
+        }
+
         return AvatarRigProfile(
             id: profileID,
             displayName: "\(displayName) Rig",
@@ -552,7 +568,7 @@ struct AvatarAssetStore {
             runtimeFormat: .glb,
             runtimeAssetRelativePath: runtimeFilename,
             rootBoneName: rootBoneName,
-            bindings: bindings,
+            bindings: normalizedBindings,
             scaleCompensation: 1,
             floorOffset: 0,
             schemaVersion: 1

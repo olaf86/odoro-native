@@ -36,10 +36,12 @@ struct ModelSelectionView: View {
                         AvatarStyleCard(
                             option: option,
                             isSelected: studio.selectedAvatarOption.selection == option.selection,
-                            isInteractionDisabled: studio.isImportingAvatar
-                        ) {
-                            studio.selectAvatarOption(option)
-                        }
+                            isInteractionDisabled: studio.isImportingAvatar,
+                            onSelect: { studio.selectAvatarOption(option) },
+                            onReinstall: option.source == .downloadable ? {
+                                studio.reinstallAvatar(option)
+                            } : nil
+                        )
                     }
                 }
                 .padding(.horizontal, 20)
@@ -73,6 +75,7 @@ private struct AvatarStyleCard: View {
     let isSelected: Bool
     let isInteractionDisabled: Bool
     let onSelect: () -> Void
+    let onReinstall: (() -> Void)?
 
     var body: some View {
         Button(action: onSelect) {
@@ -117,7 +120,20 @@ private struct AvatarStyleCard: View {
                     }
                 }
 
-                Spacer(minLength: 0)
+                VStack(alignment: .trailing, spacing: 6) {
+                    if let onReinstall, option.installState == .installed {
+                        Button(action: onReinstall) {
+                            Image(systemName: "arrow.clockwise")
+                                .font(.footnote.weight(.semibold))
+                                .foregroundStyle(Color.white.opacity(0.6))
+                                .padding(8)
+                                .background(Color.white.opacity(0.10), in: Circle())
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(isInteractionDisabled)
+                    }
+                    Spacer(minLength: 0)
+                }
             }
             .padding(18)
             .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
