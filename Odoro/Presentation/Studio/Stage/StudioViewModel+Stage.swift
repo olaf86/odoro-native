@@ -95,6 +95,27 @@ extension StudioViewModel {
         }
     }
 
+    func reinstallAvatar(_ option: StageAvatarOption) {
+        guard !state.isRecording, !isImportingAvatar else { return }
+        guard let avatarID = option.selection.avatarID else { return }
+
+        do {
+            try avatarAssetStore.removeInstalledAvatar(avatarID: avatarID)
+            refreshAvatarLibrary()
+            showFeatureNotice("Removed \(option.titleText). Re-downloading...")
+        } catch {
+            showFeatureNotice("Failed to remove \(option.titleText): \(error.localizedDescription)")
+            return
+        }
+
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            if let notInstalled = self.availableAvatarOptions.first(where: { $0.selection == option.selection }) {
+                await self.downloadAvatar(notInstalled)
+            }
+        }
+    }
+
     private func downloadAvatar(_ option: StageAvatarOption) async {
         guard !state.isRecording, !isImportingAvatar else {
             return
