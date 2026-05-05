@@ -38,8 +38,8 @@ struct ModelSelectionView: View {
                             isSelected: studio.selectedAvatarOption.selection == option.selection,
                             isInteractionDisabled: studio.isImportingAvatar,
                             onSelect: { studio.selectAvatarOption(option) },
-                            onReinstall: option.source == .downloadable ? {
-                                studio.reinstallAvatar(option)
+                            onUninstall: option.source == .downloadable ? {
+                                studio.uninstallAvatar(option)
                             } : nil
                         )
                     }
@@ -75,7 +75,7 @@ private struct AvatarStyleCard: View {
     let isSelected: Bool
     let isInteractionDisabled: Bool
     let onSelect: () -> Void
-    let onReinstall: (() -> Void)?
+    let onUninstall: (() -> Void)?
 
     var body: some View {
         Button(action: onSelect) {
@@ -129,9 +129,9 @@ private struct AvatarStyleCard: View {
         .disabled(isInteractionDisabled)
         .opacity(isInteractionDisabled ? 0.7 : 1)
         .overlay(alignment: .topTrailing) {
-            if let onReinstall, option.installState == .installed {
-                Button(action: onReinstall) {
-                    Image(systemName: "arrow.clockwise")
+            if let onUninstall, option.installState == .installed {
+                Button(action: onUninstall) {
+                    Image(systemName: "trash")
                         .font(.footnote.weight(.semibold))
                         .foregroundStyle(Color.white.opacity(0.6))
                         .padding(8)
