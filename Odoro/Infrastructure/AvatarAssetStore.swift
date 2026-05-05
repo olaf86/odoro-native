@@ -78,8 +78,11 @@ struct AvatarAssetStore {
 
     func removeInstalledAvatar(avatarID: String) throws {
         let avatarDirectoryURL = baseDirectoryURL.appending(path: avatarID, directoryHint: .isDirectory)
-        guard fileManager.fileExists(atPath: avatarDirectoryURL.path()) else { return }
-        try fileManager.removeItem(at: avatarDirectoryURL)
+        do {
+            try fileManager.removeItem(at: avatarDirectoryURL)
+        } catch let error as CocoaError where error.code == .fileNoSuchFile {
+            // Already absent — treat as success
+        }
     }
 
     func installDownloadableAvatar(from variant: AvatarAssetVariant) async throws -> StageAvatarOption {
