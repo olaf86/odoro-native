@@ -99,17 +99,21 @@ extension StudioViewModel {
         guard !state.isRecording, !isImportingAvatar else { return }
         guard let avatarID = option.selection.avatarID else { return }
 
+        isImportingAvatar = true
+
         do {
             try avatarAssetStore.removeInstalledAvatar(avatarID: avatarID)
             refreshAvatarLibrary()
             showFeatureNotice("Removed \(option.titleText). Re-downloading...")
         } catch {
+            isImportingAvatar = false
             showFeatureNotice("Failed to remove \(option.titleText): \(error.localizedDescription)")
             return
         }
 
         Task { @MainActor [weak self] in
             guard let self else { return }
+            self.isImportingAvatar = false
             if let notInstalled = self.availableAvatarOptions.first(where: { $0.selection == option.selection }) {
                 await self.downloadAvatar(notInstalled)
             }

@@ -120,20 +120,7 @@ private struct AvatarStyleCard: View {
                     }
                 }
 
-                VStack(alignment: .trailing, spacing: 6) {
-                    if let onReinstall, option.installState == .installed {
-                        Button(action: onReinstall) {
-                            Image(systemName: "arrow.clockwise")
-                                .font(.footnote.weight(.semibold))
-                                .foregroundStyle(Color.white.opacity(0.6))
-                                .padding(8)
-                                .background(Color.white.opacity(0.10), in: Circle())
-                        }
-                        .buttonStyle(.plain)
-                        .disabled(isInteractionDisabled)
-                    }
-                    Spacer(minLength: 0)
-                }
+                Spacer(minLength: 0)
             }
             .padding(18)
             .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
@@ -141,6 +128,20 @@ private struct AvatarStyleCard: View {
         .buttonStyle(.plain)
         .disabled(isInteractionDisabled)
         .opacity(isInteractionDisabled ? 0.7 : 1)
+        .overlay(alignment: .topTrailing) {
+            if let onReinstall, option.installState == .installed {
+                Button(action: onReinstall) {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(Color.white.opacity(0.6))
+                        .padding(8)
+                        .background(Color.white.opacity(0.10), in: Circle())
+                }
+                .buttonStyle(.plain)
+                .disabled(isInteractionDisabled)
+                .padding(10)
+            }
+        }
     }
 
     private var statusText: String {
