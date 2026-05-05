@@ -99,9 +99,14 @@ extension StudioViewModel {
         guard !state.isRecording, !isImportingAvatar else { return }
         guard let avatarID = option.selection.avatarID else { return }
 
+        let wasSelected = selectedAvatarOption.selection == option.selection
+
         do {
             try avatarAssetStore.removeInstalledAvatar(avatarID: avatarID)
             refreshAvatarLibrary()
+            if wasSelected {
+                applySelectedAvatarOption(AvatarCatalog.defaultOption)
+            }
             showFeatureNotice("Removed \(option.titleText).")
         } catch {
             showFeatureNotice("Failed to remove \(option.titleText): \(error.localizedDescription)")
