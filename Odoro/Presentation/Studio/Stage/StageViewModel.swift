@@ -49,6 +49,14 @@ final class StageViewModel: ObservableObject {
         studio.isPreparingPlayback
     }
 
+    var selectedDebugMotionViewMode: StageDebugMotionViewMode {
+        studio.stageDebugMotionViewMode
+    }
+
+    var availableDebugMotionViewModes: [StageDebugMotionViewMode] {
+        studio.availableStageDebugMotionViewModes
+    }
+
     func goBack() {
         studio.goBack()
     }
@@ -75,6 +83,10 @@ final class StageViewModel: ObservableObject {
 
     func returnToCapture() {
         studio.returnToCapture()
+    }
+
+    func setDebugMotionViewMode(_ mode: StageDebugMotionViewMode) {
+        studio.setStageDebugMotionViewMode(mode)
     }
 
     private var currentTake: MotionTakeSummary? {

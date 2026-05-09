@@ -32,6 +32,7 @@ final class StagePlaybackRenderer: NSObject {
     enum SkeletonDebugLayout: Equatable {
         case rawARKit
         case canonical
+        case canonicalTorso
     }
 
     private struct RawRenderJoint {
@@ -69,6 +70,13 @@ final class StagePlaybackRenderer: NSObject {
         .leftFoot,
         .rightFoot,
     ]
+    private let canonicalTorsoRenderJointNames: [OdoroJointName] = [
+        .root,
+        .spine,
+        .chest,
+        .neck,
+        .head,
+    ]
     private let canonicalRenderLimbs: [RenderLimb] = [
         .init(startIndex: 0, endIndex: 1),
         .init(startIndex: 1, endIndex: 2),
@@ -90,6 +98,12 @@ final class StagePlaybackRenderer: NSObject {
         .init(startIndex: 16, endIndex: 18),
         .init(startIndex: 17, endIndex: 19),
         .init(startIndex: 18, endIndex: 20),
+    ]
+    private let canonicalTorsoRenderLimbs: [RenderLimb] = [
+        .init(startIndex: 0, endIndex: 1),
+        .init(startIndex: 1, endIndex: 2),
+        .init(startIndex: 2, endIndex: 3),
+        .init(startIndex: 3, endIndex: 4),
     ]
     private let rawRenderJoints: [RawRenderJoint] = [
         .init(jointName: .root, fallbackRawName: "hips_joint"),
@@ -488,6 +502,8 @@ final class StagePlaybackRenderer: NSObject {
             rawRenderLimbs
         case .canonical:
             canonicalRenderLimbs
+        case .canonicalTorso:
+            canonicalTorsoRenderLimbs
         }
     }
 
@@ -497,6 +513,19 @@ final class StagePlaybackRenderer: NSObject {
             rawRenderJoints.count
         case .canonical:
             canonicalRenderJointNames.count
+        case .canonicalTorso:
+            canonicalTorsoRenderJointNames.count
+        }
+    }
+
+    private var activeCanonicalRenderJointNames: [OdoroJointName] {
+        switch skeletonDebugLayout {
+        case .rawARKit:
+            []
+        case .canonical:
+            canonicalRenderJointNames
+        case .canonicalTorso:
+            canonicalTorsoRenderJointNames
         }
     }
 
@@ -800,10 +829,10 @@ final class StagePlaybackRenderer: NSObject {
                     in: frame
                 )
             }
-        case .canonical:
+        case .canonical, .canonicalTorso:
             let canonicalPositions = canonicalJointPositions(from: frame)
 
-            return canonicalRenderJointNames.map { jointName in
+            return activeCanonicalRenderJointNames.map { jointName in
                 let index = OdoroSkeletonDefinition.index(of: jointName)
                 guard canonicalPositions.indices.contains(index) else {
                     return nil

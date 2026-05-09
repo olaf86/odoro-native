@@ -8,6 +8,7 @@ import Foundation
 enum StageDebugMotionViewMode: String, CaseIterable, Identifiable, Sendable {
     case raw
     case canonical
+    case torso
     case stabilized
 
     var id: String { rawValue }
@@ -18,6 +19,8 @@ enum StageDebugMotionViewMode: String, CaseIterable, Identifiable, Sendable {
             "Raw"
         case .canonical:
             "Canonical"
+        case .torso:
+            "Torso"
         case .stabilized:
             "Stabilized"
         }

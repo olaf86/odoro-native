@@ -211,6 +211,8 @@ extension StudioViewModel {
             .rawARKit
         case .canonical, .stabilized:
             .canonical
+        case .torso:
+            .canonicalTorso
         }
     }
 
@@ -229,6 +231,14 @@ extension StudioViewModel {
                 ?? .empty(
                     purpose: .display,
                     processingStage: .canonical,
+                    skeletonDefinition: .odoroCanonical,
+                    integrity: .displaySafe
+                )
+        case .torso:
+            return preparedStagePlayback?.stabilized
+                ?? .empty(
+                    purpose: .display,
+                    processingStage: .stabilized,
                     skeletonDefinition: .odoroCanonical,
                     integrity: .displaySafe
                 )

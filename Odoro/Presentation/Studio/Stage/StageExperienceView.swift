@@ -102,6 +102,10 @@ private struct StageBottomBar: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
+            if viewModel.availableDebugMotionViewModes.count > 1 {
+                debugModePicker
+            }
+
             HStack(spacing: 10) {
                 Button {
                     viewModel.openModelSelection()
@@ -142,5 +146,39 @@ private struct StageBottomBar: View {
         }
         .padding(18)
         .background(Color.black.opacity(0.28), in: RoundedRectangle(cornerRadius: 26, style: .continuous))
+    }
+
+    private var debugModePicker: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Debug View")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(Color.white.opacity(0.66))
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(viewModel.availableDebugMotionViewModes) { mode in
+                        Button {
+                            viewModel.setDebugMotionViewMode(mode)
+                        } label: {
+                            Text(mode.title)
+                                .font(.caption.weight(.semibold))
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 8)
+                                .background(debugModeFill(for: mode), in: Capsule())
+                                .foregroundStyle(.white)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+        }
+    }
+
+    private func debugModeFill(for mode: StageDebugMotionViewMode) -> Color {
+        if viewModel.selectedDebugMotionViewMode == mode {
+            return Color.orange.opacity(0.88)
+        }
+
+        return Color.white.opacity(0.12)
     }
 }
