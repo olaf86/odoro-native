@@ -1365,6 +1365,45 @@ struct OdoroTests {
         #expect(profile.bindings.first(where: { $0.boneName.hasSuffix("/right_shoulder_1_joint") })?.weight == RobotRigTuning.shoulderRotationWeight)
     }
 
+    @Test func generatedRigProfileMapsTorsoChainBeforeShoulders() {
+        let profile = AvatarAssetStore.makeGeneratedRigProfile(
+            displayName: "Sample",
+            profileID: "sample.rig.v1",
+            runtimeFilename: "model.glb",
+            detectedNodeNames: [
+                "J_Bip_C_Hips",
+                "J_Bip_C_Spine",
+                "J_Bip_C_Chest",
+                "J_Bip_C_UpperChest",
+                "J_Bip_C_Neck",
+                "J_Bip_C_Head",
+                "J_Bip_L_Shoulder",
+                "J_Bip_R_Shoulder",
+            ]
+        )
+
+        let spineBinding = profile.bindings.first(where: { $0.sourceJoint.canonicalJoint == .spine })
+        let chestBinding = profile.bindings.first(where: { $0.sourceJoint.canonicalJoint == .chest })
+        let neckBinding = profile.bindings.first(where: { $0.sourceJoint.canonicalJoint == .neck })
+        let headBinding = profile.bindings.first(where: { $0.sourceJoint.canonicalJoint == .head })
+        let leftShoulderBinding = profile.bindings.first(where: { $0.sourceJoint.canonicalJoint == .leftShoulder })
+        let rightShoulderBinding = profile.bindings.first(where: { $0.sourceJoint.canonicalJoint == .rightShoulder })
+
+        #expect(spineBinding?.boneName == "J_Bip_C_Spine")
+        #expect(spineBinding?.parentSourceJoint?.canonicalJoint == .root)
+        #expect(chestBinding?.boneName == "J_Bip_C_UpperChest")
+        #expect(chestBinding?.parentSourceJoint?.canonicalJoint == .spine)
+        #expect(neckBinding?.boneName == "J_Bip_C_Neck")
+        #expect(neckBinding?.parentSourceJoint?.canonicalJoint == .chest)
+        #expect(headBinding?.boneName == "J_Bip_C_Head")
+        #expect(headBinding?.parentSourceJoint?.canonicalJoint == .neck)
+        #expect(leftShoulderBinding?.parentSourceJoint?.canonicalJoint == .chest)
+        #expect(leftShoulderBinding?.parentSourceJoint?.rawJointName == "J_Bip_C_UpperChest")
+        #expect(rightShoulderBinding?.parentSourceJoint?.canonicalJoint == .chest)
+        #expect(rightShoulderBinding?.parentSourceJoint?.rawJointName == "J_Bip_C_UpperChest")
+        #expect(Set(profile.bindings.map(\.boneName)).count == profile.bindings.count)
+    }
+
     @Test func retargeterBindPoseTranslationKeepsExistingJointOffset() {
         let baseTransform = Transform(
             scale: SIMD3<Float>(1.2, 1.2, 1.2),

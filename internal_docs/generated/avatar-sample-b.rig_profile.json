@@ -13,10 +13,52 @@
         "weight": 1
       },
       {
-        "boneName": "J_Bip_C_Head",
+        "boneName": "J_Bip_C_Spine",
         "parentSourceJoint": {
           "canonicalJoint": "root",
           "rawJointName": "J_Bip_C_Hips"
+        },
+        "rotationOffset": null,
+        "sourceJoint": {
+          "canonicalJoint": "spine",
+          "rawJointName": "J_Bip_C_Spine"
+        },
+        "translationMode": "bindPose",
+        "weight": 1
+      },
+      {
+        "boneName": "J_Bip_C_UpperChest",
+        "parentSourceJoint": {
+          "canonicalJoint": "spine",
+          "rawJointName": "J_Bip_C_Spine"
+        },
+        "rotationOffset": null,
+        "sourceJoint": {
+          "canonicalJoint": "chest",
+          "rawJointName": "J_Bip_C_UpperChest"
+        },
+        "translationMode": "bindPose",
+        "weight": 1
+      },
+      {
+        "boneName": "J_Bip_C_Neck",
+        "parentSourceJoint": {
+          "canonicalJoint": "chest",
+          "rawJointName": "J_Bip_C_UpperChest"
+        },
+        "rotationOffset": null,
+        "sourceJoint": {
+          "canonicalJoint": "neck",
+          "rawJointName": "J_Bip_C_Neck"
+        },
+        "translationMode": "bindPose",
+        "weight": 1
+      },
+      {
+        "boneName": "J_Bip_C_Head",
+        "parentSourceJoint": {
+          "canonicalJoint": "neck",
+          "rawJointName": "J_Bip_C_Neck"
         },
         "rotationOffset": null,
         "sourceJoint": {
@@ -29,8 +71,8 @@
       {
         "boneName": "J_Bip_L_Shoulder",
         "parentSourceJoint": {
-          "canonicalJoint": "root",
-          "rawJointName": "J_Bip_C_Hips"
+          "canonicalJoint": "chest",
+          "rawJointName": "J_Bip_C_UpperChest"
         },
         "rotationOffset": null,
         "sourceJoint": {
@@ -69,10 +111,24 @@
         "weight": 1
       },
       {
+        "boneName": "J_Bip_L_Hand",
+        "parentSourceJoint": {
+          "canonicalJoint": "leftElbow",
+          "rawJointName": "J_Bip_L_LowerArm"
+        },
+        "rotationOffset": null,
+        "sourceJoint": {
+          "canonicalJoint": "leftWrist",
+          "rawJointName": "J_Bip_L_Hand"
+        },
+        "translationMode": "bindPose",
+        "weight": 1
+      },
+      {
         "boneName": "J_Bip_R_Shoulder",
         "parentSourceJoint": {
-          "canonicalJoint": "root",
-          "rawJointName": "J_Bip_C_Hips"
+          "canonicalJoint": "chest",
+          "rawJointName": "J_Bip_C_UpperChest"
         },
         "rotationOffset": null,
         "sourceJoint": {
@@ -106,6 +162,20 @@
         "sourceJoint": {
           "canonicalJoint": "rightElbow",
           "rawJointName": "J_Bip_R_LowerArm"
+        },
+        "translationMode": "bindPose",
+        "weight": 1
+      },
+      {
+        "boneName": "J_Bip_R_Hand",
+        "parentSourceJoint": {
+          "canonicalJoint": "rightElbow",
+          "rawJointName": "J_Bip_R_LowerArm"
+        },
+        "rotationOffset": null,
+        "sourceJoint": {
+          "canonicalJoint": "rightWrist",
+          "rawJointName": "J_Bip_R_Hand"
         },
         "translationMode": "bindPose",
         "weight": 1

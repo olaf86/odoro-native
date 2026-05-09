@@ -496,7 +496,7 @@ struct AvatarAssetStore {
         return normalizedRigProfile
     }
 
-    private static func makeGeneratedRigProfile(
+    static func makeGeneratedRigProfile(
         displayName: String,
         profileID: String,
         runtimeFilename: String,
@@ -505,15 +505,17 @@ struct AvatarAssetStore {
         let resolver = AvatarBoneNameResolver(nodeNames: detectedNodeNames)
 
         var bindings: [AvatarBoneBinding] = []
+        var assignedBoneNames = Set<String>()
 
+        @discardableResult
         func appendBinding(
             aliases: [String],
             canonicalJoint: OdoroJointName,
             parentAliases: [String]? = nil,
             parentJoint: OdoroJointName? = nil
-        ) {
-            guard let boneName = resolver.firstMatch(for: aliases) else {
-                return
+        ) -> Bool {
+            guard let boneName = resolver.firstUnassignedMatch(for: aliases, excluding: assignedBoneNames) else {
+                return false
             }
 
             let parentReference: AvatarRigJointReference?
@@ -530,14 +532,50 @@ struct AvatarAssetStore {
                     parentSourceJoint: parentReference
                 )
             )
+
+            assignedBoneNames.insert(boneName)
+            return true
         }
 
         appendBinding(aliases: ["hips", "pelvis"], canonicalJoint: .root)
-        appendBinding(aliases: ["spine", "spine1", "chest", "upperchest"], canonicalJoint: .root, parentAliases: ["hips", "pelvis"], parentJoint: .root)
-        appendBinding(aliases: ["neck"], canonicalJoint: .head, parentAliases: ["spine", "spine1", "chest", "upperchest"], parentJoint: .root)
-        appendBinding(aliases: ["head"], canonicalJoint: .head, parentAliases: ["neck"], parentJoint: .head)
-        appendBinding(aliases: ["leftshoulder", "lshoulder"], canonicalJoint: .leftShoulder, parentAliases: ["spine", "spine1", "chest", "upperchest"], parentJoint: .root)
-        appendBinding(aliases: ["rightshoulder", "rshoulder"], canonicalJoint: .rightShoulder, parentAliases: ["spine", "spine1", "chest", "upperchest"], parentJoint: .root)
+        appendBinding(
+            aliases: ["spine", "spine1", "spine01", "spine_1"],
+            canonicalJoint: .spine,
+            parentAliases: ["hips", "pelvis"],
+            parentJoint: .root
+        )
+        if !appendBinding(
+            aliases: ["upperchest", "upper_chest"],
+            canonicalJoint: .chest,
+            parentAliases: ["spine", "spine1", "spine01", "spine_1", "hips", "pelvis"],
+            parentJoint: .spine
+        ) {
+            appendBinding(
+                aliases: ["chest", "spine2", "spine02", "spine_2"],
+                canonicalJoint: .chest,
+                parentAliases: ["spine", "spine1", "spine01", "spine_1", "hips", "pelvis"],
+                parentJoint: .spine
+            )
+        }
+        appendBinding(
+            aliases: ["neck"],
+            canonicalJoint: .neck,
+            parentAliases: ["upperchest", "upper_chest", "chest", "spine2", "spine02", "spine_2", "spine", "spine1"],
+            parentJoint: .chest
+        )
+        appendBinding(aliases: ["head"], canonicalJoint: .head, parentAliases: ["neck"], parentJoint: .neck)
+        appendBinding(
+            aliases: ["leftshoulder", "lshoulder"],
+            canonicalJoint: .leftShoulder,
+            parentAliases: ["upperchest", "upper_chest", "chest", "spine2", "spine02", "spine_2", "spine", "spine1"],
+            parentJoint: .chest
+        )
+        appendBinding(
+            aliases: ["rightshoulder", "rshoulder"],
+            canonicalJoint: .rightShoulder,
+            parentAliases: ["upperchest", "upper_chest", "chest", "spine2", "spine02", "spine_2", "spine", "spine1"],
+            parentJoint: .chest
+        )
         appendBinding(aliases: ["leftupperarm", "leftarm", "luparm", "lupperarm"], canonicalJoint: .leftUpperArm, parentAliases: ["leftshoulder", "lshoulder"], parentJoint: .leftShoulder)
         appendBinding(aliases: ["rightupperarm", "rightarm", "ruparm", "rupperarm"], canonicalJoint: .rightUpperArm, parentAliases: ["rightshoulder", "rshoulder"], parentJoint: .rightShoulder)
         appendBinding(aliases: ["leftlowerarm", "leftforearm", "llowarm", "llowerarm"], canonicalJoint: .leftElbow, parentAliases: ["leftupperarm", "leftarm", "luparm", "lupperarm"], parentJoint: .leftUpperArm)
@@ -591,9 +629,30 @@ private struct AvatarBoneNameResolver {
     func firstMatch(for aliases: [String]) -> String? {
         let normalizedAliases = aliases.map(Self.normalize)
 
-        for (index, normalizedNodeName) in normalizedNodeNames.enumerated() {
-            if normalizedAliases.contains(where: { normalizedNodeName == $0 || normalizedNodeName.contains($0) }) {
-                return nodeNames[index]
+        for normalizedAlias in normalizedAliases {
+            for (index, normalizedNodeName) in normalizedNodeNames.enumerated() {
+                if normalizedNodeName == normalizedAlias || normalizedNodeName.contains(normalizedAlias) {
+                    return nodeNames[index]
+                }
+            }
+        }
+
+        return nil
+    }
+
+    func firstUnassignedMatch(for aliases: [String], excluding assignedBoneNames: Set<String>) -> String? {
+        let normalizedAliases = aliases.map(Self.normalize)
+
+        for normalizedAlias in normalizedAliases {
+            for (index, normalizedNodeName) in normalizedNodeNames.enumerated() {
+                let nodeName = nodeNames[index]
+                guard !assignedBoneNames.contains(nodeName) else {
+                    continue
+                }
+
+                if normalizedNodeName == normalizedAlias || normalizedNodeName.contains(normalizedAlias) {
+                    return nodeName
+                }
             }
         }
 
