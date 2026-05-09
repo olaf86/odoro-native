@@ -34,6 +34,7 @@ struct AvatarPoseSampler: Sendable {
             rotations[joint] = simd_quaternion(m)
         }
 
+        Self.deriveMissingTorsoJoints(positions: &positions, rotations: &rotations)
         self.tPose = AvatarDrivePose(worldPositions: positions, worldRotations: rotations)
     }
 
@@ -52,7 +53,10 @@ struct AvatarPoseSampler: Sendable {
     static func arkitJointName(for joint: OdoroJointName) -> ARSkeleton.JointName {
         switch joint {
         case .root:          return .root
-        case .head, .nose:   return .head
+        case .spine:         return ARSkeleton.JointName(rawValue: "spine_3_joint")
+        case .chest:         return ARSkeleton.JointName(rawValue: "spine_7_joint")
+        case .neck:          return ARSkeleton.JointName(rawValue: "neck_1_joint")
+        case .head:          return .head
         case .leftShoulder:  return .leftShoulder
         case .rightShoulder: return .rightShoulder
         case .leftUpperArm:  return ARSkeleton.JointName(rawValue: "left_arm_joint")
@@ -90,6 +94,7 @@ struct AvatarPoseSampler: Sendable {
             }
         }
 
+        Self.deriveMissingTorsoJoints(positions: &positions, rotations: &rotations)
         return AvatarDrivePose(worldPositions: positions, worldRotations: rotations)
     }
 
@@ -112,6 +117,51 @@ struct AvatarPoseSampler: Sendable {
             }
         }
 
+        Self.deriveMissingTorsoJoints(positions: &positions, rotations: &rotations)
         return AvatarDrivePose(worldPositions: positions, worldRotations: rotations)
+    }
+
+    /// Fills missing torso joints by deriving them from nearby canonical body landmarks.
+    private static func deriveMissingTorsoJoints(
+        positions: inout [OdoroJointName: SIMD3<Float>],
+        rotations: inout [OdoroJointName: simd_quatf]
+    ) {
+        let shoulderCenter = midpoint(positions[.leftShoulder], positions[.rightShoulder])
+
+        if positions[.spine] == nil {
+            positions[.spine] = interpolatedPosition(from: positions[.root], to: shoulderCenter, t: 0.35)
+        }
+        if positions[.chest] == nil {
+            positions[.chest] = interpolatedPosition(from: positions[.root], to: shoulderCenter, t: 0.82)
+        }
+        if positions[.neck] == nil {
+            positions[.neck] = interpolatedPosition(from: positions[.chest] ?? shoulderCenter, to: positions[.head], t: 0.45)
+        }
+
+        if rotations[.spine] == nil {
+            rotations[.spine] = rotations[.root]
+        }
+        if rotations[.chest] == nil {
+            rotations[.chest] = rotations[.spine] ?? rotations[.root]
+        }
+        if rotations[.neck] == nil {
+            rotations[.neck] = rotations[.head]
+        }
+    }
+
+    private static func midpoint(_ lhs: SIMD3<Float>?, _ rhs: SIMD3<Float>?) -> SIMD3<Float>? {
+        guard let lhs, let rhs else {
+            return nil
+        }
+
+        return (lhs + rhs) * 0.5
+    }
+
+    private static func interpolatedPosition(from start: SIMD3<Float>?, to end: SIMD3<Float>?, t: Float) -> SIMD3<Float>? {
+        guard let start, let end else {
+            return nil
+        }
+
+        return start + (end - start) * t
     }
 }

@@ -7,8 +7,10 @@ import Foundation
 
 enum OdoroJointName: String, CaseIterable, Codable, Sendable {
     case root
+    case spine
+    case chest
+    case neck
     case head
-    case nose
     case leftShoulder
     case rightShoulder
     case leftElbow
@@ -36,7 +38,7 @@ enum OdoroJointStatus: String, Codable, Sendable {
 }
 
 enum OdoroSkeletonDefinition {
-    nonisolated static let id = "odoro.body.v2"
+    nonisolated static let id = "odoro.body.v1"
     nonisolated static let jointNames = OdoroJointName.allCases
     nonisolated static let jointCount = jointNames.count
 

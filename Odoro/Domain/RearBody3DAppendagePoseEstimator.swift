@@ -297,8 +297,8 @@ struct RearBody3DAppendagePoseEstimator: Sendable {
             return nil
         }
 
-        if let noseForward = noseForwardHint(in: frame),
-           simd_dot(forward, noseForward) < 0 {
+        if let headForward = headForwardHint(in: frame),
+           simd_dot(forward, headForward) < 0 {
             forward *= -1
         }
 
@@ -318,16 +318,26 @@ struct RearBody3DAppendagePoseEstimator: Sendable {
         return normalizedOrNil(candidates.reduce(.zero, +))
     }
 
-    nonisolated private func noseForwardHint(in frame: MotionFrame) -> SIMD3<Float>? {
-        guard
-            let root = canonicalPosition(for: .root, in: frame),
-            let nose = canonicalPosition(for: .nose, in: frame) ?? canonicalPosition(for: .head, in: frame)
-        else {
+    nonisolated private func headForwardHint(in frame: MotionFrame) -> SIMD3<Float>? {
+        let candidates = [
+            horizontalDirection(from: canonicalPosition(for: .chest, in: frame), to: canonicalPosition(for: .head, in: frame)),
+            horizontalDirection(from: canonicalPosition(for: .root, in: frame), to: canonicalPosition(for: .head, in: frame)),
+            horizontalDirection(from: canonicalPosition(for: .root, in: frame), to: canonicalPosition(for: .neck, in: frame)),
+        ].compactMap { $0 }
+
+        guard !candidates.isEmpty else {
             return nil
         }
 
-        let horizontal = SIMD3<Float>(nose.x - root.x, 0, nose.z - root.z)
-        return normalizedOrNil(horizontal)
+        return normalizedOrNil(candidates.reduce(.zero, +))
+    }
+
+    nonisolated private func horizontalDirection(from start: SIMD3<Float>?, to end: SIMD3<Float>?) -> SIMD3<Float>? {
+        guard let start, let end else {
+            return nil
+        }
+
+        return normalizedOrNil(SIMD3<Float>(end.x - start.x, 0, end.z - start.z))
     }
 
     nonisolated private func jointDirection(

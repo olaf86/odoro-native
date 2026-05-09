@@ -16,8 +16,10 @@ enum OdoroCanonicalPoseMapper {
     )
 
     private enum JointNames {
+        nonisolated static var spine3: ARSkeleton.JointName { ARSkeleton.JointName(rawValue: "spine_3_joint") }
+        nonisolated static var spine7: ARSkeleton.JointName { ARSkeleton.JointName(rawValue: "spine_7_joint") }
+        nonisolated static var neck1: ARSkeleton.JointName { ARSkeleton.JointName(rawValue: "neck_1_joint") }
         nonisolated static var head: ARSkeleton.JointName { ARSkeleton.JointName(rawValue: "head_joint") }
-        nonisolated static var nose: ARSkeleton.JointName { ARSkeleton.JointName(rawValue: "nose_joint") }
         nonisolated static var leftArm: ARSkeleton.JointName { ARSkeleton.JointName(rawValue: "left_arm_joint") }
         nonisolated static var rightArm: ARSkeleton.JointName { ARSkeleton.JointName(rawValue: "right_arm_joint") }
         nonisolated static var leftForearm: ARSkeleton.JointName { ARSkeleton.JointName(rawValue: "left_forearm_joint") }
@@ -71,8 +73,10 @@ enum OdoroCanonicalPoseMapper {
         let shoulderCenter = midpoint(leftShoulder, rightShoulder)
 
         let root = resolvedPosition(for: .root, in: frame, jointIndex: jointIndex) ?? midpoint(leftHip, rightHip)
+        let spine = resolvedPosition(for: JointNames.spine3, in: frame, jointIndex: jointIndex)
+        let chest = resolvedPosition(for: JointNames.spine7, in: frame, jointIndex: jointIndex)
+        let neck = resolvedPosition(for: JointNames.neck1, in: frame, jointIndex: jointIndex)
         let head = resolvedPosition(for: .head, fallbackJointName: JointNames.head, in: frame, jointIndex: jointIndex)
-        let nose = resolvedPosition(for: JointNames.nose, in: frame, jointIndex: jointIndex)
         let leftUpperArm = resolvedPosition(for: JointNames.leftArm, in: frame, jointIndex: jointIndex)
         let rightUpperArm = resolvedPosition(for: JointNames.rightArm, in: frame, jointIndex: jointIndex)
         let leftElbow = resolvedPosition(
@@ -94,6 +98,23 @@ enum OdoroCanonicalPoseMapper {
             resolvedPosition(for: .rightHand, fallbackJointName: JointNames.rightHand, in: frame, jointIndex: jointIndex)
             ?? rightElbow
 
+        let derivedSpine = spine ?? interpolatedPosition(from: root, to: shoulderCenter, t: 0.35)
+        let derivedChest = chest ?? interpolatedPosition(from: root, to: shoulderCenter, t: 0.82)
+        let derivedNeck = neck ?? interpolatedPosition(from: derivedChest ?? shoulderCenter, to: head, t: 0.45)
+
+        let spineRotation = resolvedRotation(for: JointNames.spine3, fallbackJointName: .root, in: frame, jointIndex: jointIndex)
+        let chestRotation = resolvedRotation(
+            for: JointNames.spine7,
+            fallbackJointName: JointNames.spine3,
+            in: frame,
+            jointIndex: jointIndex
+        ) ?? spineRotation
+        let neckRotation = resolvedRotation(
+            for: JointNames.neck1,
+            fallbackJointName: .head,
+            in: frame,
+            jointIndex: jointIndex
+        )
         let headRotation = resolvedRotation(for: .head, fallbackJointName: JointNames.head, in: frame, jointIndex: jointIndex)
         let leftUpperArmRotation = resolvedRotation(for: JointNames.leftArm, in: frame, jointIndex: jointIndex)
         let rightUpperArmRotation = resolvedRotation(for: JointNames.rightArm, in: frame, jointIndex: jointIndex)
@@ -120,8 +141,10 @@ enum OdoroCanonicalPoseMapper {
         let mappedJoints = Dictionary(
             uniqueKeysWithValues: [
                 (OdoroJointName.root, required(root, fallback: .zero, status: root == nil ? .missing : .observed)),
+                (OdoroJointName.spine, derived(spine, fallback: derivedSpine, observedStatus: .mapped)),
+                (OdoroJointName.chest, derived(chest, fallback: derivedChest, observedStatus: .mapped)),
+                (OdoroJointName.neck, derived(neck, fallback: derivedNeck, observedStatus: .mapped)),
                 (OdoroJointName.head, required(head, fallback: shoulderCenter ?? .zero, status: head == nil ? .missing : .observed)),
-                (OdoroJointName.nose, required(nose, fallback: head ?? shoulderCenter ?? .zero, status: nose == nil ? .missing : .observed)),
                 (OdoroJointName.leftShoulder, required(leftShoulder, fallback: .zero, status: leftShoulder == nil ? .missing : .observed)),
                 (OdoroJointName.rightShoulder, required(rightShoulder, fallback: .zero, status: rightShoulder == nil ? .missing : .observed)),
                 (OdoroJointName.leftElbow, required(leftElbow, fallback: leftUpperArm ?? leftShoulder ?? .zero, status: .mapped)),
@@ -144,8 +167,10 @@ enum OdoroCanonicalPoseMapper {
             let values = Dictionary(
                 uniqueKeysWithValues: [
                     (OdoroJointName.root, resolvedRotation(for: .root, in: frame, jointIndex: jointIndex)),
+                    (OdoroJointName.spine, spineRotation),
+                    (OdoroJointName.chest, chestRotation),
+                    (OdoroJointName.neck, neckRotation ?? headRotation),
                     (OdoroJointName.head, headRotation),
-                    (OdoroJointName.nose, resolvedRotation(for: JointNames.nose, in: frame, jointIndex: jointIndex) ?? headRotation),
                     (OdoroJointName.leftShoulder, resolvedRotation(for: .leftShoulder, in: frame, jointIndex: jointIndex)),
                     (OdoroJointName.rightShoulder, resolvedRotation(for: .rightShoulder, in: frame, jointIndex: jointIndex)),
                     (OdoroJointName.leftElbow, leftElbowRotation),
@@ -191,6 +216,22 @@ enum OdoroCanonicalPoseMapper {
         return (position, status)
     }
 
+    nonisolated private static func derived(
+        _ position: SIMD3<Float>?,
+        fallback: SIMD3<Float>?,
+        observedStatus: OdoroJointStatus
+    ) -> (SIMD3<Float>, OdoroJointStatus) {
+        if let position {
+            return (position, observedStatus)
+        }
+
+        if let fallback {
+            return (fallback, .derived)
+        }
+
+        return (.zero, .missing)
+    }
+
     nonisolated private static func derivedAnkle(knee: SIMD3<Float>?, foot: SIMD3<Float>?) -> (SIMD3<Float>, OdoroJointStatus) {
         guard let knee, let foot else {
             return (foot ?? knee ?? .zero, .missing)
@@ -213,6 +254,18 @@ enum OdoroCanonicalPoseMapper {
         }
 
         return (lhs + rhs) * 0.5
+    }
+
+    nonisolated private static func interpolatedPosition(
+        from start: SIMD3<Float>?,
+        to end: SIMD3<Float>?,
+        t: Float
+    ) -> SIMD3<Float>? {
+        guard let start, let end else {
+            return nil
+        }
+
+        return start + (end - start) * t
     }
 
     nonisolated private static func resolvedPosition(

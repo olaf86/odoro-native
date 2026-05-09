@@ -33,6 +33,9 @@ enum VisionBodyPoseFrameBuilder {
         let shoulderCenter = (leftShoulder + rightShoulder) * 0.5
         let root = shoulderCenter + SIMD3<Float>(0, -0.30, 0.02)
         let head = stagePosition(for: .nose, in: points) ?? shoulderCenter + SIMD3<Float>(0, 0.26, 0.03)
+        let spine = interpolatedPosition(from: root, to: shoulderCenter, t: 0.35)
+        let chest = interpolatedPosition(from: root, to: shoulderCenter, t: 0.82)
+        let neck = interpolatedPosition(from: chest, to: head, t: 0.45)
 
         let leftElbow = stagePosition(for: .leftElbow, in: points) ?? leftShoulder + SIMD3<Float>(-0.18, -0.18, 0.02)
         let rightElbow = stagePosition(for: .rightElbow, in: points) ?? rightShoulder + SIMD3<Float>(0.18, -0.18, 0.02)
@@ -55,6 +58,9 @@ enum VisionBodyPoseFrameBuilder {
 
         setJoint(.root, to: root, in: &joints)
         setJoint(.head, to: head, in: &joints)
+        setJoint(named: "spine_3_joint", to: spine, in: &joints)
+        setJoint(named: "spine_7_joint", to: chest, in: &joints)
+        setJoint(named: "neck_1_joint", to: neck, in: &joints)
         setJoint(.leftShoulder, to: leftShoulder, in: &joints)
         setJoint(.rightShoulder, to: rightShoulder, in: &joints)
         setJoint(named: "left_arm_joint", to: leftUpperArm, in: &joints)

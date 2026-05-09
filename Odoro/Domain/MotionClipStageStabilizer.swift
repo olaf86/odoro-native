@@ -627,8 +627,10 @@ private extension MotionClipStageStabilizer {
         }
 
         let root = OdoroSkeletonDefinition.index(of: .root)
+        let spine = OdoroSkeletonDefinition.index(of: .spine)
+        let chest = OdoroSkeletonDefinition.index(of: .chest)
+        let neck = OdoroSkeletonDefinition.index(of: .neck)
         let head = OdoroSkeletonDefinition.index(of: .head)
-        let nose = OdoroSkeletonDefinition.index(of: .nose)
         let leftShoulder = OdoroSkeletonDefinition.index(of: .leftShoulder)
         let rightShoulder = OdoroSkeletonDefinition.index(of: .rightShoulder)
         let leftUpperArm = OdoroSkeletonDefinition.index(of: .leftUpperArm)
@@ -648,10 +650,12 @@ private extension MotionClipStageStabilizer {
 
         return CanonicalRig(
             bones: [
-                (parentIndex: root, childIndex: head),
-                (parentIndex: head, childIndex: nose),
-                (parentIndex: root, childIndex: leftShoulder),
-                (parentIndex: root, childIndex: rightShoulder),
+                (parentIndex: root, childIndex: spine),
+                (parentIndex: spine, childIndex: chest),
+                (parentIndex: chest, childIndex: neck),
+                (parentIndex: neck, childIndex: head),
+                (parentIndex: chest, childIndex: leftShoulder),
+                (parentIndex: chest, childIndex: rightShoulder),
                 (parentIndex: leftShoulder, childIndex: leftUpperArm),
                 (parentIndex: rightShoulder, childIndex: rightUpperArm),
                 (parentIndex: leftUpperArm, childIndex: leftElbow),

@@ -707,8 +707,8 @@ private extension StagePlaybackCameraEstimator {
             return nil
         }
 
-        if let noseForward = noseForward(in: frame),
-           simd_dot(forward, noseForward) < 0 {
+        if let headForward = headForward(in: frame),
+           simd_dot(forward, headForward) < 0 {
             forward *= -1
         }
 
@@ -728,15 +728,26 @@ private extension StagePlaybackCameraEstimator {
         return normalizedOrNil(candidates.reduce(.zero, +))
     }
 
-    nonisolated func noseForward(in frame: MotionFrame) -> SIMD3<Float>? {
-        guard
-            let root = canonicalPosition(for: .root, in: frame),
-            let nose = canonicalPosition(for: .nose, in: frame) ?? canonicalPosition(for: .head, in: frame)
-        else {
+    nonisolated func headForward(in frame: MotionFrame) -> SIMD3<Float>? {
+        let candidates = [
+            horizontalDirection(from: canonicalPosition(for: .chest, in: frame), to: canonicalPosition(for: .head, in: frame)),
+            horizontalDirection(from: canonicalPosition(for: .root, in: frame), to: canonicalPosition(for: .head, in: frame)),
+            horizontalDirection(from: canonicalPosition(for: .root, in: frame), to: canonicalPosition(for: .neck, in: frame)),
+        ].compactMap { $0 }
+
+        guard !candidates.isEmpty else {
             return nil
         }
 
-        return normalizedOrNil(SIMD3<Float>(nose.x - root.x, 0, nose.z - root.z))
+        return normalizedOrNil(candidates.reduce(.zero, +))
+    }
+
+    nonisolated private func horizontalDirection(from start: SIMD3<Float>?, to end: SIMD3<Float>?) -> SIMD3<Float>? {
+        guard let start, let end else {
+            return nil
+        }
+
+        return normalizedOrNil(SIMD3<Float>(end.x - start.x, 0, end.z - start.z))
     }
 
     nonisolated func jointDirection(
