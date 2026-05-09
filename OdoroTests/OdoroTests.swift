@@ -1404,6 +1404,128 @@ struct OdoroTests {
         #expect(Set(profile.bindings.map(\.boneName)).count == profile.bindings.count)
     }
 
+    @Test func retargeterResolvesTorsoChainUsingCanonicalParents() {
+        let bindings: [AvatarBoneBinding] = [
+            AvatarBoneBinding(
+                boneName: "hips",
+                sourceJoint: AvatarRigJointReference(canonicalJoint: .root),
+                translationMode: .direct
+            ),
+            AvatarBoneBinding(
+                boneName: "spine",
+                sourceJoint: AvatarRigJointReference(canonicalJoint: .spine),
+                parentSourceJoint: AvatarRigJointReference(canonicalJoint: .root),
+                translationMode: .bindPose
+            ),
+            AvatarBoneBinding(
+                boneName: "chest",
+                sourceJoint: AvatarRigJointReference(canonicalJoint: .chest),
+                parentSourceJoint: AvatarRigJointReference(canonicalJoint: .spine),
+                translationMode: .bindPose
+            ),
+            AvatarBoneBinding(
+                boneName: "neck",
+                sourceJoint: AvatarRigJointReference(canonicalJoint: .neck),
+                parentSourceJoint: AvatarRigJointReference(canonicalJoint: .chest),
+                translationMode: .bindPose
+            ),
+            AvatarBoneBinding(
+                boneName: "head",
+                sourceJoint: AvatarRigJointReference(canonicalJoint: .head),
+                parentSourceJoint: AvatarRigJointReference(canonicalJoint: .neck),
+                translationMode: .bindPose
+            ),
+        ]
+        let profile = AvatarRigProfile(
+            id: "torso.test.v1",
+            displayName: "Torso Test",
+            skeletonId: OdoroSkeletonDefinition.id,
+            sourceFormat: .glb,
+            runtimeFormat: .glb,
+            runtimeAssetRelativePath: "model.glb",
+            rootBoneName: "hips",
+            bindings: bindings,
+            scaleCompensation: 1,
+            floorOffset: 0,
+            schemaVersion: 1
+        )
+        let identity = simd_quatf(ix: 0, iy: 0, iz: 0, r: 1)
+        let bindPoseTransforms = Array(
+            repeating: Transform(
+                scale: SIMD3<Float>(repeating: 1),
+                rotation: identity,
+                translation: SIMD3<Float>(0, 0, 0)
+            ),
+            count: 5
+        )
+        let modelJointIndices = [
+            "hips": 0,
+            "spine": 1,
+            "chest": 2,
+            "neck": 3,
+            "head": 4,
+        ]
+
+        let rootLocal = simd_quatf(angle: 0.12, axis: SIMD3<Float>(0, 1, 0))
+        let spineLocal = simd_quatf(angle: 0.18, axis: SIMD3<Float>(0, 1, 0))
+        let chestLocal = simd_quatf(angle: -0.09, axis: SIMD3<Float>(1, 0, 0))
+        let neckLocal = simd_quatf(angle: 0.07, axis: SIMD3<Float>(0, 0, 1))
+        let headLocal = simd_quatf(angle: 0.11, axis: SIMD3<Float>(1, 0, 0))
+
+        let rootWorld = rootLocal
+        let spineWorld = rootWorld * spineLocal
+        let chestWorld = spineWorld * chestLocal
+        let neckWorld = chestWorld * neckLocal
+        let headWorld = neckWorld * headLocal
+
+        let tPose = AvatarDrivePose(
+            worldPositions: [
+                .root: SIMD3<Float>(0, 1.0, 0),
+                .spine: SIMD3<Float>(0, 1.18, 0),
+                .chest: SIMD3<Float>(0, 1.34, 0),
+                .neck: SIMD3<Float>(0, 1.48, 0),
+                .head: SIMD3<Float>(0, 1.62, 0),
+            ],
+            worldRotations: [
+                .root: identity,
+                .spine: identity,
+                .chest: identity,
+                .neck: identity,
+                .head: identity,
+            ]
+        )
+        let pose = AvatarDrivePose(
+            worldPositions: [
+                .root: SIMD3<Float>(0.1, 1.02, 0.05),
+                .spine: SIMD3<Float>(0.1, 1.20, 0.05),
+                .chest: SIMD3<Float>(0.1, 1.38, 0.07),
+                .neck: SIMD3<Float>(0.1, 1.52, 0.08),
+                .head: SIMD3<Float>(0.1, 1.66, 0.10),
+            ],
+            worldRotations: [
+                .root: rootWorld,
+                .spine: spineWorld,
+                .chest: chestWorld,
+                .neck: neckWorld,
+                .head: headWorld,
+            ]
+        )
+
+        let retargeter = AvatarRigRetargeter(
+            profile: profile,
+            bindPoseTransforms: bindPoseTransforms,
+            modelJointIndices: modelJointIndices,
+            tPose: tPose
+        )
+        let transforms = retargeter.retargetFrame(pose, previousTransforms: nil)
+
+        #expect(Self.rotationAngle(rootLocal.inverse * transforms[0].rotation) < 0.0001)
+        #expect(Self.rotationAngle(spineLocal.inverse * transforms[1].rotation) < 0.0001)
+        #expect(Self.rotationAngle(chestLocal.inverse * transforms[2].rotation) < 0.0001)
+        #expect(Self.rotationAngle(neckLocal.inverse * transforms[3].rotation) < 0.0001)
+        #expect(Self.rotationAngle(headLocal.inverse * transforms[4].rotation) < 0.0001)
+    }
+
     @Test func retargeterBindPoseTranslationKeepsExistingJointOffset() {
         let baseTransform = Transform(
             scale: SIMD3<Float>(1.2, 1.2, 1.2),
