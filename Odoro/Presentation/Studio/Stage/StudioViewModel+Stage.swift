@@ -13,6 +13,20 @@ extension StudioViewModel {
         applyStageDebugPresentation()
     }
 
+    func orbitStageDebugCamera(horizontalPoints: CGFloat, verticalPoints: CGFloat) {
+        let yaw = Float(horizontalPoints) * -0.008
+        let pitch = Float(verticalPoints) * -0.006
+        stageRenderer.orbitDebugCamera(deltaYaw: yaw, deltaPitch: pitch)
+    }
+
+    func zoomStageDebugCamera(scaleDelta: CGFloat) {
+        stageRenderer.zoomDebugCamera(scaleDelta: Float(scaleDelta))
+    }
+
+    func resetStageDebugCamera() {
+        stageRenderer.resetDebugCameraOrbit()
+    }
+
     func returnToCapture() {
         stageRenderer.pause()
         interactor.setPlaybackActive(false)

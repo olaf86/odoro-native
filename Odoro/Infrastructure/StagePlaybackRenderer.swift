@@ -29,6 +29,13 @@ final class StagePlaybackRenderer: NSObject {
         nonisolated static let majorLineColor = UIColor(red: 0.5, green: 0.92, blue: 1.0, alpha: 0.88)
         nonisolated static let minorLineColor = UIColor(red: 0.4, green: 0.8, blue: 0.95, alpha: 0.4)
     }
+
+    private struct DebugCameraOrbit: Equatable {
+        var yaw: Float = 0
+        var pitch: Float = 0
+        var distanceScale: Float = 1
+    }
+
     enum SkeletonDebugLayout: Equatable {
         case rawARKit
         case canonical
@@ -166,6 +173,7 @@ final class StagePlaybackRenderer: NSObject {
     private var hasStoppedBuiltInAnimation = false
     private var skeletonDebugLayout: SkeletonDebugLayout = .canonical
     private var avatarLoadTask: Task<Void, Never>?
+    private var debugCameraOrbit = DebugCameraOrbit()
 
     override init() {
         super.init()
@@ -216,6 +224,30 @@ final class StagePlaybackRenderer: NSObject {
         }
 
         stageCameraPreset = preset
+        updateStageCameraTransform()
+    }
+
+    func orbitDebugCamera(deltaYaw: Float, deltaPitch: Float) {
+        debugCameraOrbit.yaw += deltaYaw
+        debugCameraOrbit.pitch = min(max(debugCameraOrbit.pitch + deltaPitch, -.pi * 0.45), .pi * 0.45)
+        updateStageCameraTransform()
+    }
+
+    func zoomDebugCamera(scaleDelta: Float) {
+        guard scaleDelta.isFinite, scaleDelta > 0.0001 else {
+            return
+        }
+
+        debugCameraOrbit.distanceScale = min(max(debugCameraOrbit.distanceScale / scaleDelta, 0.35), 3.0)
+        updateStageCameraTransform()
+    }
+
+    func resetDebugCameraOrbit() {
+        guard debugCameraOrbit != DebugCameraOrbit() else {
+            return
+        }
+
+        debugCameraOrbit = DebugCameraOrbit()
         updateStageCameraTransform()
     }
 
@@ -492,8 +524,40 @@ final class StagePlaybackRenderer: NSObject {
 
     private func updateStageCameraTransform() {
         let lookAt = stageCameraPreset?.lookAtSIMD ?? Self.defaultStageLookAt
-        let position = stageCameraPreset?.positionSIMD ?? Self.defaultStageCameraPosition
+        let basePosition = stageCameraPreset?.positionSIMD ?? Self.defaultStageCameraPosition
+        let position = Self.orbitedCameraPosition(
+            lookAt: lookAt,
+            basePosition: basePosition,
+            orbit: debugCameraOrbit
+        )
         stageCameraEntity.look(at: lookAt, from: position, relativeTo: nil)
+    }
+
+    nonisolated private static func orbitedCameraPosition(
+        lookAt: SIMD3<Float>,
+        basePosition: SIMD3<Float>,
+        orbit: DebugCameraOrbit
+    ) -> SIMD3<Float> {
+        let baseOffset = basePosition - lookAt
+        let baseDistance = max(simd_length(baseOffset), 0.001)
+
+        var rotatedOffset = simd_act(
+            simd_quatf(angle: orbit.yaw, axis: SIMD3<Float>(0, 1, 0)),
+            baseOffset
+        )
+
+        let forward = simd_normalize(-rotatedOffset)
+        let right = simd_normalize(simd_cross(SIMD3<Float>(0, 1, 0), forward))
+        if right.x.isFinite, right.y.isFinite, right.z.isFinite, simd_length_squared(right) > 0.0001 {
+            rotatedOffset = simd_act(
+                simd_quatf(angle: orbit.pitch, axis: right),
+                rotatedOffset
+            )
+        }
+
+        let normalizedOffset = simd_normalize(rotatedOffset)
+        let finalDistance = baseDistance * orbit.distanceScale
+        return lookAt + normalizedOffset * finalDistance
     }
 
     private var activeRenderLimbs: [RenderLimb] {

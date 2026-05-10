@@ -150,9 +150,25 @@ private struct StageBottomBar: View {
 
     private var debugModePicker: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Debug View")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(Color.white.opacity(0.66))
+            HStack(spacing: 10) {
+                Text("Debug View")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color.white.opacity(0.66))
+
+                Spacer(minLength: 0)
+
+                Button {
+                    viewModel.resetDebugCamera()
+                } label: {
+                    Label("Reset Camera", systemImage: "view.3d")
+                        .font(.caption.weight(.semibold))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 7)
+                        .background(Color.white.opacity(0.1), in: Capsule())
+                        .foregroundStyle(.white)
+                }
+                .buttonStyle(.plain)
+            }
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
@@ -171,6 +187,10 @@ private struct StageBottomBar: View {
                     }
                 }
             }
+
+            Text("Drag to orbit • Pinch to zoom • Double-tap to reset")
+                .font(.caption2)
+                .foregroundStyle(Color.white.opacity(0.54))
         }
     }
 

@@ -89,6 +89,18 @@ final class StageViewModel: ObservableObject {
         studio.setStageDebugMotionViewMode(mode)
     }
 
+    func orbitDebugCamera(horizontalPoints: CGFloat, verticalPoints: CGFloat) {
+        studio.orbitStageDebugCamera(horizontalPoints: horizontalPoints, verticalPoints: verticalPoints)
+    }
+
+    func zoomDebugCamera(scaleDelta: CGFloat) {
+        studio.zoomStageDebugCamera(scaleDelta: scaleDelta)
+    }
+
+    func resetDebugCamera() {
+        studio.resetStageDebugCamera()
+    }
+
     private var currentTake: MotionTakeSummary? {
         guard let currentTakeID = studio.currentTakeID else {
             return studio.currentSessionTakes.first
