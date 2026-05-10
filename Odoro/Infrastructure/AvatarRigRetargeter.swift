@@ -21,6 +21,54 @@ import simd
 /// mismatches for VRoid models, while producing identical results for the robot
 /// (whose rig profile already mirrors ARKit's parent-child structure).
 struct AvatarRigRetargeter {
+    private enum DirectionalBoneSpec {
+        case leftUpperArm
+        case rightUpperArm
+        case leftForearm
+        case rightForearm
+
+        nonisolated init?(joint: OdoroJointName?) {
+            switch joint {
+            case .leftUpperArm:
+                self = .leftUpperArm
+            case .rightUpperArm:
+                self = .rightUpperArm
+            case .leftElbow:
+                self = .leftForearm
+            case .rightElbow:
+                self = .rightForearm
+            default:
+                return nil
+            }
+        }
+
+        nonisolated var startJoint: OdoroJointName {
+            switch self {
+            case .leftUpperArm:
+                .leftShoulder
+            case .rightUpperArm:
+                .rightShoulder
+            case .leftForearm:
+                .leftElbow
+            case .rightForearm:
+                .rightElbow
+            }
+        }
+
+        nonisolated var endJoint: OdoroJointName {
+            switch self {
+            case .leftUpperArm:
+                .leftElbow
+            case .rightUpperArm:
+                .rightElbow
+            case .leftForearm:
+                .leftWrist
+            case .rightForearm:
+                .rightWrist
+            }
+        }
+    }
+
     private enum Tuning {
         nonisolated static let smallRotationDelta: Float     = 0.08
         nonisolated static let largeRotationDelta: Float     = 0.75
@@ -68,7 +116,7 @@ struct AvatarRigRetargeter {
 
             let resolvedWorldRot = binding.rotationOffset.map { worldRot * $0.simdValue } ?? worldRot
 
-            let target = Self.retargetedLocalTransform(
+            var target = Self.retargetedLocalTransform(
                 baseTransform: bindPoseTransforms[targetIndex],
                 worldRotation: resolvedWorldRot,
                 worldPosition: worldPos,
@@ -80,6 +128,15 @@ struct AvatarRigRetargeter {
                 rotationWeight: binding.weight,
                 floorOffset: profile.floorOffset
             )
+
+            if let directionalRotation = Self.directionRetargetedLocalRotation(
+                baseTransform: bindPoseTransforms[targetIndex],
+                binding: binding,
+                pose: pose,
+                tPose: tPose
+            ) {
+                target.rotation = directionalRotation
+            }
 
             let isRootJoint = binding.translationMode == .direct
                 && binding.sourceJoint.canonicalJoint == .root
@@ -157,6 +214,47 @@ struct AvatarRigRetargeter {
         return simd_slerp(.identity, rotation, w)
     }
 
+    nonisolated static func directionRetargetedLocalRotation(
+        baseTransform: Transform,
+        binding: AvatarBoneBinding,
+        pose: AvatarDrivePose,
+        tPose: AvatarDrivePose
+    ) -> simd_quatf? {
+        guard let spec = DirectionalBoneSpec(joint: binding.sourceJoint.canonicalJoint) else {
+            return nil
+        }
+
+        guard
+            let start = pose.worldPosition(for: spec.startJoint),
+            let end = pose.worldPosition(for: spec.endJoint),
+            let tPoseStart = tPose.worldPosition(for: spec.startJoint),
+            let tPoseEnd = tPose.worldPosition(for: spec.endJoint),
+            let currentDirectionWorld = normalizedDirection(from: start, to: end),
+            let tPoseDirectionWorld = normalizedDirection(from: tPoseStart, to: tPoseEnd)
+        else {
+            return nil
+        }
+
+        let parentRotation = pose.worldRotation(for: binding.parentSourceJoint) ?? .identity
+        let tPoseParentRotation = tPose.worldRotation(for: binding.parentSourceJoint) ?? .identity
+
+        let currentDirectionLocal = simd_act(parentRotation.inverse, currentDirectionWorld)
+        let tPoseDirectionLocal = simd_act(tPoseParentRotation.inverse, tPoseDirectionWorld)
+
+        guard
+            let normalizedCurrentDirectionLocal = normalized(currentDirectionLocal),
+            let normalizedTPoseDirectionLocal = normalized(tPoseDirectionLocal)
+        else {
+            return nil
+        }
+
+        let delta = rotationAligning(
+            from: normalizedTPoseDirectionLocal,
+            to: normalizedCurrentDirectionLocal
+        )
+        return baseTransform.rotation * weightedRotation(delta, weight: binding.weight)
+    }
+
     // MARK: - Continuity stabilization
 
     /// Smooths a joint transform between frames to suppress large inter-frame jumps.
@@ -223,8 +321,41 @@ struct AvatarRigRetargeter {
         let dot = abs(simd_dot(lhs.vector, rhs.vector))
         return 2 * acos(min(max(dot, -1), 1))
     }
+
+    nonisolated private static func normalizedDirection(
+        from start: SIMD3<Float>,
+        to end: SIMD3<Float>
+    ) -> SIMD3<Float>? {
+        normalized(end - start)
+    }
+
+    nonisolated private static func normalized(_ vector: SIMD3<Float>) -> SIMD3<Float>? {
+        let length = simd_length(vector)
+        guard length > 0.0001 else { return nil }
+        return vector / length
+    }
+
+    nonisolated private static func rotationAligning(
+        from source: SIMD3<Float>,
+        to target: SIMD3<Float>
+    ) -> simd_quatf {
+        let dot = simd_dot(source, target)
+        if dot > 0.9999 {
+            return .identity
+        }
+        if dot < -0.9999 {
+            return simd_quatf(angle: .pi, axis: orthogonalUnitVector(to: source))
+        }
+
+        return simd_quatf(from: source, to: target)
+    }
+
+    nonisolated private static func orthogonalUnitVector(to vector: SIMD3<Float>) -> SIMD3<Float> {
+        let basis = abs(vector.x) < 0.9 ? SIMD3<Float>(1, 0, 0) : SIMD3<Float>(0, 1, 0)
+        return simd_normalize(simd_cross(vector, basis))
+    }
 }
 
 private extension simd_quatf {
-    static let identity = simd_quatf(ix: 0, iy: 0, iz: 0, r: 1)
+    nonisolated static let identity = simd_quatf(ix: 0, iy: 0, iz: 0, r: 1)
 }

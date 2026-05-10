@@ -1536,6 +1536,53 @@ struct OdoroTests {
         #expect(Self.rotationAngle(headLocal.inverse * transforms[4].rotation) < 0.0001)
     }
 
+    @Test func retargeterUsesDirectionVectorsForArmBindingsInsteadOfSourceTwist() {
+        let binding = AvatarBoneBinding(
+            boneName: "leftUpperArm",
+            sourceJoint: AvatarRigJointReference(canonicalJoint: .leftUpperArm),
+            parentSourceJoint: AvatarRigJointReference(canonicalJoint: .leftShoulder),
+            translationMode: .bindPose
+        )
+        let baseTransform = Transform(
+            scale: .one,
+            rotation: simd_quatf(ix: 0, iy: 0, iz: 0, r: 1),
+            translation: .zero
+        )
+        let pose = AvatarDrivePose(
+            worldPositions: [
+                .leftShoulder: SIMD3<Float>(-0.20, 1.40, 0),
+                .leftUpperArm: SIMD3<Float>(-0.34, 1.37, 0.02),
+                .leftElbow: SIMD3<Float>(-0.20, 1.06, 0),
+            ],
+            worldRotations: [
+                .leftShoulder: simd_quatf(ix: 0, iy: 0, iz: 0, r: 1),
+                .leftUpperArm: simd_quatf(angle: 1.3, axis: SIMD3<Float>(1, 0, 0)),
+            ]
+        )
+        let tPose = AvatarDrivePose(
+            worldPositions: [
+                .leftShoulder: SIMD3<Float>(-0.20, 1.40, 0),
+                .leftUpperArm: SIMD3<Float>(-0.44, 1.40, 0),
+                .leftElbow: SIMD3<Float>(-0.68, 1.40, 0),
+            ],
+            worldRotations: [
+                .leftShoulder: simd_quatf(ix: 0, iy: 0, iz: 0, r: 1),
+                .leftUpperArm: simd_quatf(ix: 0, iy: 0, iz: 0, r: 1),
+            ]
+        )
+
+        let localRotation = AvatarRigRetargeter.directionRetargetedLocalRotation(
+            baseTransform: baseTransform,
+            binding: binding,
+            pose: pose,
+            tPose: tPose
+        )
+
+        let expected = simd_quatf(from: SIMD3<Float>(-1, 0, 0), to: SIMD3<Float>(0, -1, 0))
+        #expect(localRotation != nil)
+        #expect(Self.rotationAngle(expected.inverse * localRotation!) < 0.0001)
+    }
+
     @Test func retargeterBindPoseTranslationKeepsExistingJointOffset() {
         let baseTransform = Transform(
             scale: SIMD3<Float>(1.2, 1.2, 1.2),

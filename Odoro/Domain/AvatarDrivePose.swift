@@ -17,21 +17,21 @@ struct AvatarDrivePose: Sendable {
 }
 
 extension AvatarDrivePose {
-    func worldPosition(for joint: OdoroJointName?) -> SIMD3<Float>? {
+    nonisolated func worldPosition(for joint: OdoroJointName?) -> SIMD3<Float>? {
         guard let joint else { return nil }
         return worldPositions[joint]
     }
 
-    func worldRotation(for joint: OdoroJointName?) -> simd_quatf? {
+    nonisolated func worldRotation(for joint: OdoroJointName?) -> simd_quatf? {
         guard let joint else { return nil }
         return worldRotations[joint]
     }
 
-    func worldPosition(for reference: AvatarRigJointReference?) -> SIMD3<Float>? {
+    nonisolated func worldPosition(for reference: AvatarRigJointReference?) -> SIMD3<Float>? {
         worldPosition(for: reference?.canonicalJoint)
     }
 
-    func worldRotation(for reference: AvatarRigJointReference?) -> simd_quatf? {
+    nonisolated func worldRotation(for reference: AvatarRigJointReference?) -> simd_quatf? {
         worldRotation(for: reference?.canonicalJoint)
     }
 }
