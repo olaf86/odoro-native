@@ -1351,6 +1351,16 @@ struct OdoroTests {
         #expect(StagePlaybackRenderer.hasUsableJointRotations([nil, MotionJointRotation(ix: 0, iy: 0, iz: 0, r: 1)]) == true)
     }
 
+    @Test func stageRendererFallbackJointCountsMatchEachDebugLayout() {
+        let raw = StagePlaybackRenderer.fallbackJointPositions(for: .rawARKit, time: 0.25)
+        let canonical = StagePlaybackRenderer.fallbackJointPositions(for: .canonical, time: 0.25)
+        let torso = StagePlaybackRenderer.fallbackJointPositions(for: .canonicalTorso, time: 0.25)
+
+        #expect(raw.count == 16)
+        #expect(canonical.count == OdoroSkeletonDefinition.jointCount)
+        #expect(torso.count == 5)
+    }
+
     @Test func robotRigProfileUsesUsdSkeletonJointPaths() {
         let profile = AvatarCatalog.robotRigProfile
 

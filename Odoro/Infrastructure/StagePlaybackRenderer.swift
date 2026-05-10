@@ -646,7 +646,12 @@ final class StagePlaybackRenderer: NSObject {
         }
 
         if shouldUseProceduralFallback(for: jointPositions) {
-            jointPositions = fallbackJointPositions(for: frame).map(Optional.some)
+            let fallbackPositions = fallbackJointPositions(for: frame)
+            guard fallbackPositions.count == jointEntities.count else {
+                assertionFailure("Fallback joint count (\(fallbackPositions.count)) did not match active render joint count (\(jointEntities.count)).")
+                return
+            }
+            jointPositions = fallbackPositions.map(Optional.some)
         }
 
         for (index, position) in jointPositions.enumerated() {
@@ -1015,39 +1020,146 @@ final class StagePlaybackRenderer: NSObject {
     }
 
     private func fallbackJointPositions(for frame: MotionFrame) -> [SIMD3<Float>] {
-        let rhythm = Float(frame.time)
+        Self.fallbackJointPositions(for: skeletonDebugLayout, time: frame.time)
+    }
+
+    nonisolated static func fallbackJointPositions(
+        for layout: SkeletonDebugLayout,
+        time: TimeInterval
+    ) -> [SIMD3<Float>] {
+        let pose = proceduralFallbackPose(time: time)
+
+        switch layout {
+        case .rawARKit:
+            return [
+                pose.root,
+                pose.head,
+                pose.leftShoulder,
+                pose.rightShoulder,
+                pose.leftUpperArm,
+                pose.rightUpperArm,
+                pose.leftElbow,
+                pose.rightElbow,
+                pose.leftWrist,
+                pose.rightWrist,
+                pose.leftHip,
+                pose.rightHip,
+                pose.leftKnee,
+                pose.rightKnee,
+                pose.leftFoot,
+                pose.rightFoot,
+            ]
+        case .canonical:
+            return [
+                pose.root,
+                pose.spine,
+                pose.chest,
+                pose.neck,
+                pose.head,
+                pose.leftShoulder,
+                pose.rightShoulder,
+                pose.leftUpperArm,
+                pose.rightUpperArm,
+                pose.leftElbow,
+                pose.rightElbow,
+                pose.leftWrist,
+                pose.rightWrist,
+                pose.leftHip,
+                pose.rightHip,
+                pose.leftKnee,
+                pose.rightKnee,
+                pose.leftAnkle,
+                pose.rightAnkle,
+                pose.leftFoot,
+                pose.rightFoot,
+            ]
+        case .canonicalTorso:
+            return [
+                pose.root,
+                pose.spine,
+                pose.chest,
+                pose.neck,
+                pose.head,
+            ]
+        }
+    }
+
+    nonisolated private static func proceduralFallbackPose(time: TimeInterval) -> ProceduralFallbackPose {
+        let rhythm = Float(time)
         let step = sin(rhythm * 2.2)
         let sway = sin(rhythm * 1.4)
         let armSwing = sin(rhythm * 3.1)
         let bounce = max(0, sin(rhythm * 4.4)) * 0.08
 
         let root = SIMD3<Float>(sway * 0.18, 0.95 + bounce, step * 0.08)
+        let spine = root + SIMD3<Float>(0, 0.18, 0)
+        let chest = root + SIMD3<Float>(0, 0.34, 0)
+        let neck = root + SIMD3<Float>(0, 0.50, 0)
         let head = root + SIMD3<Float>(0, 0.62, 0)
-        let leftShoulder = root + SIMD3<Float>(-0.18, 0.44, 0)
-        let rightShoulder = root + SIMD3<Float>(0.18, 0.44, 0)
-        let leftHand = leftShoulder + SIMD3<Float>(-0.30, 0.04 + armSwing * 0.18, 0.04)
-        let rightHand = rightShoulder + SIMD3<Float>(0.30, 0.04 - armSwing * 0.18, 0.04)
-        let leftUpLeg = root + SIMD3<Float>(-0.12, -0.02, 0)
-        let rightUpLeg = root + SIMD3<Float>(0.12, -0.02, 0)
-        let leftLeg = leftUpLeg + SIMD3<Float>(-0.03, -0.38 + max(0, step) * 0.08, 0.06)
-        let rightLeg = rightUpLeg + SIMD3<Float>(0.03, -0.38 + max(0, -step) * 0.08, -0.06)
-        let leftFoot = leftLeg + SIMD3<Float>(0, -0.38, 0.05 + max(0, step) * 0.10)
-        let rightFoot = rightLeg + SIMD3<Float>(0, -0.38, 0.05 + max(0, -step) * 0.10)
+        let leftShoulder = chest + SIMD3<Float>(-0.18, 0.10, 0)
+        let rightShoulder = chest + SIMD3<Float>(0.18, 0.10, 0)
+        let leftUpperArm = leftShoulder + SIMD3<Float>(-0.14, 0.02 + armSwing * 0.05, 0.02)
+        let rightUpperArm = rightShoulder + SIMD3<Float>(0.14, 0.02 - armSwing * 0.05, 0.02)
+        let leftElbow = leftShoulder + SIMD3<Float>(-0.22, 0.04 + armSwing * 0.10, 0.03)
+        let rightElbow = rightShoulder + SIMD3<Float>(0.22, 0.04 - armSwing * 0.10, 0.03)
+        let leftWrist = leftShoulder + SIMD3<Float>(-0.30, 0.04 + armSwing * 0.18, 0.04)
+        let rightWrist = rightShoulder + SIMD3<Float>(0.30, 0.04 - armSwing * 0.18, 0.04)
+        let leftHip = root + SIMD3<Float>(-0.12, -0.02, 0)
+        let rightHip = root + SIMD3<Float>(0.12, -0.02, 0)
+        let leftKnee = leftHip + SIMD3<Float>(-0.03, -0.38 + max(0, step) * 0.08, 0.06)
+        let rightKnee = rightHip + SIMD3<Float>(0.03, -0.38 + max(0, -step) * 0.08, -0.06)
+        let leftAnkle = leftKnee + SIMD3<Float>(0, -0.38, 0.03 + max(0, step) * 0.04)
+        let rightAnkle = rightKnee + SIMD3<Float>(0, -0.38, 0.03 + max(0, -step) * 0.04)
+        let leftFoot = leftAnkle + SIMD3<Float>(0, 0, 0.05 + max(0, step) * 0.06)
+        let rightFoot = rightAnkle + SIMD3<Float>(0, 0, 0.05 + max(0, -step) * 0.06)
 
-        return [
-            root,
-            head,
-            leftShoulder,
-            rightShoulder,
-            leftHand,
-            rightHand,
-            leftUpLeg,
-            rightUpLeg,
-            leftLeg,
-            rightLeg,
-            leftFoot,
-            rightFoot,
-        ]
+        return ProceduralFallbackPose(
+            root: root,
+            spine: spine,
+            chest: chest,
+            neck: neck,
+            head: head,
+            leftShoulder: leftShoulder,
+            rightShoulder: rightShoulder,
+            leftUpperArm: leftUpperArm,
+            rightUpperArm: rightUpperArm,
+            leftElbow: leftElbow,
+            rightElbow: rightElbow,
+            leftWrist: leftWrist,
+            rightWrist: rightWrist,
+            leftHip: leftHip,
+            rightHip: rightHip,
+            leftKnee: leftKnee,
+            rightKnee: rightKnee,
+            leftAnkle: leftAnkle,
+            rightAnkle: rightAnkle,
+            leftFoot: leftFoot,
+            rightFoot: rightFoot
+        )
+    }
+
+    private struct ProceduralFallbackPose {
+        let root: SIMD3<Float>
+        let spine: SIMD3<Float>
+        let chest: SIMD3<Float>
+        let neck: SIMD3<Float>
+        let head: SIMD3<Float>
+        let leftShoulder: SIMD3<Float>
+        let rightShoulder: SIMD3<Float>
+        let leftUpperArm: SIMD3<Float>
+        let rightUpperArm: SIMD3<Float>
+        let leftElbow: SIMD3<Float>
+        let rightElbow: SIMD3<Float>
+        let leftWrist: SIMD3<Float>
+        let rightWrist: SIMD3<Float>
+        let leftHip: SIMD3<Float>
+        let rightHip: SIMD3<Float>
+        let leftKnee: SIMD3<Float>
+        let rightKnee: SIMD3<Float>
+        let leftAnkle: SIMD3<Float>
+        let rightAnkle: SIMD3<Float>
+        let leftFoot: SIMD3<Float>
+        let rightFoot: SIMD3<Float>
     }
 
     nonisolated static func hasUsableJointRotations(_ rotations: [MotionJointRotation?]?) -> Bool {
