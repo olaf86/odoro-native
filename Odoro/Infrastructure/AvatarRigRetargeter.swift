@@ -67,6 +67,55 @@ struct AvatarRigRetargeter {
                 .rightWrist
             }
         }
+
+        nonisolated var childJoint: OdoroJointName {
+            switch self {
+            case .leftUpperArm:
+                .leftElbow
+            case .rightUpperArm:
+                .rightElbow
+            case .leftForearm:
+                .leftWrist
+            case .rightForearm:
+                .rightWrist
+            }
+        }
+
+        nonisolated var maximumTwistRadians: Float {
+            switch self {
+            case .leftUpperArm, .rightUpperArm:
+                1.35
+            case .leftForearm, .rightForearm:
+                1.20
+            }
+        }
+
+        nonisolated var twistWeight: Float {
+            switch self {
+            case .leftUpperArm, .rightUpperArm:
+                1.00
+            case .leftForearm, .rightForearm:
+                0.35
+            }
+        }
+
+        nonisolated var usesTorsoReferenceTwist: Bool {
+            switch self {
+            case .leftUpperArm, .rightUpperArm:
+                true
+            case .leftForearm, .rightForearm:
+                false
+            }
+        }
+
+        nonisolated var oppositeShoulder: OdoroJointName {
+            switch self {
+            case .leftUpperArm, .leftForearm:
+                .rightShoulder
+            case .rightUpperArm, .rightForearm:
+                .leftShoulder
+            }
+        }
     }
 
     private enum Tuning {
@@ -129,8 +178,8 @@ struct AvatarRigRetargeter {
                 floorOffset: profile.floorOffset
             )
 
-            if let directionalRotation = Self.directionRetargetedLocalRotation(
-                baseTransform: bindPoseTransforms[targetIndex],
+            if let directionalRotation = directionRetargetedLocalRotation(
+                targetIndex: targetIndex,
                 binding: binding,
                 pose: pose,
                 tPose: tPose
@@ -214,13 +263,17 @@ struct AvatarRigRetargeter {
         return simd_slerp(.identity, rotation, w)
     }
 
-    nonisolated static func directionRetargetedLocalRotation(
-        baseTransform: Transform,
+    private func directionRetargetedLocalRotation(
+        targetIndex: Int,
         binding: AvatarBoneBinding,
         pose: AvatarDrivePose,
         tPose: AvatarDrivePose
     ) -> simd_quatf? {
         guard let spec = DirectionalBoneSpec(joint: binding.sourceJoint.canonicalJoint) else {
+            return nil
+        }
+        let baseTransform = bindPoseTransforms[targetIndex]
+        guard let targetBindDirectionParent = targetBindDirectionParent(for: spec) else {
             return nil
         }
 
@@ -229,8 +282,8 @@ struct AvatarRigRetargeter {
             let end = pose.worldPosition(for: spec.endJoint),
             let tPoseStart = tPose.worldPosition(for: spec.startJoint),
             let tPoseEnd = tPose.worldPosition(for: spec.endJoint),
-            let currentDirectionWorld = normalizedDirection(from: start, to: end),
-            let tPoseDirectionWorld = normalizedDirection(from: tPoseStart, to: tPoseEnd)
+            let currentDirectionWorld = Self.normalizedDirection(from: start, to: end),
+            let tPoseDirectionWorld = Self.normalizedDirection(from: tPoseStart, to: tPoseEnd)
         else {
             return nil
         }
@@ -242,17 +295,56 @@ struct AvatarRigRetargeter {
         let tPoseDirectionLocal = simd_act(tPoseParentRotation.inverse, tPoseDirectionWorld)
 
         guard
-            let normalizedCurrentDirectionLocal = normalized(currentDirectionLocal),
-            let normalizedTPoseDirectionLocal = normalized(tPoseDirectionLocal)
+            let normalizedCurrentDirectionLocal = Self.normalized(currentDirectionLocal),
+            let normalizedTPoseDirectionLocal = Self.normalized(tPoseDirectionLocal)
         else {
             return nil
         }
 
-        let delta = rotationAligning(
+        let aimDelta = Self.rotationAligning(
             from: normalizedTPoseDirectionLocal,
             to: normalizedCurrentDirectionLocal
         )
-        return baseTransform.rotation * weightedRotation(delta, weight: binding.weight)
+        let targetCurrentAimLocal = simd_act(aimDelta, targetBindDirectionParent)
+        let swing = aimDelta
+
+        let motionLocalRotation = Self.localRotation(
+            worldRotation: pose.worldRotation(for: binding.sourceJoint),
+            parentWorldRotation: pose.worldRotation(for: binding.parentSourceJoint)
+        )
+        let tPoseLocalRotation = Self.localRotation(
+            worldRotation: tPose.worldRotation(for: binding.sourceJoint),
+            parentWorldRotation: tPose.worldRotation(for: binding.parentSourceJoint)
+        )
+
+        let clampedTwist: simd_quatf
+        if spec.usesTorsoReferenceTwist,
+           let torsoTwist = torsoReferenceTwistRotation(
+                spec: spec,
+                pose: pose,
+                tPose: tPose,
+                parentRotation: parentRotation,
+                tPoseParentRotation: tPoseParentRotation,
+                currentSourceAimLocal: normalizedCurrentDirectionLocal,
+                tPoseSourceAimLocal: normalizedTPoseDirectionLocal,
+                targetCurrentAimLocal: targetCurrentAimLocal,
+                maximumRadians: spec.maximumTwistRadians,
+                twistWeight: spec.twistWeight * binding.weight
+           ) {
+            clampedTwist = torsoTwist
+        } else {
+            clampedTwist = Self.clampedTwistRotation(
+                motionLocalRotation: motionLocalRotation,
+                tPoseLocalRotation: tPoseLocalRotation,
+                sourceAxis: normalizedTPoseDirectionLocal,
+                targetAxis: targetCurrentAimLocal,
+                maximumRadians: spec.maximumTwistRadians,
+                twistWeight: spec.twistWeight * binding.weight
+            )
+        }
+
+        let composedRotation = clampedTwist * (swing * baseTransform.rotation)
+        return simd_slerp(baseTransform.rotation, composedRotation, binding.weight)
     }
 
     // MARK: - Continuity stabilization
@@ -335,6 +427,15 @@ struct AvatarRigRetargeter {
         return vector / length
     }
 
+    nonisolated private static func localRotation(
+        worldRotation: simd_quatf?,
+        parentWorldRotation: simd_quatf?
+    ) -> simd_quatf? {
+        guard let worldRotation else { return nil }
+        let parentRotation = parentWorldRotation ?? .identity
+        return parentRotation.inverse * worldRotation
+    }
+
     nonisolated private static func rotationAligning(
         from source: SIMD3<Float>,
         to target: SIMD3<Float>
@@ -353,6 +454,161 @@ struct AvatarRigRetargeter {
     nonisolated private static func orthogonalUnitVector(to vector: SIMD3<Float>) -> SIMD3<Float> {
         let basis = abs(vector.x) < 0.9 ? SIMD3<Float>(1, 0, 0) : SIMD3<Float>(0, 1, 0)
         return simd_normalize(simd_cross(vector, basis))
+    }
+
+    nonisolated private static func clampedTwistRotation(
+        motionLocalRotation: simd_quatf?,
+        tPoseLocalRotation: simd_quatf?,
+        sourceAxis: SIMD3<Float>,
+        targetAxis: SIMD3<Float>,
+        maximumRadians: Float,
+        twistWeight: Float
+    ) -> simd_quatf {
+        guard
+            let motionLocalRotation,
+            let tPoseLocalRotation
+        else {
+            return .identity
+        }
+
+        let delta = tPoseLocalRotation.inverse * motionLocalRotation
+        let (_, twist) = swingTwistDecomposition(rotation: delta, axis: sourceAxis)
+        let signedAngle = signedTwistAngle(twist, around: sourceAxis)
+        let clampedAngle = min(max(signedAngle, -maximumRadians), maximumRadians) * twistWeight
+        guard abs(clampedAngle) > 0.0001 else {
+            return .identity
+        }
+
+        return simd_quatf(angle: clampedAngle, axis: targetAxis)
+    }
+
+    nonisolated private static func swingTwistDecomposition(
+        rotation: simd_quatf,
+        axis: SIMD3<Float>
+    ) -> (swing: simd_quatf, twist: simd_quatf) {
+        let projected = simd_project(SIMD3<Float>(rotation.vector.x, rotation.vector.y, rotation.vector.z), axis)
+        let twist = simd_normalize(simd_quatf(vector: SIMD4<Float>(projected.x, projected.y, projected.z, rotation.vector.w)))
+        let swing = rotation * twist.inverse
+        return (swing, twist)
+    }
+
+    nonisolated private static func signedTwistAngle(
+        _ twist: simd_quatf,
+        around axis: SIMD3<Float>
+    ) -> Float {
+        let normalizedAxis = simd_dot(SIMD3<Float>(twist.vector.x, twist.vector.y, twist.vector.z), axis) >= 0
+            ? axis
+            : -axis
+        let angle = 2 * atan2(simd_length(SIMD3<Float>(twist.vector.x, twist.vector.y, twist.vector.z)), twist.real)
+        return simd_dot(SIMD3<Float>(twist.vector.x, twist.vector.y, twist.vector.z), normalizedAxis) >= 0 ? angle : -angle
+    }
+
+    private func torsoReferenceTwistRotation(
+        spec: DirectionalBoneSpec,
+        pose: AvatarDrivePose,
+        tPose: AvatarDrivePose,
+        parentRotation: simd_quatf,
+        tPoseParentRotation: simd_quatf,
+        currentSourceAimLocal: SIMD3<Float>,
+        tPoseSourceAimLocal: SIMD3<Float>,
+        targetCurrentAimLocal: SIMD3<Float>,
+        maximumRadians: Float,
+        twistWeight: Float
+    ) -> simd_quatf? {
+        guard
+            let torsoCurrentWorld = torsoReferenceWorldDirection(for: spec, in: pose),
+            let torsoTPoseWorld = torsoReferenceWorldDirection(for: spec, in: tPose)
+        else {
+            return nil
+        }
+
+        let torsoCurrentLocal = simd_act(parentRotation.inverse, torsoCurrentWorld)
+        let torsoTPoseLocal = simd_act(tPoseParentRotation.inverse, torsoTPoseWorld)
+
+        guard
+            let projectedCurrent = Self.projectedUnitVector(torsoCurrentLocal, ontoPlanePerpendicularTo: currentSourceAimLocal),
+            let projectedTPose = Self.projectedUnitVector(torsoTPoseLocal, ontoPlanePerpendicularTo: tPoseSourceAimLocal)
+        else {
+            return nil
+        }
+
+        let swungTPoseReference = simd_act(
+            Self.rotationAligning(from: tPoseSourceAimLocal, to: currentSourceAimLocal),
+            projectedTPose
+        )
+        guard let normalizedSwungTPoseReference = Self.normalized(swungTPoseReference) else {
+            return nil
+        }
+
+        let signedAngle = Self.signedAngle(
+            from: normalizedSwungTPoseReference,
+            to: projectedCurrent,
+            around: currentSourceAimLocal
+        )
+        let clampedAngle = min(max(signedAngle, -maximumRadians), maximumRadians) * twistWeight
+        guard abs(clampedAngle) > 0.0001 else {
+            return .identity
+        }
+
+        return simd_quatf(angle: clampedAngle, axis: targetCurrentAimLocal)
+    }
+
+    private func torsoReferenceWorldDirection(
+        for spec: DirectionalBoneSpec,
+        in pose: AvatarDrivePose
+    ) -> SIMD3<Float>? {
+        guard let shoulder = pose.worldPosition(for: spec.startJoint) else {
+            return nil
+        }
+
+        let anchors: [OdoroJointName] = [
+            .chest,
+            .neck,
+            .root,
+            spec.oppositeShoulder,
+        ]
+
+        for anchor in anchors {
+            guard let anchorPosition = pose.worldPosition(for: anchor) else {
+                continue
+            }
+            if let direction = Self.normalized(anchorPosition - shoulder) {
+                return direction
+            }
+        }
+
+        return nil
+    }
+
+    nonisolated private static func projectedUnitVector(
+        _ vector: SIMD3<Float>,
+        ontoPlanePerpendicularTo axis: SIMD3<Float>
+    ) -> SIMD3<Float>? {
+        let rejection = vector - simd_project(vector, axis)
+        return normalized(rejection)
+    }
+
+    nonisolated private static func signedAngle(
+        from source: SIMD3<Float>,
+        to target: SIMD3<Float>,
+        around axis: SIMD3<Float>
+    ) -> Float {
+        let cross = simd_cross(source, target)
+        let sine = simd_dot(cross, axis)
+        let cosine = simd_dot(source, target)
+        return atan2(sine, cosine)
+    }
+
+    private func targetBindDirectionParent(for spec: DirectionalBoneSpec) -> SIMD3<Float>? {
+        guard
+            let childBinding = profile.bindings.first(where: { $0.sourceJoint.canonicalJoint == spec.childJoint }),
+            let childIndex = modelJointIndices[childBinding.boneName],
+            bindPoseTransforms.indices.contains(childIndex)
+        else {
+            return nil
+        }
+
+        return Self.normalized(bindPoseTransforms[childIndex].translation)
     }
 }
 

@@ -311,6 +311,7 @@ struct AvatarAssetStore {
         rigProfile: AvatarRigProfile,
         runtimeAssetURL: URL
     ) -> StageAvatarOption {
+        let tunedRigProfile = Self.tunedPlaybackRigProfile(rigProfile)
         let subtitle: String
         let systemImageName: String
 
@@ -337,7 +338,7 @@ struct AvatarAssetStore {
             runtimeAssetResourceName: nil,
             runtimeAssetURL: runtimeAssetURL,
             rigProfileID: packageManifest.generatedRigProfileID,
-            rigProfile: rigProfile
+            rigProfile: tunedRigProfile
         )
     }
 
@@ -614,6 +615,23 @@ struct AvatarAssetStore {
             floorOffset: 0,
             schemaVersion: 1
         )
+    }
+
+    static func tunedPlaybackRigProfile(_ rigProfile: AvatarRigProfile) -> AvatarRigProfile {
+        var tunedRigProfile = rigProfile
+        tunedRigProfile.bindings = rigProfile.bindings.map { binding in
+            guard
+                let canonicalJoint = binding.sourceJoint.canonicalJoint,
+                canonicalJoint == .leftShoulder || canonicalJoint == .rightShoulder
+            else {
+                return binding
+            }
+
+            var tunedBinding = binding
+            tunedBinding.weight = min(binding.weight, RobotRigTuning.shoulderRotationWeight)
+            return tunedBinding
+        }
+        return tunedRigProfile
     }
 }
 

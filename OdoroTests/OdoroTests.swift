@@ -1435,6 +1435,42 @@ struct OdoroTests {
         #expect(Set(profile.bindings.map(\.boneName)).count == profile.bindings.count)
     }
 
+    @Test func tunedPlaybackRigProfileReducesGenericShoulderWeights() {
+        let profile = AvatarRigProfile(
+            id: "generic.shoulder.weight.test.v1",
+            displayName: "Generic Shoulder Weight Test",
+            skeletonId: OdoroSkeletonDefinition.id,
+            sourceFormat: .glb,
+            runtimeFormat: .glb,
+            runtimeAssetRelativePath: "model.glb",
+            rootBoneName: "hips",
+            bindings: [
+                AvatarBoneBinding(
+                    boneName: "leftShoulder",
+                    sourceJoint: AvatarRigJointReference(canonicalJoint: .leftShoulder),
+                    parentSourceJoint: AvatarRigJointReference(canonicalJoint: .chest),
+                    translationMode: .bindPose,
+                    weight: 1
+                ),
+                AvatarBoneBinding(
+                    boneName: "rightShoulder",
+                    sourceJoint: AvatarRigJointReference(canonicalJoint: .rightShoulder),
+                    parentSourceJoint: AvatarRigJointReference(canonicalJoint: .chest),
+                    translationMode: .bindPose,
+                    weight: 0.2
+                ),
+            ],
+            scaleCompensation: 1,
+            floorOffset: 0,
+            schemaVersion: 1
+        )
+
+        let tuned = AvatarAssetStore.tunedPlaybackRigProfile(profile)
+
+        #expect(tuned.bindings[0].weight == RobotRigTuning.shoulderRotationWeight)
+        #expect(tuned.bindings[1].weight == 0.2)
+    }
+
     @Test func retargeterResolvesTorsoChainUsingCanonicalParents() {
         let bindings: [AvatarBoneBinding] = [
             AvatarBoneBinding(
@@ -1558,26 +1594,49 @@ struct OdoroTests {
     }
 
     @Test func retargeterUsesDirectionVectorsForArmBindingsInsteadOfSourceTwist() {
-        let binding = AvatarBoneBinding(
-            boneName: "leftUpperArm",
-            sourceJoint: AvatarRigJointReference(canonicalJoint: .leftUpperArm),
-            parentSourceJoint: AvatarRigJointReference(canonicalJoint: .leftShoulder),
-            translationMode: .bindPose
+        let bindings: [AvatarBoneBinding] = [
+            AvatarBoneBinding(
+                boneName: "leftUpperArm",
+                sourceJoint: AvatarRigJointReference(canonicalJoint: .leftUpperArm),
+                parentSourceJoint: AvatarRigJointReference(canonicalJoint: .leftShoulder),
+                translationMode: .bindPose
+            ),
+            AvatarBoneBinding(
+                boneName: "leftForearm",
+                sourceJoint: AvatarRigJointReference(canonicalJoint: .leftElbow),
+                parentSourceJoint: AvatarRigJointReference(canonicalJoint: .leftUpperArm),
+                translationMode: .bindPose
+            ),
+        ]
+        let profile = AvatarRigProfile(
+            id: "arm.direction.test.v1",
+            displayName: "Arm Direction Test",
+            skeletonId: OdoroSkeletonDefinition.id,
+            sourceFormat: .glb,
+            runtimeFormat: .glb,
+            runtimeAssetRelativePath: "model.glb",
+            rootBoneName: "leftUpperArm",
+            bindings: bindings,
+            scaleCompensation: 1,
+            floorOffset: 0,
+            schemaVersion: 1
         )
-        let baseTransform = Transform(
-            scale: .one,
-            rotation: simd_quatf(ix: 0, iy: 0, iz: 0, r: 1),
-            translation: .zero
-        )
+        let identity = simd_quatf(ix: 0, iy: 0, iz: 0, r: 1)
+        let bindPoseTransforms = [
+            Transform(scale: .one, rotation: identity, translation: .zero),
+            Transform(scale: .one, rotation: identity, translation: SIMD3<Float>(-1, 0, 0)),
+        ]
         let pose = AvatarDrivePose(
             worldPositions: [
                 .leftShoulder: SIMD3<Float>(-0.20, 1.40, 0),
                 .leftUpperArm: SIMD3<Float>(-0.34, 1.37, 0.02),
                 .leftElbow: SIMD3<Float>(-0.20, 1.06, 0),
+                .leftWrist: SIMD3<Float>(-0.12, 0.78, 0.01),
             ],
             worldRotations: [
-                .leftShoulder: simd_quatf(ix: 0, iy: 0, iz: 0, r: 1),
+                .leftShoulder: identity,
                 .leftUpperArm: simd_quatf(angle: 1.3, axis: SIMD3<Float>(1, 0, 0)),
+                .leftElbow: simd_quatf(angle: 0.9, axis: SIMD3<Float>(1, 0, 0)),
             ]
         )
         let tPose = AvatarDrivePose(
@@ -1585,23 +1644,172 @@ struct OdoroTests {
                 .leftShoulder: SIMD3<Float>(-0.20, 1.40, 0),
                 .leftUpperArm: SIMD3<Float>(-0.44, 1.40, 0),
                 .leftElbow: SIMD3<Float>(-0.68, 1.40, 0),
+                .leftWrist: SIMD3<Float>(-0.92, 1.40, 0),
             ],
             worldRotations: [
-                .leftShoulder: simd_quatf(ix: 0, iy: 0, iz: 0, r: 1),
-                .leftUpperArm: simd_quatf(ix: 0, iy: 0, iz: 0, r: 1),
+                .leftShoulder: identity,
+                .leftUpperArm: identity,
+                .leftElbow: identity,
             ]
         )
 
-        let localRotation = AvatarRigRetargeter.directionRetargetedLocalRotation(
-            baseTransform: baseTransform,
-            binding: binding,
-            pose: pose,
+        let retargeter = AvatarRigRetargeter(
+            profile: profile,
+            bindPoseTransforms: bindPoseTransforms,
+            modelJointIndices: [
+                "leftUpperArm": 0,
+                "leftForearm": 1,
+            ],
             tPose: tPose
         )
+        let transforms = retargeter.retargetFrame(pose, previousTransforms: nil)
 
         let expected = simd_quatf(from: SIMD3<Float>(-1, 0, 0), to: SIMD3<Float>(0, -1, 0))
-        #expect(localRotation != nil)
-        #expect(Self.rotationAngle(expected.inverse * localRotation!) < 0.0001)
+        #expect(Self.rotationAngle(expected.inverse * transforms[0].rotation) < 0.15)
+    }
+
+    @Test func retargeterDirectionalArmAtTPoseKeepsBindPoseRotation() {
+        let bindings: [AvatarBoneBinding] = [
+            AvatarBoneBinding(
+                boneName: "leftUpperArm",
+                sourceJoint: AvatarRigJointReference(canonicalJoint: .leftUpperArm),
+                parentSourceJoint: AvatarRigJointReference(canonicalJoint: .leftShoulder),
+                translationMode: .bindPose
+            ),
+            AvatarBoneBinding(
+                boneName: "leftForearm",
+                sourceJoint: AvatarRigJointReference(canonicalJoint: .leftElbow),
+                parentSourceJoint: AvatarRigJointReference(canonicalJoint: .leftUpperArm),
+                translationMode: .bindPose
+            ),
+        ]
+        let profile = AvatarRigProfile(
+            id: "arm.tpose.bindpose.test.v1",
+            displayName: "Arm T-Pose BindPose Test",
+            skeletonId: OdoroSkeletonDefinition.id,
+            sourceFormat: .glb,
+            runtimeFormat: .glb,
+            runtimeAssetRelativePath: "model.glb",
+            rootBoneName: "leftUpperArm",
+            bindings: bindings,
+            scaleCompensation: 1,
+            floorOffset: 0,
+            schemaVersion: 1
+        )
+        let upperArmBindRotation = simd_quatf(angle: .pi / 4, axis: SIMD3<Float>(0, 0, 1))
+        let forearmBindRotation = simd_quatf(angle: -.pi / 6, axis: SIMD3<Float>(1, 0, 0))
+        let bindPoseTransforms = [
+            Transform(scale: .one, rotation: upperArmBindRotation, translation: .zero),
+            Transform(scale: .one, rotation: forearmBindRotation, translation: SIMD3<Float>(-0.24, 0.02, 0)),
+        ]
+        let identity = simd_quatf(ix: 0, iy: 0, iz: 0, r: 1)
+        let tPose = AvatarDrivePose(
+            worldPositions: [
+                .leftShoulder: SIMD3<Float>(-0.20, 1.40, 0),
+                .leftUpperArm: SIMD3<Float>(-0.44, 1.40, 0),
+                .leftElbow: SIMD3<Float>(-0.68, 1.40, 0),
+                .leftWrist: SIMD3<Float>(-0.92, 1.40, 0),
+            ],
+            worldRotations: [
+                .leftShoulder: identity,
+                .leftUpperArm: identity,
+                .leftElbow: identity,
+            ]
+        )
+
+        let retargeter = AvatarRigRetargeter(
+            profile: profile,
+            bindPoseTransforms: bindPoseTransforms,
+            modelJointIndices: [
+                "leftUpperArm": 0,
+                "leftForearm": 1,
+            ],
+            tPose: tPose
+        )
+        let transforms = retargeter.retargetFrame(tPose, previousTransforms: nil)
+
+        #expect(Self.rotationAngle(upperArmBindRotation.inverse * transforms[0].rotation) < 0.0001)
+        #expect(Self.rotationAngle(forearmBindRotation.inverse * transforms[1].rotation) < 0.0001)
+    }
+
+    @Test func retargeterUsesChildTranslationAsBindDirectionWithoutDoubleRotatingIt() {
+        let bindings: [AvatarBoneBinding] = [
+            AvatarBoneBinding(
+                boneName: "leftUpperArm",
+                sourceJoint: AvatarRigJointReference(canonicalJoint: .leftUpperArm),
+                parentSourceJoint: AvatarRigJointReference(canonicalJoint: .leftShoulder),
+                translationMode: .bindPose
+            ),
+            AvatarBoneBinding(
+                boneName: "leftForearm",
+                sourceJoint: AvatarRigJointReference(canonicalJoint: .leftElbow),
+                parentSourceJoint: AvatarRigJointReference(canonicalJoint: .leftUpperArm),
+                translationMode: .bindPose
+            ),
+        ]
+        let profile = AvatarRigProfile(
+            id: "arm.bind-direction.test.v1",
+            displayName: "Arm Bind Direction Test",
+            skeletonId: OdoroSkeletonDefinition.id,
+            sourceFormat: .glb,
+            runtimeFormat: .glb,
+            runtimeAssetRelativePath: "model.glb",
+            rootBoneName: "leftUpperArm",
+            bindings: bindings,
+            scaleCompensation: 1,
+            floorOffset: 0,
+            schemaVersion: 1
+        )
+        let identity = simd_quatf(ix: 0, iy: 0, iz: 0, r: 1)
+        let upperArmBindRotation = simd_quatf(angle: .pi / 2, axis: SIMD3<Float>(0, 0, 1))
+        let bindPoseTransforms = [
+            Transform(scale: .one, rotation: upperArmBindRotation, translation: .zero),
+            Transform(scale: .one, rotation: identity, translation: SIMD3<Float>(-1, 0, 0)),
+        ]
+        let pose = AvatarDrivePose(
+            worldPositions: [
+                .leftShoulder: SIMD3<Float>(-0.20, 1.40, 0),
+                .leftUpperArm: SIMD3<Float>(-0.20, 1.12, 0),
+                .leftElbow: SIMD3<Float>(-0.20, 0.84, 0),
+                .leftWrist: SIMD3<Float>(-0.20, 0.56, 0),
+            ],
+            worldRotations: [
+                .leftShoulder: identity,
+                .leftUpperArm: identity,
+                .leftElbow: identity,
+            ]
+        )
+        let tPose = AvatarDrivePose(
+            worldPositions: [
+                .leftShoulder: SIMD3<Float>(-0.20, 1.40, 0),
+                .leftUpperArm: SIMD3<Float>(-0.44, 1.40, 0),
+                .leftElbow: SIMD3<Float>(-0.68, 1.40, 0),
+                .leftWrist: SIMD3<Float>(-0.92, 1.40, 0),
+            ],
+            worldRotations: [
+                .leftShoulder: identity,
+                .leftUpperArm: identity,
+                .leftElbow: identity,
+            ]
+        )
+
+        let retargeter = AvatarRigRetargeter(
+            profile: profile,
+            bindPoseTransforms: bindPoseTransforms,
+            modelJointIndices: [
+                "leftUpperArm": 0,
+                "leftForearm": 1,
+            ],
+            tPose: tPose
+        )
+        let transforms = retargeter.retargetFrame(pose, previousTransforms: nil)
+        let localAimAxis = simd_normalize(simd_act(
+            bindPoseTransforms[0].rotation.inverse,
+            bindPoseTransforms[1].translation
+        ))
+        let resolvedDirection = simd_normalize(simd_act(transforms[0].rotation, localAimAxis))
+
+        #expect(simd_distance(resolvedDirection, SIMD3<Float>(0, -1, 0)) < 0.15)
     }
 
     @Test func retargeterBindPoseTranslationKeepsExistingJointOffset() {
