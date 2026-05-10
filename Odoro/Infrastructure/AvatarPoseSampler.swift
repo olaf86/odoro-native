@@ -16,6 +16,21 @@ struct AvatarPoseSampler: Sendable {
     /// Used as the rotation reference in delta-based retargeting.
     let tPose: AvatarDrivePose
 
+    /// Two identical canonical frames so debug playback can render and loop a neutral pose.
+    var tPoseClip: MotionClip {
+        let positions = OdoroSkeletonDefinition.jointNames.map { jointName in
+            tPose.worldPositions[jointName] ?? SIMD3<Float>(0, -10, 0)
+        }
+        let rotations = OdoroSkeletonDefinition.jointNames.map { jointName in
+            tPose.worldRotations[jointName].map(MotionJointRotation.init)
+        }
+
+        return MotionClip(frames: [
+            MotionFrame(time: 0, jointPositions: positions, jointRotations: rotations),
+            MotionFrame(time: 1.0 / 30.0, jointPositions: positions, jointRotations: rotations),
+        ])
+    }
+
     private let skeletonDefinition = ARSkeletonDefinition.defaultBody3D
 
     init() {

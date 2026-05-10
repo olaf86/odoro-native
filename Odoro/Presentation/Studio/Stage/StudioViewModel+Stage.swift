@@ -199,7 +199,7 @@ extension StudioViewModel {
         }
 
         stageRenderer.setSkeletonDebugLayout(stageDebugSkeletonLayout)
-        stageRenderer.setRigClip(storedRigClip ?? preparedStagePlayback?.avatarRigVariant?.clip)
+        stageRenderer.setRigClip(stageDebugRigClip)
         stageRenderer.setClip(stageDebugPresentation.clip)
         stageRenderer.setAppendagePoses(stageDebugPresentation.appendagePoses)
         stageRenderer.setStageCameraPreset(stageDebugPresentation.cameraPreset)
@@ -209,7 +209,7 @@ extension StudioViewModel {
         switch stageDebugMotionViewMode {
         case .raw:
             .rawARKit
-        case .canonical, .stabilized:
+        case .canonical, .tPose, .stabilized:
             .canonical
         case .torso:
             .canonicalTorso
@@ -242,6 +242,17 @@ extension StudioViewModel {
                     skeletonDefinition: .odoroCanonical,
                     integrity: .displaySafe
                 )
+        case .tPose:
+            return PreparedStagePlaybackClip(
+                purpose: .display,
+                processingStage: .canonical,
+                clip: AvatarPoseSampler().tPoseClip,
+                appendagePoses: nil,
+                cameraPreset: preparedStagePlayback?.canonical.cameraPreset ?? preparedStagePlayback?.stabilized.cameraPreset,
+                skeletonDefinition: .odoroCanonical,
+                integrity: .displaySafe,
+                stabilizationProfile: nil
+            )
         case .stabilized:
             return preparedStagePlayback?.stabilized
                 ?? .empty(
@@ -255,5 +266,14 @@ extension StudioViewModel {
 
     var activePlaybackCaptureMode: CaptureMode {
         playbackCaptureMode ?? currentTake?.captureMode ?? captureMode
+    }
+
+    private var stageDebugRigClip: MotionClip? {
+        switch stageDebugMotionViewMode {
+        case .tPose:
+            AvatarPoseSampler().tPoseClip
+        case .raw, .canonical, .torso, .stabilized:
+            storedRigClip ?? preparedStagePlayback?.avatarRigVariant?.clip
+        }
     }
 }

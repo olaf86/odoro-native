@@ -1361,6 +1361,27 @@ struct OdoroTests {
         #expect(torso.count == 5)
     }
 
+    @Test func avatarPoseSamplerBuildsReusableNeutralTPoseClip() {
+        let sampler = AvatarPoseSampler()
+        let clip = sampler.tPoseClip
+
+        #expect(clip.frames.count == 2)
+        #expect(clip.frames[0].time == 0)
+        #expect(clip.frames[1].time == 1.0 / 30.0)
+        #expect(clip.frames[0].jointPositions.count == OdoroSkeletonDefinition.jointCount)
+        #expect(clip.frames[0].jointRotations?.count == OdoroSkeletonDefinition.jointCount)
+        #expect(clip.frames[0].jointPositions == clip.frames[1].jointPositions)
+        #expect(clip.frames[0].jointRotations == clip.frames[1].jointRotations)
+
+        let leftShoulderIndex = OdoroSkeletonDefinition.index(of: .leftShoulder)
+        let rightShoulderIndex = OdoroSkeletonDefinition.index(of: .rightShoulder)
+        let headIndex = OdoroSkeletonDefinition.index(of: .head)
+        let rootIndex = OdoroSkeletonDefinition.index(of: .root)
+
+        #expect(clip.frames[0].jointPositions[leftShoulderIndex].x < clip.frames[0].jointPositions[rightShoulderIndex].x)
+        #expect(clip.frames[0].jointPositions[headIndex].y > clip.frames[0].jointPositions[rootIndex].y)
+    }
+
     @Test func robotRigProfileUsesUsdSkeletonJointPaths() {
         let profile = AvatarCatalog.robotRigProfile
 
