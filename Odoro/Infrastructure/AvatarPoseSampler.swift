@@ -18,17 +18,12 @@ struct AvatarPoseSampler: Sendable {
 
     /// Two identical canonical frames so debug playback can render and loop a neutral pose.
     var tPoseClip: MotionClip {
-        let positions = OdoroSkeletonDefinition.jointNames.map { jointName in
-            tPose.worldPositions[jointName] ?? SIMD3<Float>(0, -10, 0)
-        }
-        let rotations = OdoroSkeletonDefinition.jointNames.map { jointName in
-            tPose.worldRotations[jointName].map(MotionJointRotation.init)
-        }
+        reusableClip(for: tPose)
+    }
 
-        return MotionClip(frames: [
-            MotionFrame(time: 0, jointPositions: positions, jointRotations: rotations),
-            MotionFrame(time: 1.0 / 30.0, jointPositions: positions, jointRotations: rotations),
-        ])
+    /// Fixed "I-pose" with arms lowered from the neutral T-pose for arm retarget debugging.
+    var iPoseClip: MotionClip {
+        reusableClip(for: iPose)
     }
 
     private let skeletonDefinition = ARSkeletonDefinition.defaultBody3D
@@ -136,6 +131,44 @@ struct AvatarPoseSampler: Sendable {
         return AvatarDrivePose(worldPositions: positions, worldRotations: rotations)
     }
 
+    private var iPose: AvatarDrivePose {
+        var positions = tPose.worldPositions
+        var rotations = tPose.worldRotations
+
+        Self.rotateArmChainAroundShoulder(
+            shoulder: .leftShoulder,
+            chain: [.leftUpperArm, .leftElbow, .leftWrist],
+            rotationJoints: [.leftUpperArm, .leftElbow, .leftWrist],
+            delta: simd_quatf(angle: .pi / 2, axis: SIMD3<Float>(0, 0, 1)),
+            positions: &positions,
+            rotations: &rotations
+        )
+        Self.rotateArmChainAroundShoulder(
+            shoulder: .rightShoulder,
+            chain: [.rightUpperArm, .rightElbow, .rightWrist],
+            rotationJoints: [.rightUpperArm, .rightElbow, .rightWrist],
+            delta: simd_quatf(angle: -.pi / 2, axis: SIMD3<Float>(0, 0, 1)),
+            positions: &positions,
+            rotations: &rotations
+        )
+
+        return AvatarDrivePose(worldPositions: positions, worldRotations: rotations)
+    }
+
+    private func reusableClip(for pose: AvatarDrivePose) -> MotionClip {
+        let positions = OdoroSkeletonDefinition.jointNames.map { jointName in
+            pose.worldPositions[jointName] ?? SIMD3<Float>(0, -10, 0)
+        }
+        let rotations = OdoroSkeletonDefinition.jointNames.map { jointName in
+            pose.worldRotations[jointName].map(MotionJointRotation.init)
+        }
+
+        return MotionClip(frames: [
+            MotionFrame(time: 0, jointPositions: positions, jointRotations: rotations),
+            MotionFrame(time: 1.0 / 30.0, jointPositions: positions, jointRotations: rotations),
+        ])
+    }
+
     /// Fills missing torso joints by deriving them from nearby canonical body landmarks.
     private static func deriveMissingTorsoJoints(
         positions: inout [OdoroJointName: SIMD3<Float>],
@@ -178,5 +211,31 @@ struct AvatarPoseSampler: Sendable {
         }
 
         return start + (end - start) * t
+    }
+
+    private static func rotateArmChainAroundShoulder(
+        shoulder: OdoroJointName,
+        chain: [OdoroJointName],
+        rotationJoints: [OdoroJointName],
+        delta: simd_quatf,
+        positions: inout [OdoroJointName: SIMD3<Float>],
+        rotations: inout [OdoroJointName: simd_quatf]
+    ) {
+        guard let shoulderPosition = positions[shoulder] else {
+            return
+        }
+
+        for joint in chain {
+            if let position = positions[joint] {
+                let localOffset = position - shoulderPosition
+                positions[joint] = shoulderPosition + simd_act(delta, localOffset)
+            }
+        }
+
+        for joint in rotationJoints {
+            if let rotation = rotations[joint] {
+                rotations[joint] = delta * rotation
+            }
+        }
     }
 }

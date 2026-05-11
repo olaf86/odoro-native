@@ -10,6 +10,7 @@ enum StageDebugMotionViewMode: String, CaseIterable, Identifiable, Sendable {
     case canonical
     case torso
     case tPose
+    case iPose
     case stabilized
 
     var id: String { rawValue }
@@ -24,6 +25,8 @@ enum StageDebugMotionViewMode: String, CaseIterable, Identifiable, Sendable {
             "Torso"
         case .tPose:
             "T-Pose"
+        case .iPose:
+            "I-Pose"
         case .stabilized:
             "Stabilized"
         }

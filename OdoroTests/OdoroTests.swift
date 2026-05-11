@@ -1382,6 +1382,27 @@ struct OdoroTests {
         #expect(clip.frames[0].jointPositions[headIndex].y > clip.frames[0].jointPositions[rootIndex].y)
     }
 
+    @Test func avatarPoseSamplerBuildsReusableIPoseClipWithLoweredArms() {
+        let sampler = AvatarPoseSampler()
+        let clip = sampler.iPoseClip
+
+        #expect(clip.frames.count == 2)
+        #expect(clip.frames[0].jointPositions == clip.frames[1].jointPositions)
+        #expect(clip.frames[0].jointRotations == clip.frames[1].jointRotations)
+
+        let leftShoulderIndex = OdoroSkeletonDefinition.index(of: .leftShoulder)
+        let rightShoulderIndex = OdoroSkeletonDefinition.index(of: .rightShoulder)
+        let leftElbowIndex = OdoroSkeletonDefinition.index(of: .leftElbow)
+        let rightElbowIndex = OdoroSkeletonDefinition.index(of: .rightElbow)
+        let leftWristIndex = OdoroSkeletonDefinition.index(of: .leftWrist)
+        let rightWristIndex = OdoroSkeletonDefinition.index(of: .rightWrist)
+
+        #expect(clip.frames[0].jointPositions[leftElbowIndex].y < clip.frames[0].jointPositions[leftShoulderIndex].y)
+        #expect(clip.frames[0].jointPositions[rightElbowIndex].y < clip.frames[0].jointPositions[rightShoulderIndex].y)
+        #expect(clip.frames[0].jointPositions[leftWristIndex].y < clip.frames[0].jointPositions[leftElbowIndex].y)
+        #expect(clip.frames[0].jointPositions[rightWristIndex].y < clip.frames[0].jointPositions[rightElbowIndex].y)
+    }
+
     @Test func robotRigProfileUsesUsdSkeletonJointPaths() {
         let profile = AvatarCatalog.robotRigProfile
 

@@ -223,7 +223,7 @@ extension StudioViewModel {
         switch stageDebugMotionViewMode {
         case .raw:
             .rawARKit
-        case .canonical, .tPose, .stabilized:
+        case .canonical, .tPose, .iPose, .stabilized:
             .canonical
         case .torso:
             .canonicalTorso
@@ -267,6 +267,17 @@ extension StudioViewModel {
                 integrity: .displaySafe,
                 stabilizationProfile: nil
             )
+        case .iPose:
+            return PreparedStagePlaybackClip(
+                purpose: .display,
+                processingStage: .canonical,
+                clip: AvatarPoseSampler().iPoseClip,
+                appendagePoses: nil,
+                cameraPreset: preparedStagePlayback?.canonical.cameraPreset ?? preparedStagePlayback?.stabilized.cameraPreset,
+                skeletonDefinition: .odoroCanonical,
+                integrity: .displaySafe,
+                stabilizationProfile: nil
+            )
         case .stabilized:
             return preparedStagePlayback?.stabilized
                 ?? .empty(
@@ -286,6 +297,8 @@ extension StudioViewModel {
         switch stageDebugMotionViewMode {
         case .tPose:
             AvatarPoseSampler().tPoseClip
+        case .iPose:
+            AvatarPoseSampler().iPoseClip
         case .raw, .canonical, .torso, .stabilized:
             storedRigClip ?? preparedStagePlayback?.avatarRigVariant?.clip
         }
