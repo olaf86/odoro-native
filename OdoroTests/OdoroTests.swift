@@ -1833,6 +1833,97 @@ struct OdoroTests {
         #expect(simd_distance(resolvedDirection, SIMD3<Float>(0, -1, 0)) < 0.15)
     }
 
+    @Test func retargeterMapsOpposedUpperArmBindAxisUsingTorsoReference() {
+        let bindings: [AvatarBoneBinding] = [
+            AvatarBoneBinding(
+                boneName: "leftShoulder",
+                sourceJoint: AvatarRigJointReference(canonicalJoint: .leftShoulder),
+                parentSourceJoint: AvatarRigJointReference(canonicalJoint: .chest),
+                translationMode: .bindPose
+            ),
+            AvatarBoneBinding(
+                boneName: "leftUpperArm",
+                sourceJoint: AvatarRigJointReference(canonicalJoint: .leftUpperArm),
+                parentSourceJoint: AvatarRigJointReference(canonicalJoint: .leftShoulder),
+                translationMode: .bindPose
+            ),
+            AvatarBoneBinding(
+                boneName: "leftForearm",
+                sourceJoint: AvatarRigJointReference(canonicalJoint: .leftElbow),
+                parentSourceJoint: AvatarRigJointReference(canonicalJoint: .leftUpperArm),
+                translationMode: .bindPose
+            ),
+        ]
+        let profile = AvatarRigProfile(
+            id: "arm.opposed-bind-axis.test.v1",
+            displayName: "Arm Opposed Bind Axis Test",
+            skeletonId: OdoroSkeletonDefinition.id,
+            sourceFormat: .glb,
+            runtimeFormat: .glb,
+            runtimeAssetRelativePath: "model.glb",
+            rootBoneName: "leftShoulder",
+            bindings: bindings,
+            scaleCompensation: 1,
+            floorOffset: 0,
+            schemaVersion: 1
+        )
+        let identity = simd_quatf(ix: 0, iy: 0, iz: 0, r: 1)
+        let bindPoseTransforms = [
+            Transform(scale: .one, rotation: identity, translation: SIMD3<Float>(0, 1, 0)),
+            Transform(scale: .one, rotation: identity, translation: .zero),
+            Transform(scale: .one, rotation: identity, translation: SIMD3<Float>(1, 0, 0)),
+        ]
+        let pose = AvatarDrivePose(
+            worldPositions: [
+                .chest: SIMD3<Float>(0, 1.20, 0),
+                .leftShoulder: SIMD3<Float>(-0.20, 1.40, 0),
+                .leftUpperArm: SIMD3<Float>(-0.32, 1.28, 0),
+                .leftElbow: SIMD3<Float>(-0.20, 1.00, 0),
+                .leftWrist: SIMD3<Float>(-0.20, 0.70, 0),
+            ],
+            worldRotations: [
+                .chest: identity,
+                .leftShoulder: identity,
+                .leftUpperArm: identity,
+                .leftElbow: identity,
+            ]
+        )
+        let tPose = AvatarDrivePose(
+            worldPositions: [
+                .chest: SIMD3<Float>(0, 1.20, 0),
+                .leftShoulder: SIMD3<Float>(-0.20, 1.40, 0),
+                .leftUpperArm: SIMD3<Float>(-0.44, 1.40, 0),
+                .leftElbow: SIMD3<Float>(-0.68, 1.40, 0),
+                .leftWrist: SIMD3<Float>(-0.92, 1.40, 0),
+            ],
+            worldRotations: [
+                .chest: identity,
+                .leftShoulder: identity,
+                .leftUpperArm: identity,
+                .leftElbow: identity,
+            ]
+        )
+
+        let retargeter = AvatarRigRetargeter(
+            profile: profile,
+            bindPoseTransforms: bindPoseTransforms,
+            modelJointIndices: [
+                "leftShoulder": 0,
+                "leftUpperArm": 1,
+                "leftForearm": 2,
+            ],
+            tPose: tPose
+        )
+        let transforms = retargeter.retargetFrame(pose, previousTransforms: nil)
+        let localAimAxis = simd_normalize(simd_act(
+            bindPoseTransforms[1].rotation.inverse,
+            bindPoseTransforms[2].translation
+        ))
+        let resolvedDirection = simd_normalize(simd_act(transforms[1].rotation, localAimAxis))
+
+        #expect(simd_distance(resolvedDirection, SIMD3<Float>(0, -1, 0)) < 0.15)
+    }
+
     @Test func retargeterBindPoseTranslationKeepsExistingJointOffset() {
         let baseTransform = Transform(
             scale: SIMD3<Float>(1.2, 1.2, 1.2),

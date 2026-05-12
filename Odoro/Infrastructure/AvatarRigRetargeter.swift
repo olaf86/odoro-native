@@ -301,12 +301,27 @@ struct AvatarRigRetargeter {
             return nil
         }
 
-        let aimDelta = Self.rotationAligning(
-            from: normalizedTPoseDirectionLocal,
-            to: normalizedCurrentDirectionLocal
+        let targetCurrentAimLocal = mappedTargetAimLocal(
+            spec: spec,
+            binding: binding,
+            sourceCurrentAimLocal: normalizedCurrentDirectionLocal,
+            sourceTPoseAimLocal: normalizedTPoseDirectionLocal,
+            targetBindAimLocal: targetBindDirectionParent,
+            pose: pose,
+            tPose: tPose,
+            parentRotation: parentRotation,
+            tPoseParentRotation: tPoseParentRotation
+        ) ?? simd_act(
+            Self.rotationAligning(
+                from: normalizedTPoseDirectionLocal,
+                to: normalizedCurrentDirectionLocal
+            ),
+            targetBindDirectionParent
         )
-        let targetCurrentAimLocal = simd_act(aimDelta, targetBindDirectionParent)
-        let swing = aimDelta
+        let swing = Self.rotationAligning(
+            from: targetBindDirectionParent,
+            to: targetCurrentAimLocal
+        )
 
         let motionLocalRotation = Self.localRotation(
             worldRotation: pose.worldRotation(for: binding.sourceJoint),
@@ -578,6 +593,89 @@ struct AvatarRigRetargeter {
         }
 
         return nil
+    }
+
+    private func mappedTargetAimLocal(
+        spec: DirectionalBoneSpec,
+        binding: AvatarBoneBinding,
+        sourceCurrentAimLocal: SIMD3<Float>,
+        sourceTPoseAimLocal: SIMD3<Float>,
+        targetBindAimLocal: SIMD3<Float>,
+        pose: AvatarDrivePose,
+        tPose: AvatarDrivePose,
+        parentRotation: simd_quatf,
+        tPoseParentRotation: simd_quatf
+    ) -> SIMD3<Float>? {
+        guard spec.usesTorsoReferenceTwist else {
+            return nil
+        }
+        guard
+            let sourceTPoseReference = sourceTorsoReferenceLocal(
+                spec: spec,
+                pose: tPose,
+                parentRotation: tPoseParentRotation,
+                aimLocal: sourceTPoseAimLocal
+            ),
+            let sourceCurrentReference = sourceTorsoReferenceLocal(
+                spec: spec,
+                pose: pose,
+                parentRotation: parentRotation,
+                aimLocal: sourceCurrentAimLocal
+            ),
+            let targetBindReference = targetTorsoReferenceLocal(
+                for: binding,
+                aimLocal: targetBindAimLocal
+            )
+        else {
+            return nil
+        }
+
+        let sourceTPoseNormal = simd_normalize(simd_cross(sourceTPoseAimLocal, sourceTPoseReference))
+        let targetBindNormal = simd_normalize(simd_cross(targetBindAimLocal, targetBindReference))
+
+        let coords = SIMD3<Float>(
+            simd_dot(sourceCurrentAimLocal, sourceTPoseAimLocal),
+            simd_dot(sourceCurrentAimLocal, sourceTPoseReference),
+            simd_dot(sourceCurrentAimLocal, sourceTPoseNormal)
+        )
+        let mapped = targetBindAimLocal * coords.x
+            + targetBindReference * coords.y
+            + targetBindNormal * coords.z
+        return Self.normalized(mapped)
+    }
+
+    private func sourceTorsoReferenceLocal(
+        spec: DirectionalBoneSpec,
+        pose: AvatarDrivePose,
+        parentRotation: simd_quatf,
+        aimLocal: SIMD3<Float>
+    ) -> SIMD3<Float>? {
+        guard let torsoWorld = torsoReferenceWorldDirection(for: spec, in: pose) else {
+            return nil
+        }
+        let torsoLocal = simd_act(parentRotation.inverse, torsoWorld)
+        return Self.projectedUnitVector(torsoLocal, ontoPlanePerpendicularTo: aimLocal)
+    }
+
+    private func targetTorsoReferenceLocal(
+        for binding: AvatarBoneBinding,
+        aimLocal: SIMD3<Float>
+    ) -> SIMD3<Float>? {
+        guard
+            let parentJoint = binding.parentSourceJoint?.canonicalJoint,
+            let parentBinding = profile.bindings.first(where: { $0.sourceJoint.canonicalJoint == parentJoint }),
+            let parentIndex = modelJointIndices[parentBinding.boneName],
+            bindPoseTransforms.indices.contains(parentIndex)
+        else {
+            return nil
+        }
+
+        let parentTransform = bindPoseTransforms[parentIndex]
+        let torsoVectorInParentLocal = simd_act(
+            parentTransform.rotation.inverse,
+            -parentTransform.translation
+        )
+        return Self.projectedUnitVector(torsoVectorInParentLocal, ontoPlanePerpendicularTo: aimLocal)
     }
 
     nonisolated private static func projectedUnitVector(
