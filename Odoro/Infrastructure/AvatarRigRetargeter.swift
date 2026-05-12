@@ -99,6 +99,17 @@ struct AvatarRigRetargeter {
             }
         }
 
+        nonisolated var sourceTwistSupplementWeight: Float {
+            switch self {
+            case .leftUpperArm:
+                0.85
+            case .rightUpperArm:
+                -0.85
+            case .leftForearm, .rightForearm:
+                0.0
+            }
+        }
+
         nonisolated var usesTorsoReferenceTwist: Bool {
             switch self {
             case .leftUpperArm, .rightUpperArm:
@@ -346,7 +357,15 @@ struct AvatarRigRetargeter {
                 maximumRadians: spec.maximumTwistRadians,
                 twistWeight: spec.twistWeight * binding.weight
            ) {
-            clampedTwist = torsoTwist
+            let sourceTwistSupplement = Self.clampedTwistRotation(
+                motionLocalRotation: motionLocalRotation,
+                tPoseLocalRotation: tPoseLocalRotation,
+                sourceAxis: normalizedTPoseDirectionLocal,
+                targetAxis: targetCurrentAimLocal,
+                maximumRadians: spec.maximumTwistRadians,
+                twistWeight: spec.sourceTwistSupplementWeight * binding.weight
+            )
+            clampedTwist = sourceTwistSupplement * torsoTwist
         } else {
             clampedTwist = Self.clampedTwistRotation(
                 motionLocalRotation: motionLocalRotation,
@@ -616,13 +635,14 @@ struct AvatarRigRetargeter {
                 parentRotation: tPoseParentRotation,
                 aimLocal: sourceTPoseAimLocal
             ),
-            let sourceCurrentReference = sourceTorsoReferenceLocal(
+            let _ = sourceTorsoReferenceLocal(
                 spec: spec,
                 pose: pose,
                 parentRotation: parentRotation,
                 aimLocal: sourceCurrentAimLocal
             ),
             let targetBindReference = targetTorsoReferenceLocal(
+                spec: spec,
                 for: binding,
                 aimLocal: targetBindAimLocal
             )
@@ -658,6 +678,7 @@ struct AvatarRigRetargeter {
     }
 
     private func targetTorsoReferenceLocal(
+        spec: DirectionalBoneSpec,
         for binding: AvatarBoneBinding,
         aimLocal: SIMD3<Float>
     ) -> SIMD3<Float>? {
@@ -673,9 +694,18 @@ struct AvatarRigRetargeter {
         let parentTransform = bindPoseTransforms[parentIndex]
         let torsoVectorInParentLocal = simd_act(
             parentTransform.rotation.inverse,
-            -parentTransform.translation
+            torsoReferenceBindTranslationSign(for: spec) * parentTransform.translation
         )
         return Self.projectedUnitVector(torsoVectorInParentLocal, ontoPlanePerpendicularTo: aimLocal)
+    }
+
+    private func torsoReferenceBindTranslationSign(for spec: DirectionalBoneSpec) -> Float {
+        switch spec {
+        case .leftUpperArm, .rightUpperArm:
+            1
+        case .leftForearm, .rightForearm:
+            -1
+        }
     }
 
     nonisolated private static func projectedUnitVector(

@@ -151,6 +151,22 @@ struct AvatarPoseSampler: Sendable {
             positions: &positions,
             rotations: &rotations
         )
+        Self.twistArmChainInPlace(
+            shoulder: .leftShoulder,
+            wrist: .leftWrist,
+            rotationJoints: [.leftUpperArm, .leftElbow, .leftWrist],
+            angle: -.pi / 2,
+            positions: positions,
+            rotations: &rotations
+        )
+        Self.twistArmChainInPlace(
+            shoulder: .rightShoulder,
+            wrist: .rightWrist,
+            rotationJoints: [.rightUpperArm, .rightElbow, .rightWrist],
+            angle: .pi / 2,
+            positions: positions,
+            rotations: &rotations
+        )
 
         return AvatarDrivePose(worldPositions: positions, worldRotations: rotations)
     }
@@ -237,5 +253,38 @@ struct AvatarPoseSampler: Sendable {
                 rotations[joint] = delta * rotation
             }
         }
+    }
+
+    private static func twistArmChainInPlace(
+        shoulder: OdoroJointName,
+        wrist: OdoroJointName,
+        rotationJoints: [OdoroJointName],
+        angle: Float,
+        positions: [OdoroJointName: SIMD3<Float>],
+        rotations: inout [OdoroJointName: simd_quatf]
+    ) {
+        guard
+            let shoulderPosition = positions[shoulder],
+            let wristPosition = positions[wrist],
+            let axis = normalized(wristPosition - shoulderPosition)
+        else {
+            return
+        }
+
+        let twist = simd_quatf(angle: angle, axis: axis)
+        for joint in rotationJoints {
+            if let rotation = rotations[joint] {
+                rotations[joint] = twist * rotation
+            }
+        }
+    }
+
+    private static func normalized(_ vector: SIMD3<Float>) -> SIMD3<Float>? {
+        let length = simd_length(vector)
+        guard length > 0.0001 else {
+            return nil
+        }
+
+        return vector / length
     }
 }
