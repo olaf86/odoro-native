@@ -12,40 +12,40 @@
 			containerPortal = EDAB17DC2F85378A00710FFB /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = EDAB17E32F85378A00710FFB;
-			remoteInfo = Odoro;
+			remoteInfo = OdoroNative;
 		};
 		EDAB17FE2F85378A00710FFB /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = EDAB17DC2F85378A00710FFB /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = EDAB17E32F85378A00710FFB;
-			remoteInfo = Odoro;
+			remoteInfo = OdoroNative;
 		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
 		EDAB17E42F85378A00710FFB /* Odoro.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Odoro.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		EDAB17F32F85378A00710FFB /* OdoroTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = OdoroTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		EDAB17FD2F85378A00710FFB /* OdoroUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = OdoroUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		EDAB17F32F85378A00710FFB /* OdoroNativeTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = OdoroNativeTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		EDAB17FD2F85378A00710FFB /* OdoroNativeUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = OdoroNativeUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		EDAB18182F85378A00710FFB /* Odoro Staging.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Odoro Staging.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		F0AA10012F85378A00710FFB /* AvatarStorage.base.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = AvatarStorage.base.xcconfig; sourceTree = "<group>"; };
 		F0AA10022F85378A00710FFB /* AvatarStorage.local.example.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = AvatarStorage.local.example.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		EDAB17E62F85378A00710FFB /* Odoro */ = {
+		EDAB17E62F85378A00710FFB /* OdoroNative */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = Odoro;
+			path = OdoroNative;
 			sourceTree = "<group>";
 		};
-		EDAB17F62F85378A00710FFB /* OdoroTests */ = {
+		EDAB17F62F85378A00710FFB /* OdoroNativeTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = OdoroTests;
+			path = OdoroNativeTests;
 			sourceTree = "<group>";
 		};
-		EDAB18002F85378A00710FFB /* OdoroUITests */ = {
+		EDAB18002F85378A00710FFB /* OdoroNativeUITests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = OdoroUITests;
+			path = OdoroNativeUITests;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -86,9 +86,9 @@
 			isa = PBXGroup;
 			children = (
 				F0AA10032F85378A00710FFB /* Configs */,
-				EDAB17E62F85378A00710FFB /* Odoro */,
-				EDAB17F62F85378A00710FFB /* OdoroTests */,
-				EDAB18002F85378A00710FFB /* OdoroUITests */,
+				EDAB17E62F85378A00710FFB /* OdoroNative */,
+				EDAB17F62F85378A00710FFB /* OdoroNativeTests */,
+				EDAB18002F85378A00710FFB /* OdoroNativeUITests */,
 				EDAB17E52F85378A00710FFB /* Products */,
 			);
 			sourceTree = "<group>";
@@ -98,8 +98,8 @@
 			children = (
 				EDAB17E42F85378A00710FFB /* Odoro.app */,
 				EDAB18182F85378A00710FFB /* Odoro Staging.app */,
-				EDAB17F32F85378A00710FFB /* OdoroTests.xctest */,
-				EDAB17FD2F85378A00710FFB /* OdoroUITests.xctest */,
+				EDAB17F32F85378A00710FFB /* OdoroNativeTests.xctest */,
+				EDAB17FD2F85378A00710FFB /* OdoroNativeUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -116,9 +116,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		EDAB17E32F85378A00710FFB /* Odoro */ = {
+		EDAB17E32F85378A00710FFB /* OdoroNative */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = EDAB18072F85378A00710FFB /* Build configuration list for PBXNativeTarget "Odoro" */;
+			buildConfigurationList = EDAB18072F85378A00710FFB /* Build configuration list for PBXNativeTarget "OdoroNative" */;
 			buildPhases = (
 				EDAB17E02F85378A00710FFB /* Sources */,
 				EDAB17E12F85378A00710FFB /* Frameworks */,
@@ -129,18 +129,18 @@
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				EDAB17E62F85378A00710FFB /* Odoro */,
+				EDAB17E62F85378A00710FFB /* OdoroNative */,
 			);
-			name = Odoro;
+			name = OdoroNative;
 			packageProductDependencies = (
 			);
 			productName = Odoro;
 			productReference = EDAB17E42F85378A00710FFB /* Odoro.app */;
 			productType = "com.apple.product-type.application";
 		};
-		EDAB17F22F85378A00710FFB /* OdoroTests */ = {
+		EDAB17F22F85378A00710FFB /* OdoroNativeTests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = EDAB180A2F85378A00710FFB /* Build configuration list for PBXNativeTarget "OdoroTests" */;
+			buildConfigurationList = EDAB180A2F85378A00710FFB /* Build configuration list for PBXNativeTarget "OdoroNativeTests" */;
 			buildPhases = (
 				EDAB17EF2F85378A00710FFB /* Sources */,
 				EDAB17F02F85378A00710FFB /* Frameworks */,
@@ -152,18 +152,18 @@
 				EDAB17F52F85378A00710FFB /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
-				EDAB17F62F85378A00710FFB /* OdoroTests */,
+				EDAB17F62F85378A00710FFB /* OdoroNativeTests */,
 			);
-			name = OdoroTests;
+			name = OdoroNativeTests;
 			packageProductDependencies = (
 			);
-			productName = OdoroTests;
-			productReference = EDAB17F32F85378A00710FFB /* OdoroTests.xctest */;
+			productName = OdoroNativeTests;
+			productReference = EDAB17F32F85378A00710FFB /* OdoroNativeTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
-		EDAB17FC2F85378A00710FFB /* OdoroUITests */ = {
+		EDAB17FC2F85378A00710FFB /* OdoroNativeUITests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = EDAB180D2F85378A00710FFB /* Build configuration list for PBXNativeTarget "OdoroUITests" */;
+			buildConfigurationList = EDAB180D2F85378A00710FFB /* Build configuration list for PBXNativeTarget "OdoroNativeUITests" */;
 			buildPhases = (
 				EDAB17F92F85378A00710FFB /* Sources */,
 				EDAB17FA2F85378A00710FFB /* Frameworks */,
@@ -175,18 +175,18 @@
 				EDAB17FF2F85378A00710FFB /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
-				EDAB18002F85378A00710FFB /* OdoroUITests */,
+				EDAB18002F85378A00710FFB /* OdoroNativeUITests */,
 			);
-			name = OdoroUITests;
+			name = OdoroNativeUITests;
 			packageProductDependencies = (
 			);
-			productName = OdoroUITests;
-			productReference = EDAB17FD2F85378A00710FFB /* OdoroUITests.xctest */;
+			productName = OdoroNativeUITests;
+			productReference = EDAB17FD2F85378A00710FFB /* OdoroNativeUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
-		EDAB181C2F85378A00710FFB /* Odoro Staging */ = {
+		EDAB181C2F85378A00710FFB /* OdoroNative Staging */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = EDAB18212F85378A00710FFB /* Build configuration list for PBXNativeTarget "Odoro Staging" */;
+			buildConfigurationList = EDAB18212F85378A00710FFB /* Build configuration list for PBXNativeTarget "OdoroNative Staging" */;
 			buildPhases = (
 				EDAB18192F85378A00710FFB /* Sources */,
 				EDAB181A2F85378A00710FFB /* Frameworks */,
@@ -197,9 +197,9 @@
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				EDAB17E62F85378A00710FFB /* Odoro */,
+				EDAB17E62F85378A00710FFB /* OdoroNative */,
 			);
-			name = "Odoro Staging";
+			name = "OdoroNative Staging";
 			packageProductDependencies = (
 			);
 			productName = "Odoro Staging";
@@ -232,7 +232,7 @@
 					};
 				};
 			};
-			buildConfigurationList = EDAB17DF2F85378A00710FFB /* Build configuration list for PBXProject "Odoro" */;
+			buildConfigurationList = EDAB17DF2F85378A00710FFB /* Build configuration list for PBXProject "OdoroNative" */;
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -250,10 +250,10 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				EDAB17E32F85378A00710FFB /* Odoro */,
-				EDAB17F22F85378A00710FFB /* OdoroTests */,
-				EDAB17FC2F85378A00710FFB /* OdoroUITests */,
-				EDAB181C2F85378A00710FFB /* Odoro Staging */,
+				EDAB17E32F85378A00710FFB /* OdoroNative */,
+				EDAB17F22F85378A00710FFB /* OdoroNativeTests */,
+				EDAB17FC2F85378A00710FFB /* OdoroNativeUITests */,
+				EDAB181C2F85378A00710FFB /* OdoroNative Staging */,
 			);
 		};
 /* End PBXProject section */
@@ -323,12 +323,12 @@
 /* Begin PBXTargetDependency section */
 		EDAB17F52F85378A00710FFB /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = EDAB17E32F85378A00710FFB /* Odoro */;
+			target = EDAB17E32F85378A00710FFB /* OdoroNative */;
 			targetProxy = EDAB17F42F85378A00710FFB /* PBXContainerItemProxy */;
 		};
 		EDAB17FF2F85378A00710FFB /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = EDAB17E32F85378A00710FFB /* Odoro */;
+			target = EDAB17E32F85378A00710FFB /* OdoroNative */;
 			targetProxy = EDAB17FE2F85378A00710FFB /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
@@ -465,7 +465,7 @@
 				DEVELOPMENT_TEAM = 48C76HC76Y;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = "Configs/Odoro-Info.plist";
+				INFOPLIST_FILE = "Configs/OdoroNative-Info.plist";
 				INFOPLIST_KEY_CFBundleIconName = AppIcon;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Camera access is required to capture body motion.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -480,7 +480,8 @@
 				MARKETING_VERSION = 1.0;
 				ODORO_ENVIRONMENT_NAME = prod;
 				PRODUCT_BUNDLE_IDENTIFIER = dev.asobo.odoro;
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_MODULE_NAME = OdoroNative;
+				PRODUCT_NAME = Odoro;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
@@ -501,7 +502,7 @@
 				DEVELOPMENT_TEAM = 48C76HC76Y;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = "Configs/Odoro-Info.plist";
+				INFOPLIST_FILE = "Configs/OdoroNative-Info.plist";
 				INFOPLIST_KEY_CFBundleIconName = AppIcon;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Camera access is required to capture body motion.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -516,7 +517,8 @@
 				MARKETING_VERSION = 1.0;
 				ODORO_ENVIRONMENT_NAME = prod;
 				PRODUCT_BUNDLE_IDENTIFIER = dev.asobo.odoro;
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_MODULE_NAME = OdoroNative;
+				PRODUCT_NAME = Odoro;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
@@ -587,7 +589,7 @@
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_TARGET_NAME = Odoro;
+				TEST_TARGET_NAME = OdoroNative;
 			};
 			name = Debug;
 		};
@@ -607,7 +609,7 @@
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_TARGET_NAME = Odoro;
+				TEST_TARGET_NAME = OdoroNative;
 			};
 			name = Release;
 		};
@@ -744,7 +746,7 @@
 				DEVELOPMENT_TEAM = 48C76HC76Y;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = "Configs/Odoro-Info.plist";
+				INFOPLIST_FILE = "Configs/OdoroNative-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = Odoro;
 				INFOPLIST_KEY_CFBundleIconName = AppIcon;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Camera access is required to capture body motion.";
@@ -761,7 +763,8 @@
 				MARKETING_VERSION = 1.0;
 				ODORO_ENVIRONMENT_NAME = prod;
 				PRODUCT_BUNDLE_IDENTIFIER = dev.asobo.odoro;
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_MODULE_NAME = OdoroNative;
+				PRODUCT_NAME = Odoro;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
@@ -783,7 +786,7 @@
 				DEVELOPMENT_TEAM = 48C76HC76Y;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = "Configs/Odoro-Info.plist";
+				INFOPLIST_FILE = "Configs/OdoroNative-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = Odoro;
 				INFOPLIST_KEY_CFBundleIconName = AppIcon;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Camera access is required to capture body motion.";
@@ -800,7 +803,8 @@
 				MARKETING_VERSION = 1.0;
 				ODORO_ENVIRONMENT_NAME = prod;
 				PRODUCT_BUNDLE_IDENTIFIER = dev.asobo.odoro;
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_MODULE_NAME = OdoroNative;
+				PRODUCT_NAME = Odoro;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
@@ -873,7 +877,7 @@
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_TARGET_NAME = Odoro;
+				TEST_TARGET_NAME = OdoroNative;
 			};
 			name = Staging;
 		};
@@ -893,7 +897,7 @@
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_TARGET_NAME = Odoro;
+				TEST_TARGET_NAME = OdoroNative;
 			};
 			name = Production;
 		};
@@ -908,7 +912,7 @@
 				DEVELOPMENT_TEAM = 48C76HC76Y;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = "Configs/Odoro-Info.plist";
+				INFOPLIST_FILE = "Configs/OdoroNative-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "Odoro Staging";
 				INFOPLIST_KEY_CFBundleIconName = AppIcon;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Camera access is required to capture body motion.";
@@ -947,7 +951,7 @@
 				DEVELOPMENT_TEAM = 48C76HC76Y;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = "Configs/Odoro-Info.plist";
+				INFOPLIST_FILE = "Configs/OdoroNative-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "Odoro Staging";
 				INFOPLIST_KEY_CFBundleIconName = AppIcon;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Camera access is required to capture body motion.";
@@ -986,7 +990,7 @@
 				DEVELOPMENT_TEAM = 48C76HC76Y;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = "Configs/Odoro-Info.plist";
+				INFOPLIST_FILE = "Configs/OdoroNative-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "Odoro Staging";
 				INFOPLIST_KEY_CFBundleIconName = AppIcon;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Camera access is required to capture body motion.";
@@ -1025,7 +1029,7 @@
 				DEVELOPMENT_TEAM = 48C76HC76Y;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = "Configs/Odoro-Info.plist";
+				INFOPLIST_FILE = "Configs/OdoroNative-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "Odoro Staging";
 				INFOPLIST_KEY_CFBundleIconName = AppIcon;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Camera access is required to capture body motion.";
@@ -1056,7 +1060,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		EDAB17DF2F85378A00710FFB /* Build configuration list for PBXProject "Odoro" */ = {
+		EDAB17DF2F85378A00710FFB /* Build configuration list for PBXProject "OdoroNative" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				EDAB18052F85378A00710FFB /* Debug */,
@@ -1067,7 +1071,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Production;
 		};
-		EDAB18072F85378A00710FFB /* Build configuration list for PBXNativeTarget "Odoro" */ = {
+		EDAB18072F85378A00710FFB /* Build configuration list for PBXNativeTarget "OdoroNative" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				EDAB18082F85378A00710FFB /* Debug */,
@@ -1078,7 +1082,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Production;
 		};
-		EDAB180A2F85378A00710FFB /* Build configuration list for PBXNativeTarget "OdoroTests" */ = {
+		EDAB180A2F85378A00710FFB /* Build configuration list for PBXNativeTarget "OdoroNativeTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				EDAB180B2F85378A00710FFB /* Debug */,
@@ -1089,7 +1093,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Production;
 		};
-		EDAB180D2F85378A00710FFB /* Build configuration list for PBXNativeTarget "OdoroUITests" */ = {
+		EDAB180D2F85378A00710FFB /* Build configuration list for PBXNativeTarget "OdoroNativeUITests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				EDAB180E2F85378A00710FFB /* Debug */,
@@ -1100,7 +1104,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Production;
 		};
-		EDAB18212F85378A00710FFB /* Build configuration list for PBXNativeTarget "Odoro Staging" */ = {
+		EDAB18212F85378A00710FFB /* Build configuration list for PBXNativeTarget "OdoroNative Staging" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				EDAB181D2F85378A00710FFB /* Debug */,

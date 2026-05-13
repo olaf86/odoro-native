@@ -13,7 +13,7 @@ The recording source may vary by platform and capture backend, but the stored fo
 
 The app does not need to persist camera video to satisfy product requirements. The durable asset is the motion payload: per-frame joint positions, optional rotations, and optional quality/provenance data.
 
-Avatar asset design is documented separately in [humanoid_avatar_data_design.md](/Users/olaf/Repos/odoro/internal_docs/humanoid_avatar_data_design.md:1) so motion persistence can stay independent from downloadable 3D model packaging.
+Avatar asset design is documented separately in [humanoid_avatar_data_design.md](/Users/olaf/Repos/odoro-native/internal_docs/humanoid_avatar_data_design.md:1) so motion persistence can stay independent from downloadable 3D model packaging.
 
 ## Storage Strategy
 
@@ -129,7 +129,7 @@ Odoro defines one canonical skeleton for storage.
 16. `leftFoot`
 17. `rightFoot`
 
-The canonical skeleton is now codified in [OdoroSkeleton.swift](/Users/olaf/Repos/odoro/Odoro/Domain/OdoroSkeleton.swift:1).
+The canonical skeleton is now codified in [OdoroSkeleton.swift](/Users/olaf/Repos/odoro-native/OdoroNative/Domain/OdoroSkeleton.swift:1).
 
 ### Joint Definitions
 

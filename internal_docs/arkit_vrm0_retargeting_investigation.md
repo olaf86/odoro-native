@@ -25,12 +25,12 @@ This is feasible in native Swift, but not as an out-of-the-box pipeline.
 Odoro already has the right architectural seam for this work.
 
 - `OdoroCanonicalPoseMapper` converts backend-specific ARKit joints into a smaller
-  canonical humanoid layer. See [OdoroCanonicalPoseMapper.swift](/Users/olaf/Repos/odoro/Odoro/Infrastructure/Persistence/OdoroCanonicalPoseMapper.swift:10).
+  canonical humanoid layer. See [OdoroCanonicalPoseMapper.swift](/Users/olaf/Repos/odoro-native/OdoroNative/Infrastructure/Persistence/OdoroCanonicalPoseMapper.swift:10).
 - `OdoroJointName` already describes a minimal body skeleton that is close to the first
-  set of bones we would want to drive on a VRM avatar. See [OdoroSkeleton.swift](/Users/olaf/Repos/odoro/Odoro/Domain/OdoroSkeleton.swift:8).
+  set of bones we would want to drive on a VRM avatar. See [OdoroSkeleton.swift](/Users/olaf/Repos/odoro-native/OdoroNative/Domain/OdoroSkeleton.swift:8).
 - `AvatarRigRetargeter` already applies the correct high-level math for rest-pose-aware
   retargeting: local motion delta from source T-pose, then re-application on the model
-  bind pose. See [AvatarRigRetargeter.swift](/Users/olaf/Repos/odoro/Odoro/Infrastructure/AvatarRigRetargeter.swift:10) and [AvatarRigRetargeter.swift](/Users/olaf/Repos/odoro/Odoro/Infrastructure/AvatarRigRetargeter.swift:112).
+  bind pose. See [AvatarRigRetargeter.swift](/Users/olaf/Repos/odoro-native/OdoroNative/Infrastructure/AvatarRigRetargeter.swift:10) and [AvatarRigRetargeter.swift](/Users/olaf/Repos/odoro-native/OdoroNative/Infrastructure/AvatarRigRetargeter.swift:112).
 
 In other words, the current codebase is already structured like:
 

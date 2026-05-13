@@ -1,6 +1,6 @@
 //
-//  OdoroApp.swift
-//  Odoro
+//  OdoroNativeApp.swift
+//  OdoroNative
 //
 //  Created by Yuta Ogawa on 2026/04/07.
 //
@@ -9,7 +9,7 @@ import SwiftUI
 import SwiftData
 
 @main
-struct OdoroApp: App {
+struct OdoroNativeApp: App {
     private let sharedModelContainer: ModelContainer
     private let archiveStore: MotionArchiveStore
 

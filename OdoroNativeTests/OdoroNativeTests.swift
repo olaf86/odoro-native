@@ -1,6 +1,6 @@
 //
-//  OdoroTests.swift
-//  OdoroTests
+//  OdoroNativeTests.swift
+//  OdoroNativeTests
 //
 //  Created by Yuta Ogawa on 2026/04/07.
 //
@@ -10,9 +10,9 @@ import Foundation
 import RealityKit
 import SwiftData
 import Testing
-@testable import Odoro
+@testable import OdoroNative
 
-struct OdoroTests {
+struct OdoroNativeTests {
     @MainActor @Test func avatarCatalogMergesInstalledDownloadableAvatarWithoutDuplicates() {
         let selection = StageAvatarSelection.avatar(
             avatarID: "avatar-sample-a",
@@ -2306,7 +2306,7 @@ struct OdoroTests {
         let robotURL = URL(filePath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
-            .appending(path: "Odoro/robot.usdz", directoryHint: .notDirectory)
+            .appending(path: "OdoroNative/robot.usdz", directoryHint: .notDirectory)
         let entity = try Entity.load(contentsOf: robotURL)
         let modelEntity = try #require(Self.findSkeletalModelEntity(in: entity))
 
@@ -2357,7 +2357,7 @@ struct OdoroTests {
         let robotURL = URL(filePath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
-            .appending(path: "Odoro/robot.usdz", directoryHint: .notDirectory)
+            .appending(path: "OdoroNative/robot.usdz", directoryHint: .notDirectory)
         let entity = try Entity.load(contentsOf: robotURL)
         let modelEntity = try #require(Self.findSkeletalModelEntity(in: entity))
 

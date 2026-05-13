@@ -1,13 +1,13 @@
 //
-//  OdoroUITestsLaunchTests.swift
-//  OdoroUITests
+//  OdoroNativeUITestsLaunchTests.swift
+//  OdoroNativeUITests
 //
 //  Created by Yuta Ogawa on 2026/04/07.
 //
 
 import XCTest
 
-final class OdoroUITestsLaunchTests: XCTestCase {
+final class OdoroNativeUITestsLaunchTests: XCTestCase {
 
     override class var runsForEachTargetApplicationUIConfiguration: Bool {
         true
